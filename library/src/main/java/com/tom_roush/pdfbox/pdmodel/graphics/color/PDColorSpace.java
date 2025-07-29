@@ -36,6 +36,7 @@ import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
  *
  * @author John Hewson
  * @author Ben Litchfield
+ * @modifiedBy Kanstantsin Valeitsenak
  */
 public abstract class PDColorSpace implements COSObjectable
 {
@@ -186,9 +187,7 @@ public abstract class PDColorSpace implements COSObjectable
             }
             else if (name == COSName.INDEXED)
             {
-//                return new PDIndexed(array);
-                Log.e("PdfBox-Android", "Unsupported color space kind: " + name + ". Will try DeviceRGB instead");
-                return PDDeviceRGB.INSTANCE;
+                return new PDIndexed(array);
             }
             else if (name == COSName.SEPARATION)
             {
