@@ -45,8 +45,8 @@ android {
     namespace 'com.tom_roush.pdfbox'
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_7
-        targetCompatibility JavaVersion.VERSION_1_7
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 
     // Rename the output aars
@@ -96,7 +96,7 @@ dependencies {
     api "org.bouncycastle:bcpkix-jdk15to18:1.73"
     api "org.bouncycastle:bcutil-jdk15to18:1.73"
     // for jpeg2000 decode/encode
-    compileOnly 'com.gemalto.jp2:jp2-android:1.0.3'
+    implementation 'com.github.ainceborn:JP2ForAndroid:1.0.3.1'
 
     // Test dependencies
     testImplementation 'junit:junit:4.13.2'

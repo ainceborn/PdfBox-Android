@@ -3,6 +3,7 @@ defaultTasks 'clean','build','connectedCheck'
 
 buildscript {
     repositories {
+        maven { url 'https://jitpack.io' }
         mavenCentral()
         google()
         jcenter() // jp2-android
@@ -18,6 +19,7 @@ allprojects {
     repositories {
 //        Enable downloading snapshot versions
 //        maven { url "https://s01.oss.sonatype.org/content/repositories/snapshots/" }
+        maven { url 'https://jitpack.io' }
         mavenCentral()
         google()
         jcenter()
