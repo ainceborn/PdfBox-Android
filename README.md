@@ -1,7 +1,6 @@
 PdfBox-Android
 ==============
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.tom-roush/pdfbox-android/badge.svg?style=flat)](https://maven-badges.herokuapp.com/maven-central/com.tom-roush/pdfbox-android/)
-[![Build Status](https://github.com/TomRoush/PdfBox-Android/actions/workflows/android-ci.yml/badge.svg?branch=master)](https://github.com/TomRoush/PdfBox-Android/actions)
+[![](https://jitpack.io/v/ainceborn/PdfBox-Android.svg)](https://jitpack.io/#ainceborn/PdfBox-Android)
 
 A port of Apache's PdfBox library to be usable on Android. Most features should be implemented by now. Feature requests can be added to the issue tracker. Stable releases can be added as a Gradle dependency from Maven Central.
 
@@ -14,7 +13,7 @@ Add the following to dependency to `build.gradle`:
 
 ```gradle
 dependencies {
-    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.1'
 }
 ```
 
