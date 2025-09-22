@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.util.List;
 
 import com.tom_roush.pdfbox.cos.COSArray;
+import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.filter.DecodeOptions;
 import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
@@ -189,4 +190,7 @@ public interface PDImage extends COSObjectable
      * Returns the suffix for this image type, e.g. "jpg"
      */
     String getSuffix();
+
+    @Override
+    COSDictionary getCOSObject();
 }

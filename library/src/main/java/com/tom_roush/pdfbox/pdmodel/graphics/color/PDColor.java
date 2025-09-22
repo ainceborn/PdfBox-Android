@@ -16,6 +16,7 @@
  */
 package com.tom_roush.pdfbox.pdmodel.graphics.color;
 
+import android.graphics.Color;
 import android.util.Log;
 
 import java.io.IOException;
@@ -135,7 +136,7 @@ public final class PDColor
      */
     public float[] getComponents()
     {
-        if (/*colorSpace instanceof PDPattern || TODO: PdfBox-Android*/ colorSpace == null)
+        if (colorSpace instanceof PDPattern ||  colorSpace == null)
         {
             // colorspace of the pattern color isn't known, so just clone
             // null colorspace can happen with empty annotation color
@@ -173,6 +174,9 @@ public final class PDColor
     public int toRGB() throws IOException
     {
         float[] floats = colorSpace.toRGB(components);
+
+        if(floats == null) return Color.WHITE;
+
         int r = Math.round(floats[0] * 255);
         int g = Math.round(floats[1] * 255);
         int b = Math.round(floats[2] * 255);

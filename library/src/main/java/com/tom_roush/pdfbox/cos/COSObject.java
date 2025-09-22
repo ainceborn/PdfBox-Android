@@ -31,6 +31,8 @@ public class COSObject extends COSBase implements COSUpdateInfo
     private int generationNumber;
     private boolean needToBeUpdated;
     private boolean dereferencingInProgress = false;
+    private boolean isDereferenced = false;
+    private final COSUpdateState updateState;
 
     /**
      * Constructor.
@@ -42,6 +44,8 @@ public class COSObject extends COSBase implements COSUpdateInfo
     public COSObject( COSBase object ) throws IOException
     {
         setObject( object );
+        isDereferenced = true;
+        updateState = new COSUpdateState(this);
     }
 
     /**
@@ -86,6 +90,7 @@ public class COSObject extends COSBase implements COSUpdateInfo
      */
     public COSBase getObject()
     {
+        isDereferenced = true;
         return baseObject;
     }
 
@@ -207,6 +212,21 @@ public class COSObject extends COSBase implements COSUpdateInfo
     public void setNeedToBeUpdated(boolean flag)
     {
         needToBeUpdated = flag;
+    }
+
+    @Override
+    public COSIncrement toIncrement() {
+        return COSUpdateInfo.super.toIncrement();
+    }
+
+    @Override
+    public COSUpdateState getUpdateState() {
+        return updateState;
+    }
+
+    public boolean isDereferenced()
+    {
+        return isDereferenced;
     }
 
 }

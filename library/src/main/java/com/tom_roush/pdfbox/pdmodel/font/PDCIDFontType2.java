@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.tom_roush.fontbox.cff.CFFFont;
 import com.tom_roush.fontbox.cff.Type2CharString;
 import com.tom_roush.fontbox.cmap.CMap;
 import com.tom_roush.fontbox.ttf.CmapLookup;
@@ -31,6 +32,7 @@ import com.tom_roush.fontbox.ttf.OTFParser;
 import com.tom_roush.fontbox.ttf.OpenTypeFont;
 import com.tom_roush.fontbox.ttf.TrueTypeFont;
 import com.tom_roush.fontbox.util.BoundingBox;
+import com.tom_roush.harmony.awt.geom.AffineTransform;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.common.PDStream;
@@ -44,6 +46,7 @@ import com.tom_roush.pdfbox.util.Matrix;
 public class PDCIDFontType2 extends PDCIDFont
 {
     private final TrueTypeFont ttf;
+    private final OpenTypeFont otf;
     private final int[] cid2gid;
     private final boolean isEmbedded;
     private final boolean isDamaged;
@@ -80,6 +83,8 @@ public class PDCIDFontType2 extends PDCIDFont
         if (trueTypeFont != null)
         {
             ttf = trueTypeFont;
+            otf = ttf instanceof OpenTypeFont && ((OpenTypeFont) ttf).isSupportedOTF()
+                    ? (OpenTypeFont) ttf : null;
             isEmbedded = true;
             isDamaged = false;
         }
@@ -132,6 +137,9 @@ public class PDCIDFontType2 extends PDCIDFont
                 ttfFont = findFontOrSubstitute();
             }
             ttf = ttfFont;
+            otf = ttf instanceof OpenTypeFont
+                    && ((OpenTypeFont) ttf).isSupportedOTF() ? (OpenTypeFont) ttf
+                    : null;
         }
         cmap = ttf.getUnicodeCmapLookup(false);
         cid2gid = readCIDToGIDMap();
@@ -430,5 +438,48 @@ public class PDCIDFontType2 extends PDCIDFont
     public boolean hasGlyph(int code) throws IOException
     {
         return codeToGID(code) != 0;
+    }
+
+    @Override
+    public Path getNormalizedPath(int code) throws IOException {
+        Path path = null;
+        if (otf != null && otf.isPostScript())
+        {
+            path = getPathFromOutlines(code);
+        }
+        else
+        {
+            int gid = codeToGID(code);
+            path = getPath(code);
+            // Acrobat only draws GID 0 for embedded CIDFonts, see PDFBOX-2372
+            if (gid == 0 && !isEmbedded())
+            {
+                path = null;
+            }
+        }
+        if (path == null)
+        {
+            // empty glyph (e.g. space, newline)
+            return new Path();
+        }
+
+        if (ttf.getUnitsPerEm() != 1000)
+        {
+            float scale = 1000f / ttf.getUnitsPerEm();
+
+            // PDFBOX-5567: clone() to avoid repeated modification on cached path
+            path = new Path (path);
+
+            path.transform(AffineTransform.getScaleInstance(scale, scale).toMatrix());
+        }
+        return path;
+    }
+
+    private Path getPathFromOutlines(int code) throws IOException
+    {
+        CFFFont cffFont = otf.getCFF().getFont();
+        int gid = codeToGID(code);
+        Type2CharString type2CharString = cffFont.getType2CharString(gid);
+        return type2CharString != null ? type2CharString.getPath() : null;
     }
 }

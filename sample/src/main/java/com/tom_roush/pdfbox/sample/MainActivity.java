@@ -19,6 +19,7 @@ import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.tom_roush.pdfbox.android.PDFBoxConfig;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentCatalog;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
@@ -75,6 +76,7 @@ public class MainActivity extends Activity {
     private void setup() {
         // Enable Android asset loading
         PDFBoxResourceLoader.init(getApplicationContext());
+        PDFBoxConfig.setFontLoadLevel(PDFBoxConfig.FontLoadLevel.FULL);
         // Find the root of the external storage.
 
         root = getApplicationContext().getCacheDir();
@@ -157,19 +159,14 @@ public class MainActivity extends Activity {
         // Render the page and save it to an image file
         try {
             // Load in an already created PDF
-            PDDocument document = PDDocument.load(assetManager.open("Created.pdf"));
+            PDDocument document = PDDocument.load(assetManager.open("Berzerk_Distortion.pdf"));
             // Create a renderer for the document
             PDFRenderer renderer = new PDFRenderer(document);
             // Render the image to an RGB Bitmap
-            pageImage = renderer.renderImage(0, 1, ImageType.RGB);
+            pageImage = renderer.renderImage(1, 1, ImageType.RGB);
 
             // Save the render result to an image
-            String path = root.getAbsolutePath() + "/render.jpg";
-            File renderFile = new File(path);
-            FileOutputStream fileOut = new FileOutputStream(renderFile);
-            pageImage.compress(Bitmap.CompressFormat.JPEG, 100, fileOut);
-            fileOut.close();
-            tv.setText("Successfully rendered image to " + path);
+            //tv.setText("Successfully rendered image to " + path);
             // Optional: display the render result on screen
             displayRenderedImage();
         }

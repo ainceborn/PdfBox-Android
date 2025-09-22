@@ -117,6 +117,7 @@ class MemoryTTFDataStream extends TTFDataStream
         int ch2 = this.read();
         if ((ch1 | ch2) < 0)
         {
+           // Log.d("GSUB", "streamLength=" + data.length());
             throw new EOFException();
         }
         return (ch1 << 8) + ch2;

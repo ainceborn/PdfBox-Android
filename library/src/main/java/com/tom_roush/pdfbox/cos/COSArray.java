@@ -21,6 +21,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Spliterator;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
 
@@ -34,12 +37,31 @@ public class COSArray extends COSBase implements Iterable<COSBase>, COSUpdateInf
     private final List<COSBase> objects = new ArrayList<COSBase>();
     private boolean needToBeUpdated;
 
+    private final COSUpdateState updateState;
+
     /**
      * Constructor.
      */
     public COSArray()
     {
+        updateState = new COSUpdateState(this);
         //default constructor
+    }
+
+    public COSArray(List<? extends COSObjectable> cosObjectables)
+    {
+        this(
+                cosObjectables.stream()
+                        .map(co -> co == null ? null : co.getCOSObject())
+                        .collect(Collectors.toCollection(ArrayList::new)),
+                true
+        );
+    }
+
+    private COSArray(ArrayList<COSBase> cosObjects, boolean direct)
+    {
+        updateState = new COSUpdateState(this);
+        setDirect(direct);
     }
 
     /**
@@ -427,6 +449,16 @@ public class COSArray extends COSBase implements Iterable<COSBase>, COSUpdateInf
         return objects.iterator();
     }
 
+    @Override
+    public void forEach(Consumer<? super COSBase> action) {
+        Iterable.super.forEach(action);
+    }
+
+    @Override
+    public Spliterator<COSBase> spliterator() {
+        return Iterable.super.spliterator();
+    }
+
     /**
      * This will return the index of the entry or -1 if it is not found.
      *
@@ -541,6 +573,16 @@ public class COSArray extends COSBase implements Iterable<COSBase>, COSUpdateInf
     public void setNeedToBeUpdated(boolean flag)
     {
         needToBeUpdated = flag;
+    }
+
+    @Override
+    public COSIncrement toIncrement() {
+        return COSUpdateInfo.super.toIncrement();
+    }
+
+    @Override
+    public COSUpdateState getUpdateState() {
+        return updateState;
     }
 
     /**

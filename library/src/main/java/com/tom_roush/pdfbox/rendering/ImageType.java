@@ -49,7 +49,7 @@ public enum ImageType
             @Override // TODO: PdfBox-Android 565?
             Bitmap.Config toBitmapConfig()
             {
-                return Bitmap.Config.ARGB_8888;
+                return Bitmap.Config.RGB_565;
             }
         },
 

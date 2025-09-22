@@ -18,18 +18,19 @@
 package com.tom_roush.pdfbox.pdmodel.graphics.color;
 
 import android.graphics.Bitmap;
-import android.os.Build;
+import android.graphics.Color;
 
 import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSBase;
+import com.tom_roush.pdfbox.cos.COSInteger;
+import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.cos.COSStream;
 import com.tom_roush.pdfbox.cos.COSString;
-import com.tom_roush.pdfbox.cos.COSNumber;
-import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.pdmodel.PDResources;
+import com.tom_roush.pdfbox.pdmodel.common.PDStream;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  * Indexed color spaces allow a PDF to use a small color lookup table (palette),
@@ -44,148 +45,148 @@ import java.io.InputStream;
  * @author Kanstantsin Valeitsenak
  */
 
-public class PDIndexed extends PDColorSpace
-{
-    private final PDColorSpace baseColorSpace;
-    private final int highVal;
-    private final byte[] lookupData;
+public final class PDIndexed extends PDSpecialColorSpace {
 
-    public PDIndexed(COSArray indexedArray) throws IOException
-    {
-        this.array = indexedArray;
+    private final PDColor initialColor = new PDColor(new float[]{0}, this);
+    private PDColorSpace baseColorSpace;
+    private byte[] lookupData;
+    private float[][] colorTable;
+    private int actualMaxIndex;
+    private int[][] rgbColorTable;
 
-        COSBase base = array.getObject(1);
-        this.baseColorSpace = PDColorSpace.create(base);
+    public PDIndexed() {
+        array = new COSArray();
+        array.add(COSName.INDEXED);
+        array.add(COSName.DEVICERGB);
+        array.add(COSInteger.get(255));
+        array.add(null);
+    }
 
-        COSNumber hivalObj = (COSNumber) array.getObject(2);
-        this.highVal = hivalObj.intValue();
+    public PDIndexed(COSArray indexedArray) throws IOException {
+        this(indexedArray, null);
+    }
 
-        COSBase lookup = array.getObject(3);
-
-        if (lookup instanceof COSString)
-        {
-            this.lookupData = ((COSString) lookup).getBytes();
-        }
-        else if (lookup instanceof COSStream)
-        {
-            try (InputStream is = ((COSStream) lookup).createInputStream())
-            {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    this.lookupData = is.readAllBytes(); // API 26+
-                } else {
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    byte[] buffer = new byte[1024];
-                    int read;
-                    while ((read = is.read(buffer)) != -1) {
-                        baos.write(buffer, 0, read);
-                    }
-                    this.lookupData = baos.toByteArray();
-                }
-            }
-        }
-        else
-        {
-            throw new IOException("Invalid lookup data in Indexed color space");
-        }
+    public PDIndexed(COSArray indexedArray, PDResources resources) throws IOException {
+        array = indexedArray;
+        baseColorSpace = PDColorSpace.create(array.get(1), resources);
+        readColorTable();
+        initRgbColorTable();
     }
 
     @Override
-    public String getName()
-    {
+    public String getName() {
         return COSName.INDEXED.getName();
     }
 
     @Override
-    public int getNumberOfComponents()
-    {
+    public int getNumberOfComponents() {
         return 1;
     }
 
     @Override
-    public float[] getDefaultDecode(int bitsPerComponent)
-    {
-        return new float[] { 0, highVal };
+    public float[] getDefaultDecode(int bitsPerComponent) {
+        return new float[]{0, (float) Math.pow(2, bitsPerComponent) - 1};
     }
 
     @Override
-    public PDColor getInitialColor()
-    {
-        return new PDColor(new float[] { 0 }, this);
+    public PDColor getInitialColor() {
+        return initialColor;
     }
 
-    @Override
-    public float[] toRGB(float[] value)
-    {
-        int index = Math.round(value[0]);
-        int numColorComponents = baseColorSpace.getNumberOfComponents();
-        int paletteIndex = index * numColorComponents;
-
-        if (paletteIndex + numColorComponents > lookupData.length)
-        {
-            return baseColorSpace.getInitialColor().getComponents(); // fallback
-        }
-
-        float[] rgb = new float[3];
-        float[] component = new float[numColorComponents];
-        for (int i = 0; i < numColorComponents; i++)
-        {
-            int byteVal = lookupData[paletteIndex + i] & 0xFF;
-            component[i] = byteVal / 255f;
-        }
-
-        try {
-            rgb = baseColorSpace.toRGB(component);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return rgb;
-    }
-
-    @Override
-    public Bitmap toRGBImage(Bitmap raster) throws IOException {
-        if (raster.getConfig() != Bitmap.Config.ALPHA_8)
-        {
-            throw new IOException("Expected ALPHA_8 bitmap as Indexed source.");
-        }
-
-        int width = raster.getWidth();
-        int height = raster.getHeight();
-
-        Bitmap rgbBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-
-        int[] pixels = new int[width];
-        for (int y = 0; y < height; y++)
-        {
-            raster.getPixels(pixels, 0, width, 0, y, width, 1);
-
-            for (int x = 0; x < width; x++)
-            {
-                int index = pixels[x] & 0xFF;
-
-                int baseIndex = index * baseColorSpace.getNumberOfComponents();
-
-                if (baseIndex + 2 >= lookupData.length)
-                {
-                    rgbBitmap.setPixel(x, y, android.graphics.Color.BLACK); // fallback
-                    continue;
-                }
-
-                float[] baseColor = new float[baseColorSpace.getNumberOfComponents()];
-                for (int i = 0; i < baseColor.length; i++)
-                {
-                    baseColor[i] = (lookupData[baseIndex + i] & 0xFF) / 255f;
-                }
-
-                float[] rgb = baseColorSpace.toRGB(baseColor);
-
-                int r = (int)(rgb[0] * 255);
-                int g = (int)(rgb[1] * 255);
-                int b = (int)(rgb[2] * 255);
-
-                rgbBitmap.setPixel(x, y, android.graphics.Color.rgb(r, g, b));
+    private void readLookupData() throws IOException {
+        if (lookupData == null) {
+            COSBase lookupTable = array.getObject(3);
+            if (lookupTable instanceof COSString) {
+                lookupData = ((COSString) lookupTable).getBytes();
+            } else if (lookupTable instanceof COSStream) {
+                lookupData = new PDStream((COSStream) lookupTable).toByteArray();
+            } else if (lookupTable == null) {
+                lookupData = new byte[0];
+            } else {
+                throw new IOException("Unknown type for lookup table " + lookupTable);
             }
         }
+    }
 
-        return rgbBitmap;
+    private void readColorTable() throws IOException {
+        readLookupData();
+
+        int maxIndex = Math.min(getHival(), 255);
+        int numComponents = baseColorSpace.getNumberOfComponents();
+
+        if (lookupData.length / numComponents < maxIndex + 1) {
+            maxIndex = lookupData.length / numComponents - 1;
+        }
+        actualMaxIndex = maxIndex;
+
+        colorTable = new float[maxIndex + 1][numComponents];
+        for (int i = 0, offset = 0; i <= maxIndex; i++) {
+            for (int c = 0; c < numComponents; c++) {
+                colorTable[i][c] = (lookupData[offset++] & 0xff) / 255f;
+            }
+        }
+    }
+
+    private void initRgbColorTable() throws IOException {
+        int numBaseComponents = baseColorSpace.getNumberOfComponents();
+        rgbColorTable = new int[actualMaxIndex + 1][3];
+
+        for (int i = 0; i <= actualMaxIndex; i++) {
+            float[] rgb = baseColorSpace.toRGB(colorTable[i]);
+            rgbColorTable[i][0] = Math.round(rgb[0] * 255);
+            rgbColorTable[i][1] = Math.round(rgb[1] * 255);
+            rgbColorTable[i][2] = Math.round(rgb[2] * 255);
+        }
+    }
+
+    @Override
+    public float[] toRGB(float[] value) {
+        if (value.length != 1) throw new IllegalArgumentException("Indexed color spaces must have one color value");
+
+        int index = Math.round(value[0]);
+        index = Math.max(0, Math.min(index, actualMaxIndex));
+
+        int[] rgb = rgbColorTable[index];
+        return new float[]{rgb[0] / 255f, rgb[1] / 255f, rgb[2] / 255f};
+    }
+
+    public Bitmap toRGBImage(Bitmap raster) {
+        int width = raster.getWidth();
+        int height = raster.getHeight();
+        Bitmap rgbImage = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+
+        int[] pixels = new int[width * height];
+        raster.getPixels(pixels, 0, width, 0, 0, width, height);
+
+        for (int i = 0; i < pixels.length; i++) {
+            int index = Math.min(pixels[i] & 0xFF, actualMaxIndex);
+            int[] rgb = rgbColorTable[index];
+            pixels[i] = Color.rgb(rgb[0], rgb[1], rgb[2]);
+        }
+
+        rgbImage.setPixels(pixels, 0, width, 0, 0, width, height);
+        return rgbImage;
+    }
+
+    public PDColorSpace getBaseColorSpace() {
+        return baseColorSpace;
+    }
+
+    private int getHival() {
+        return ((COSNumber) array.getObject(2)).intValue();
+    }
+
+    public void setBaseColorSpace(PDColorSpace base) {
+        array.set(1, base.getCOSObject());
+        baseColorSpace = base;
+    }
+
+    public void setHighValue(int high) {
+        array.set(2, high);
+    }
+
+    @Override
+    public String toString() {
+        return "Indexed{base:" + baseColorSpace + " hival:" + getHival() + " lookup:(" + colorTable.length + " entries)}";
     }
 }

@@ -36,6 +36,7 @@ import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.filter.DecodeOptions;
 import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDIndexed;
 
 /**
  * Reads a sampled image from a PDF file.
@@ -281,7 +282,7 @@ final class SampledImageReader
             // and then simply shift bits out to the left, detecting set bits via sign
             final boolean nosubsampling = currentSubsampling == 1;
             final int stride = (inputWidth + 7) / 8;
-            final int invert = /*colorSpace instanceof PDIndexed TODO: PdfBox-Android ||*/ decode[0] < decode[1] ? 0 : -1;
+            final int invert = colorSpace instanceof PDIndexed && decode[0] < decode[1] ? 0 : -1;
             final int endX = startx + scanWidth;
             final byte[] buff = new byte[stride];
             for (int y = 0; y < starty + scanHeight; y++)

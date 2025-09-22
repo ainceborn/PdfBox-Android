@@ -42,4 +42,6 @@ public interface PDVectorFont
      * @param code character code in a PDF. Not to be confused with unicode.
      */
     boolean hasGlyph(int code) throws IOException;
+
+    Path getNormalizedPath(int code) throws IOException;
 }

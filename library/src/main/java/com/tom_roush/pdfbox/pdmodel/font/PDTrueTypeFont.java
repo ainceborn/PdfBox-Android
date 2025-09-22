@@ -26,13 +26,17 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.tom_roush.fontbox.FontBoxFont;
+import com.tom_roush.fontbox.cff.CFFFont;
+import com.tom_roush.fontbox.cff.Type2CharString;
 import com.tom_roush.fontbox.ttf.CmapSubtable;
 import com.tom_roush.fontbox.ttf.CmapTable;
 import com.tom_roush.fontbox.ttf.GlyphData;
+import com.tom_roush.fontbox.ttf.OpenTypeFont;
 import com.tom_roush.fontbox.ttf.PostScriptTable;
 import com.tom_roush.fontbox.ttf.TTFParser;
 import com.tom_roush.fontbox.ttf.TrueTypeFont;
 import com.tom_roush.fontbox.util.BoundingBox;
+import com.tom_roush.harmony.awt.geom.AffineTransform;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.io.IOUtils;
@@ -170,6 +174,7 @@ public class PDTrueTypeFont extends PDSimpleFont implements PDVectorFont
     private Map<Integer, Integer> gidToCode; // for embedding
 
     private final TrueTypeFont ttf;
+    private final OpenTypeFont otf;
     private final boolean isEmbedded;
     private final boolean isDamaged;
     private BoundingBox fontBBox;
@@ -224,6 +229,17 @@ public class PDTrueTypeFont extends PDSimpleFont implements PDVectorFont
             }
         }
         ttf = ttfFont;
+
+        if (ttfFont == null)
+        {
+            FontMapping<TrueTypeFont> mapping = FontMappers.instance()
+                    .getTrueTypeFont(getBaseFont(),
+                            getFontDescriptor());
+            ttfFont = mapping.getFont();
+        }
+        otf = ttfFont instanceof OpenTypeFont && ((OpenTypeFont) ttfFont).isSupportedOTF()
+                ? (OpenTypeFont) ttfFont : null;
+
         readEncoding();
     }
 
@@ -300,6 +316,8 @@ public class PDTrueTypeFont extends PDSimpleFont implements PDVectorFont
             encoding);
         this.encoding = encoding;
         this.ttf = ttf;
+
+        otf = ttf instanceof OpenTypeFont && ((OpenTypeFont) ttf).isSupportedOTF() ? (OpenTypeFont) ttf : null;
         setFontDescriptor(embedder.getFontDescriptor());
         isEmbedded = true;
         isDamaged = false;
@@ -539,6 +557,7 @@ public class PDTrueTypeFont extends PDSimpleFont implements PDVectorFont
         return codeToGID(code) != 0;
     }
 
+
     /**
      * Returns the GID for the given character code.
      *
@@ -698,5 +717,45 @@ public class PDTrueTypeFont extends PDSimpleFont implements PDVectorFont
             }
         }
         cmapInitialized = true;
+    }
+
+    @Override
+    public Path getNormalizedPath(int code) throws IOException {
+        Path path = null;
+        if (otf != null && otf.isPostScript())
+        {
+            path = getPathFromOutlines(code);
+        }
+        else
+        {
+            int gid = codeToGID(code);
+            path = getPath(code);
+            // Acrobat only draws GID 0 for embedded or "Standard 14" fonts, see PDFBOX-2372
+            if (gid == 0 && !isEmbedded() && !isStandard14())
+            {
+                path = null;
+            }
+        }
+        if (path == null)
+        {
+            return new Path();
+        }
+        if (ttf.getUnitsPerEm() != 1000)
+        {
+            float scale = 1000f / ttf.getUnitsPerEm();
+            // path will have to be cloned if it is cached in the future, see PDFBOX-5567
+            path.transform(AffineTransform.getScaleInstance(scale, scale).toMatrix());
+        }
+        return path;
+    }
+
+    private Path getPathFromOutlines(int code) throws IOException
+    {
+        CFFFont cffFont = otf.getCFF().getFont();
+        String name = getEncoding().getName(code);
+        int sid = cffFont.getCharset().getSID(name);
+        int gid = cffFont.getCharset().getGIDForSID(sid);
+        Type2CharString type2CharString = cffFont.getType2CharString(gid);
+        return type2CharString != null ? type2CharString.getPath() : null;
     }
 }

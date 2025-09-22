@@ -50,7 +50,7 @@ import static com.tom_roush.pdfbox.pdmodel.font.UniUtil.getUniNameOfCodePoint;
  * @author Villu Ruusmann
  * @author John Hewson
  */
-public class PDType1CFont extends PDSimpleFont
+public class PDType1CFont extends PDSimpleFont  implements PDVectorFont
 {
     private final Map<String, Float> glyphHeights = new HashMap<String, Float>();
     private Float avgWidth = null;
@@ -427,5 +427,71 @@ public class PDType1CFont extends PDSimpleFont
             }
         }
         return ".notdef";
+    }
+
+    @Override
+    public Path getPath(int code) throws IOException {
+        // Acrobat only draws .notdef for embedded or "Standard 14" fonts, see PDFBOX-2372
+        String name = getEncoding().getName(code);
+        name = getNameInFont(name);
+
+        if (name.equals(".notdef") && !isEmbedded() && !isStandard14())
+        {
+            return new Path();
+        }
+        if ("sfthyphen".equals(name))
+        {
+            return genericFont.getPath("hyphen");
+        }
+        if ("nbspace".equals(name))
+        {
+            if (!hasGlyph("space"))
+            {
+                return new Path();
+            }
+            return genericFont.getPath("space");
+        }
+        return genericFont.getPath(name);
+    }
+
+    @Override
+    public boolean hasGlyph(int code) throws IOException {
+        String name = getEncoding().getName(code);
+
+        name = getNameInFont(name);
+
+        if ("sfthyphen".equals(name))
+        {
+            return hasGlyph("hyphen");
+        }
+        if ("nbspace".equals(name))
+        {
+            return hasGlyph("space");
+        }
+        return hasGlyph(name);
+    }
+
+    @Override
+    public Path getNormalizedPath(int code) throws IOException {
+        String name = getEncoding().getName(code);
+        name = getNameInFont(name);
+        if ("nbspace".equals(name))
+        {
+            if (!hasGlyph("space"))
+            {
+                return new Path();
+            }
+            name = "space";
+        }
+        else if ("sfthyphen".equals(name))
+        {
+            name = "hyphen";
+        }
+        Path path = getPath(name);
+        if (path == null)
+        {
+            return getPath(".notdef");
+        }
+        return path;
     }
 }

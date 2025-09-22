@@ -117,7 +117,7 @@ public abstract class CFFCharset
      * @param sid SID
      * @return GID
      */
-    int getGIDForSID(int sid)
+    public int getGIDForSID(int sid)
     {
         if (isCIDFont)
         {
@@ -158,7 +158,7 @@ public abstract class CFFCharset
      * @param name PostScript glyph name
      * @return SID
      */
-    int getSID(String name)
+    public int getSID(String name)
     {
         if (isCIDFont)
         {

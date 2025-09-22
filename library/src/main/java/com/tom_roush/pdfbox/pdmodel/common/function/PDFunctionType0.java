@@ -20,6 +20,7 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Array;
 
 import com.tom_roush.harmony.javax.imageio.stream.ImageInputStream;
 import com.tom_roush.harmony.javax.imageio.stream.MemoryCacheImageInputStream;
@@ -318,6 +319,9 @@ public class PDFunctionType0 extends PDFunction
             }
             else
             {
+                if (inPrev == null || inPrev.length == 0 || inNext == null || inNext.length == 0) {
+                    return new float[] { 0f };
+                }
                 // branch
                 if (inPrev[step] == inNext[step])
                 {

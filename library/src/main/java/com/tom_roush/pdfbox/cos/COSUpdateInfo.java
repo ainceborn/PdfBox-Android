@@ -16,7 +16,9 @@
  */
 package com.tom_roush.pdfbox.cos;
 
-public interface COSUpdateInfo
+import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
+
+public interface COSUpdateInfo  extends COSObjectable
 {
     /**
      * Get the update state for the COSWriter. This indicates whether an object is to be written
@@ -33,5 +35,24 @@ public interface COSUpdateInfo
      * @param flag the update state.
      */
     void setNeedToBeUpdated(boolean flag);
+
+    /**
+     * Uses this {@link COSUpdateInfo} as the base object of a new {@link COSIncrement}.
+     *
+     * @return A {@link COSIncrement} based on this {@link COSUpdateInfo}.
+     * @see COSIncrement
+     */
+    default COSIncrement toIncrement()
+    {
+        return getUpdateState().toIncrement();
+    }
+
+    /**
+     * Returns the current {@link COSUpdateState} of this {@link COSUpdateInfo}.
+     *
+     * @return The current {@link COSUpdateState} of this {@link COSUpdateInfo}.
+     * @see COSUpdateState
+     */
+    COSUpdateState getUpdateState();
 
 }
