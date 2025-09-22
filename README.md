@@ -14,7 +14,7 @@ Add the following to dependency to `build.gradle`:
 
 ```gradle
 dependencies {
-    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.2'
 }
 ```
 

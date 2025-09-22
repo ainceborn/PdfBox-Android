@@ -544,7 +544,7 @@ final class FileSystemFontProvider extends FontProvider
         Map<String, FSFontInfo> cachedFonts = new HashMap<>(); // key = name + size
         List<FSFontInfo> results = new ArrayList<>();
 
-        File cacheDir = getDiskCacheFile(); // метод возвращает папку кэша
+        File cacheDir = getDiskCacheFile();
         if (cacheDir != null && cacheDir.exists() && cacheDir.isDirectory()) {
             File[] cachedFiles = cacheDir.listFiles();
             if (cachedFiles != null) {

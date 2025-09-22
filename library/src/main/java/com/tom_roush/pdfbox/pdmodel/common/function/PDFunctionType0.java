@@ -320,7 +320,6 @@ public class PDFunctionType0 extends PDFunction
             else
             {
                 if (inPrev == null || inPrev.length == 0 || inNext == null || inNext.length == 0) {
-                    // fallback: возвращаем безопасное значение
                     return new float[] { 0f };
                 }
                 // branch
