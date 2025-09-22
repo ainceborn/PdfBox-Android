@@ -30,7 +30,7 @@ public class SubstitutingCmapLookup implements CmapLookup
     private final List<String> enabledFeatures;
 
     public SubstitutingCmapLookup(CmapSubtable cmap, GlyphSubstitutionTable gsub,
-        List<String> enabledFeatures)
+                                  List<String> enabledFeatures)
     {
         this.cmap = cmap;
         this.gsub = gsub;

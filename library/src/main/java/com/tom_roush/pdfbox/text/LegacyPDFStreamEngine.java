@@ -299,7 +299,11 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
             {
                 // Acrobat doesn't seem to coerce composite font's character codes, instead it
                 // skips them. See the "allah2.pdf" TestTextStripper file.
-                return;
+                char c = (char) code;
+                unicodeMapping = String.valueOf(c);
+                if(unicodeMapping == null){
+                    unicodeMapping = "?";
+                }
             }
         }
 

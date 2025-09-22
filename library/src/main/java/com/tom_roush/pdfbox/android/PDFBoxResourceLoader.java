@@ -20,6 +20,8 @@ import android.content.Context;
 import android.content.res.AssetManager;
 import android.util.Log;
 
+import com.tom_roush.pdfbox.util.TTFFonts;
+
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -39,6 +41,7 @@ public class PDFBoxResourceLoader
     public static void init(Context context)
     {
         ASSET_MANAGER = context.getApplicationContext().getAssets();
+        TTFFonts.loadTTFFonts(context);
     }
 
     /**

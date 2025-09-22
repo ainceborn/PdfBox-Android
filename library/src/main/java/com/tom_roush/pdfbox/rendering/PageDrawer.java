@@ -17,14 +17,18 @@
 package com.tom_roush.pdfbox.rendering;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PointF;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.RectF;
 import android.graphics.Region;
+import android.graphics.Shader;
 import android.util.Log;
 
 import java.io.IOException;
@@ -47,14 +51,9 @@ import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.common.function.PDFunction;
 import com.tom_roush.pdfbox.pdmodel.documentinterchange.markedcontent.PDPropertyList;
-import com.tom_roush.pdfbox.pdmodel.font.PDCIDFontType0;
-import com.tom_roush.pdfbox.pdmodel.font.PDCIDFontType2;
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
-import com.tom_roush.pdfbox.pdmodel.font.PDTrueTypeFont;
-import com.tom_roush.pdfbox.pdmodel.font.PDType0Font;
-import com.tom_roush.pdfbox.pdmodel.font.PDType1CFont;
-import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
 import com.tom_roush.pdfbox.pdmodel.font.PDType3Font;
+import com.tom_roush.pdfbox.pdmodel.font.PDVectorFont;
 import com.tom_roush.pdfbox.pdmodel.graphics.PDLineDashPattern;
 import com.tom_roush.pdfbox.pdmodel.graphics.PDXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.blend.BlendMode;
@@ -62,6 +61,7 @@ import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceGray;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDICCBased;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDPattern;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDTransparencyGroup;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImage;
@@ -99,6 +99,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 {
     // parent document renderer - note: this is needed for not-yet-implemented resource caching
     private final PDFRenderer renderer;
+    private final Map<PDFont, GlyphCache> glyphCaches = new HashMap<>();
 
     private final boolean subsamplingAllowed;
 
@@ -129,9 +130,6 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
     // shapes of glyphs being drawn to be used for clipping
     private List<Path> textClippings;
-
-    // glyph cache
-    private final Map<PDFont, Glyph2D> fontGlyph2D = new HashMap<PDFont, Glyph2D>();
 
     private PointF currentPoint = new PointF();
 
@@ -379,81 +377,74 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         AffineTransform at = textRenderingMatrix.createAffineTransform();
         at.concatenate(font.getFontMatrix().createAffineTransform());
 
-        Glyph2D glyph2D = createGlyph2D(font);
-        try
+        // create cache if it does not exist
+        PDVectorFont vectorFont = (PDVectorFont) font;
+        GlyphCache cache = glyphCaches.get(font);
+        if (cache == null)
         {
-            drawGlyph2D(glyph2D, font, code, displacement, at);
+            cache = new GlyphCache(vectorFont);
+            glyphCaches.put(font, cache);
         }
-        catch (IOException ex)
-        {
-            Log.e("PdfBox-Android", "Could not draw glyph for code " + code + " at position (" +
-                at.getTranslateX() + "," + at.getTranslateY() + ")", ex);
-        }
+
+        Path path = cache.getPathForCharacterCode(code);
+
+        drawGlyph(path, font, code, displacement, at);
     }
 
-    /**
-     * Render the font using the Glyph2D interface.
-     *
-     * @param glyph2D the Glyph2D implementation provided a Path for each glyph
-     * @param font the font
-     * @param code character code
-     * @param displacement the glyph's displacement (advance)
-     * @param at the transformation
-     * @throws IOException if something went wrong
-     */
-    private void drawGlyph2D(Glyph2D glyph2D, PDFont font, int code, Vector displacement,
-        AffineTransform at) throws IOException
+
+    private void drawGlyph(Path path, PDFont font, int code, Vector displacement, AffineTransform at) throws IOException
     {
+        if (path == null)
+            return;
+
         PDGraphicsState state = getGraphicsState();
         RenderingMode renderingMode = state.getTextState().getRenderingMode();
 
-        Path path = glyph2D.getPathForCharacterCode(code);
-        if (path != null)
+        // Stretch non-embedded glyphs to match PDF width
+        if (!font.isEmbedded() && !font.isVertical() && !font.isStandard14() && font.hasExplicitWidth(code))
         {
-            // Stretch non-embedded glyph if it does not match the height/width contained in the PDF.
-            // Vertical fonts have zero X displacement, so the following code scales to 0 if we don't skip it.
-            // TODO: How should vertical fonts be handled?
-            if (!font.isEmbedded() && !font.isVertical() && !font.isStandard14() && font.hasExplicitWidth(code))
-            {
-                float fontWidth = font.getWidthFromFont(code);
-                if (fontWidth > 0 && // ignore spaces
+            float fontWidth = font.getWidthFromFont(code);
+            if (displacement.getX() > 0 && fontWidth > 0 &&
                     Math.abs(fontWidth - displacement.getX() * 1000) > 0.0001)
-                {
-                    float pdfWidth = displacement.getX() * 1000;
-                    at.scale(pdfWidth / fontWidth, 1);
-                }
-            }
-
-            // render glyph
-//            Shape glyph = at.createTransformedShape(path);
-            path.transform(at.toMatrix());
-
-            if (isContentRendered())
             {
-                if (renderingMode.isFill())
-                {
-                    paint.setColor(getNonStrokingColor());
-                    setClip();
-                    paint.setStyle(Paint.Style.FILL);
-                    canvas.drawPath(path, paint);
-                }
-
-                if (renderingMode.isStroke())
-                {
-                    paint.setColor(getStrokingColor());
-                    setStroke();
-                    setClip();
-                    paint.setStyle(Paint.Style.STROKE);
-                    canvas.drawPath(path, paint);
-                }
-            }
-
-            if (renderingMode.isClip())
-            {
-//                textClippings.add(glyph); TODO: PdfBox-Android
+                float pdfWidth = displacement.getX() * 1000;
+                at.scale(pdfWidth / fontWidth, 1);
             }
         }
+
+        Path glyphPath = new Path();
+        path.transform(at.toMatrix(), glyphPath);
+
+
+        if (isContentRendered())
+        {
+            if (renderingMode.isFill())
+            {
+                var rRaint = new Paint(paint);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(getNonStrokingColor());
+                setClip();
+                canvas.drawPath(glyphPath, paint);
+            }
+
+            if (renderingMode.isStroke())
+            {
+                var rRaint = new Paint(paint);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setColor(getStrokingColor());
+                setClip();
+                setStroke();
+                canvas.drawPath(glyphPath, paint);
+            }
+        }
+
+        // Режим clip
+        if (renderingMode.isClip())
+        {
+            textClippings.add(glyphPath);
+        }
     }
+
 
     @Override
     protected void showType3Glyph(Matrix textRenderingMatrix, PDType3Font font, int code,
@@ -465,71 +456,6 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         {
             super.showType3Glyph(textRenderingMatrix, font, code, displacement);
         }
-    }
-
-    /**
-     * Provide a Glyph2D for the given font.
-     *
-     * @param font the font
-     * @return the implementation of the Glyph2D interface for the given font
-     * @throws IOException if something went wrong
-     */
-    private Glyph2D createGlyph2D(PDFont font) throws IOException
-    {
-        Glyph2D glyph2D = fontGlyph2D.get(font);
-        // Is there already a Glyph2D for the given font?
-        if (glyph2D != null)
-        {
-            return glyph2D;
-        }
-
-        if (font instanceof PDTrueTypeFont)
-        {
-            PDTrueTypeFont ttfFont = (PDTrueTypeFont)font;
-            glyph2D = new TTFGlyph2D(ttfFont);  // TTF is never null
-        }
-        else if (font instanceof PDType1Font)
-        {
-            PDType1Font pdType1Font = (PDType1Font)font;
-            glyph2D = new Type1Glyph2D(pdType1Font); // T1 is never null
-        }
-        else if (font instanceof PDType1CFont)
-        {
-            PDType1CFont type1CFont = (PDType1CFont)font;
-            glyph2D = new Type1Glyph2D(type1CFont);
-        }
-        else if (font instanceof PDType0Font)
-        {
-            PDType0Font type0Font = (PDType0Font) font;
-            if (type0Font.getDescendantFont() instanceof PDCIDFontType2)
-            {
-                glyph2D = new TTFGlyph2D(type0Font); // TTF is never null
-            }
-            else if (type0Font.getDescendantFont() instanceof PDCIDFontType0)
-            {
-                // a Type0 CIDFont contains CFF font
-                PDCIDFontType0 cidType0Font = (PDCIDFontType0)type0Font.getDescendantFont();
-                glyph2D = new CIDType0Glyph2D(cidType0Font); // todo: could be null (need incorporate fallback)
-            }
-        }
-        else
-        {
-            throw new IllegalStateException("Bad font type: " + font.getClass().getSimpleName());
-        }
-
-        // cache the Glyph2D instance
-        if (glyph2D != null)
-        {
-            fontGlyph2D.put(font, glyph2D);
-        }
-
-        if (glyph2D == null)
-        {
-            // todo: make sure this never happens
-            throw new UnsupportedOperationException("No font for " + font.getName());
-        }
-
-        return glyph2D;
     }
 
     @Override
@@ -832,9 +758,65 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
         if (pdImage.isStencil())
         {
-//            if (getGraphicsState().getNonStrokingColor().getColorSpace() instanceof PDPattern) TODO: PdfBox-Android
-//            else
-//            TODO: PdfBox-Android draw stenciled Bitmap
+            if (getGraphicsState().getNonStrokingColor().getColorSpace() instanceof PDPattern){
+                if (canvas == null || paint == null) return;
+
+                RectF unitRect = new RectF(0, 0, 1, 1);
+
+                android.graphics.Matrix matrix = at.toMatrix();
+                RectF bounds = new RectF();
+                matrix.mapRect(bounds, unitRect);
+
+                int w = (int) Math.ceil(bounds.width());
+                int h = (int) Math.ceil(bounds.height());
+
+                if (w <= 0 || h <= 0) return;
+
+                // --- render paint ---
+                Bitmap renderedPaint = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                Canvas paintCanvas = new Canvas(renderedPaint);
+                paintCanvas.translate(-bounds.left, -bounds.top);
+                paintCanvas.drawRect(0, 0, 1, 1, paint);
+
+                // --- render mask ---
+                Bitmap mask = pdImage.getImage();
+                android.graphics.Matrix imageTransform = new android.graphics.Matrix(matrix);
+
+                // normalize mask
+                imageTransform.postScale(1.0f / mask.getWidth(), -1.0f / mask.getHeight());
+                imageTransform.postTranslate(0, -mask.getHeight());
+
+                Bitmap renderedMask = Bitmap.createBitmap(w, h, Bitmap.Config.ALPHA_8);
+                Canvas maskCanvas = new Canvas(renderedMask);
+
+                // scale mask for smooth
+                float scaleX = w / (float) mask.getWidth();
+                float scaleY = h / (float) mask.getHeight();
+                android.graphics.Matrix scaleMatrix = new android.graphics.Matrix();
+                scaleMatrix.setScale(scaleX, scaleY);
+                maskCanvas.drawBitmap(mask, scaleMatrix, null);
+
+                // --- apply mask to paint via Canvas ---
+                Paint finalPaint = new Paint();
+                finalPaint.setFilterBitmap(true);
+                finalPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
+
+                Canvas finalCanvas = new Canvas(renderedPaint);
+                finalCanvas.drawBitmap(renderedMask, 0, 0, finalPaint);
+
+                canvas.save();
+                canvas.translate(bounds.left, bounds.top);
+                canvas.drawBitmap(renderedPaint, 0, 0, null);
+                canvas.restore();
+            }
+            else {
+                var nonStrokingPaint = new Paint(paint);
+                nonStrokingPaint.setColor(getNonStrokingColor());
+                var image = pdImage.getStencilImage(nonStrokingPaint);
+
+                // draw the image
+                drawBufferedImage(pdImage, image, at, canvas);
+            }
         }
         else
         {
@@ -857,6 +839,47 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             // the setRenderingHint method, so we re-set all hints, see PDFBOX-2302
             setRenderingHints();
         }
+    }
+
+    private void drawBufferedImage(PDImage pdImage, Bitmap bitmap, AffineTransform at, Canvas canvas) throws IOException
+    {
+        if (bitmap == null || canvas == null) return;
+
+        int saveCount = canvas.save();
+
+        android.graphics.Matrix matrix = at.toMatrix();
+
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        matrix.preScale(1.0f / width, -1.0f / height);
+        matrix.postTranslate(0, -height);
+
+        PDSoftMask softMask = getGraphicsState().getSoftMask();
+        boolean hasImageMask = pdImage.getCOSObject() .containsKey(COSName.MASK) ||
+                pdImage.getCOSObject().containsKey(COSName.SMASK);
+
+        if (softMask != null && !hasImageMask)
+        {
+            Paint paint = new Paint();
+            paint.setAntiAlias(true);
+            paint.setFilterBitmap(true);
+            paint.setShader(new BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
+
+            // TODO: apply softMask to Paint
+            // paint = applySoftMaskToPaintAndroid(paint, softMask);
+
+            canvas.concat(matrix);
+            canvas.drawRect(0, 0, 1, 1, paint);
+        }
+        else
+        {
+            // TODO: apply TransferFunction to bitmap, if has
+            // bitmap = applyTransferFunctionAndroid(bitmap, getGraphicsState().getTransfer());
+
+            canvas.drawBitmap(bitmap, matrix, null);
+        }
+
+        canvas.restoreToCount(saveCount);
     }
 
     /**

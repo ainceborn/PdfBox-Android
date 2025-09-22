@@ -76,4 +76,6 @@ public abstract class COSBase implements COSObjectable
     {
         this.direct = direct;
     }
+
+
 }

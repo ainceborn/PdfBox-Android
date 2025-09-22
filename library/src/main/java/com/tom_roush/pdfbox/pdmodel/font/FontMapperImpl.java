@@ -494,6 +494,7 @@ final class FontMapperImpl implements FontMapper
 
         // look up the PostScript name
         FontInfo info = fontInfoByName.get(postScriptName.toLowerCase(Locale.ENGLISH));
+        FontInfo infoRegular = fontInfoByName.get((postScriptName + "-Regular").toLowerCase(Locale.ENGLISH));
         if (info != null && info.getFormat() == format)
         {
             if (PDFBoxConfig.isDebugEnabled())
@@ -502,7 +503,7 @@ final class FontMapperImpl implements FontMapper
             }
             return info;
         }
-        return null;
+        else return infoRegular;
     }
 
     /**

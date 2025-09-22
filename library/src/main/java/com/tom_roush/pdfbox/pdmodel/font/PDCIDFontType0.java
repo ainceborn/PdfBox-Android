@@ -467,4 +467,9 @@ public class PDCIDFontType0 extends PDCIDFont
         // todo: not implemented, highly suspect
         return 500;
     }
+
+    @Override
+    public Path getNormalizedPath(int code) throws IOException {
+        return getPath(code);
+    }
 }

@@ -631,4 +631,9 @@ public class PDType0Font extends PDFont implements PDVectorFont
     {
         return descendantFont.hasGlyph(code);
     }
+
+    @Override
+    public Path getNormalizedPath(int code) throws IOException {
+        return descendantFont.getNormalizedPath(code);
+    }
 }

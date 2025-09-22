@@ -20,6 +20,7 @@
 package com.tom_roush.harmony.awt.geom;
 
 import android.graphics.PointF;
+import android.graphics.drawable.shapes.Shape;
 
 import java.io.IOException;
 import java.io.Serializable;

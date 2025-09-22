@@ -31,6 +31,7 @@ import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
 import com.tom_roush.pdfbox.pdmodel.documentinterchange.markedcontent.PDPropertyList;
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
 import com.tom_roush.pdfbox.pdmodel.font.PDFontFactory;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDPattern;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.optionalcontent.PDOptionalContentGroup;
 import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
@@ -203,7 +204,7 @@ public final class PDResources implements COSObjectable
         }
 
         // we can't cache PDPattern, because it holds page resources, see PDFBOX-2370
-        if (cache != null && indirect != null /*&& !(colorSpace instanceof PDPattern)*/) // TODO: PdfBox-Android
+        if (cache != null && indirect != null && !(colorSpace instanceof PDPattern))
         {
             cache.put(indirect, colorSpace);
         }

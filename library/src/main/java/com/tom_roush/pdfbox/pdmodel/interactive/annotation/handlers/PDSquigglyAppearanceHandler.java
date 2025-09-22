@@ -30,6 +30,9 @@ import com.tom_roush.pdfbox.pdmodel.PDPatternContentStream;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDPattern;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.pattern.PDTilingPattern;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
@@ -166,9 +169,9 @@ public class PDSquigglyAppearanceHandler extends PDAbstractAppearanceHandler
                     }
 
                     COSName patternName = form.getResources().add(pattern);
-//                    PDColorSpace patternColorSpace = new PDPattern(null, PDDeviceRGB.INSTANCE);
-//                    PDColor patternColor = new PDColor(color.getComponents(), patternName, patternColorSpace);
-//                    formCS.setNonStrokingColor(patternColor); TODO: PdfBox-Android
+                    PDColorSpace patternColorSpace = new PDPattern(null, PDDeviceRGB.INSTANCE);
+                    PDColor patternColor = new PDColor(color.getComponents(), patternName, patternColorSpace);
+                    formCS.setNonStrokingColor(patternColor);
 
                     // With Adobe, the horizontal size is slightly different, don't know why
                     formCS.addRect(0, 0, (pathsArray[i * 8 + 2] - pathsArray[i * 8]) / height * 40f, 12);

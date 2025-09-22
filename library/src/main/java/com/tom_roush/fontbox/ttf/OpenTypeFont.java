@@ -95,4 +95,13 @@ public class OpenTypeFont extends TrueTypeFont
             tables.containsKey("GSUB") ||
             tables.containsKey("JSTF");
     }
+
+    public boolean isSupportedOTF()
+    {
+        // OTF using CFF2 based outlines aren't yet supported
+        return !(isPostScript //
+                && !tables.containsKey(CFFTable.TAG) //
+                && tables.containsKey("CFF2") //
+        );
+    }
 }

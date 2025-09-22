@@ -49,11 +49,13 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      */
     protected Map<COSName, COSBase> items = new SmallMap<COSName, COSBase>();
 
+    private final COSUpdateState updateState;
     /**
      * Constructor.
      */
     public COSDictionary()
     {
+        updateState = new COSUpdateState(this);
         // default constructor
     }
 
@@ -64,6 +66,7 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      */
     public COSDictionary(COSDictionary dict)
     {
+        updateState = new COSUpdateState(this);
         addAll(dict);
     }
 
@@ -1602,4 +1605,15 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
         }
         return base.toString();
     }
+
+    @Override
+    public COSIncrement toIncrement() {
+        return COSUpdateInfo.super.toIncrement();
+    }
+
+    @Override
+    public COSUpdateState getUpdateState() {
+        return updateState;
+    }
+
 }
