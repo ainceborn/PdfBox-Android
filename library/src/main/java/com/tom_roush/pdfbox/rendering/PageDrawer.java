@@ -62,6 +62,7 @@ import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceGray;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDICCBased;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDPattern;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDSeparation;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDTransparencyGroup;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImage;
@@ -69,6 +70,9 @@ import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.optionalcontent.PDOptionalContentGroup;
 import com.tom_roush.pdfbox.pdmodel.graphics.optionalcontent.PDOptionalContentGroup.RenderState;
 import com.tom_roush.pdfbox.pdmodel.graphics.optionalcontent.PDOptionalContentMembershipDictionary;
+import com.tom_roush.pdfbox.pdmodel.graphics.pattern.PDAbstractPattern;
+import com.tom_roush.pdfbox.pdmodel.graphics.pattern.PDShadingPattern;
+import com.tom_roush.pdfbox.pdmodel.graphics.pattern.PDTilingPattern;
 import com.tom_roush.pdfbox.pdmodel.graphics.shading.PDShading;
 import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import com.tom_roush.pdfbox.pdmodel.graphics.state.PDGraphicsState;
@@ -79,6 +83,7 @@ import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationUnknown;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
 import com.tom_roush.pdfbox.util.Matrix;
+import com.tom_roush.pdfbox.util.PdfBoxAndroidUtils;
 import com.tom_roush.pdfbox.util.Vector;
 
 /**
@@ -100,6 +105,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     // parent document renderer - note: this is needed for not-yet-implemented resource caching
     private final PDFRenderer renderer;
     private final Map<PDFont, GlyphCache> glyphCaches = new HashMap<>();
+    private final TilingPaintFactory tilingPaintFactory = new TilingPaintFactory(this);
 
     private final boolean subsamplingAllowed;
 
@@ -267,6 +273,37 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 //    void drawTilingPattern(Graphics2D g, PDTilingPattern pattern, PDColorSpace colorSpace,
 //        PDColor color, Matrix patternMatrix) throws IOException TODO: PdfBox-Android
 
+    public void drawTilingPattern(Canvas canvas,
+                                  PDTilingPattern pattern,
+                                  PDColorSpace colorSpace,
+                                  PDColor color,
+                                  Matrix patternMatrix) throws IOException
+    {
+        Canvas savedCanvas = this.canvas;
+        Path savedLinePath = this.linePath;
+        Path.FillType savedClipFillType = this.clipWindingRule;
+        Region savedLastClip = this.lastClip;
+        Path savedInitialClip = this.initialClip;
+        boolean savedFlipTG = this.flipTG;
+
+        this.canvas = canvas;
+        this.linePath = new Path();
+        this.clipWindingRule = Path.FillType.WINDING;
+        this.lastClip = null;
+        this.initialClip = null;
+        this.flipTG = true;
+        setRenderingHints();
+
+        processTilingPattern(pattern, color, colorSpace, patternMatrix);
+
+        this.flipTG = savedFlipTG;
+        this.canvas = savedCanvas;
+        this.linePath = savedLinePath;
+        this.lastClip = savedLastClip;
+        this.initialClip = savedInitialClip;
+        this.clipWindingRule = savedClipFillType;
+    }
+
     private float clampColor(float color)
     {
         return color < 0 ? 0 : (color > 1 ? 1 : color);
@@ -275,25 +312,72 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 //    protected Paint getPaint(PDColor color) throws IOException TODO: PdfBox-Android
 
     // returns an integer for color that Android understands from the PDColor
+
     // TODO: alpha?
-    private int getColor(PDColor color) throws IOException {
-        double alphaConstant = this.getGraphicsState().getAlphaConstant();
+
+    protected Paint getPaint(PDColor color) throws IOException {
         PDColorSpace colorSpace = color.getColorSpace();
-        float[] floats = colorSpace.toRGB(color.getComponents());
-        int alpha = Long.valueOf(Math.round(alphaConstant * 255.0)).intValue();
-        int r = Math.round(floats[0] * 255);
-        int g = Math.round(floats[1] * 255);
-        int b = Math.round(floats[2] * 255);
-        return Color.argb(alpha, r, g, b);
+
+        if (colorSpace == null) { // PDFBOX-5782
+            android.graphics.Paint paint = new android.graphics.Paint();
+            paint.setColor(android.graphics.Color.TRANSPARENT);
+            return paint;
+        }
+        else if (colorSpace instanceof PDSeparation &&
+                "None".equals(((PDSeparation) colorSpace).getColorantName())) {
+            // PDFBOX-4900: "The special colorant name None shall not produce any visible output"
+            android.graphics.Paint paint = new android.graphics.Paint();
+            paint.setColor(android.graphics.Color.TRANSPARENT);
+            return paint;
+        }
+        else if (!(colorSpace instanceof PDPattern)) {
+            int argb = PdfBoxAndroidUtils.getColorInt(color, getGraphicsState().getAlphaConstant());
+            android.graphics.Paint paint = new android.graphics.Paint();
+            paint.setAntiAlias(true);
+            paint.setColor(argb);
+            return paint;
+        }
+        else {
+            PDPattern patternSpace = (PDPattern) colorSpace;
+            PDAbstractPattern pattern = patternSpace.getPattern(color);
+
+            if (pattern instanceof PDTilingPattern) {
+                PDTilingPattern tilingPattern = (PDTilingPattern) pattern;
+
+                if (tilingPattern.getPaintType() == PDTilingPattern.PAINT_COLORED) {
+                    // colored tiling pattern
+                    return tilingPaintFactory.create(tilingPattern, null, null, xform);
+                } else {
+                    // uncolored tiling pattern
+                    return tilingPaintFactory.create(
+                            tilingPattern,
+                            patternSpace.getUnderlyingColorSpace(),
+                            color,
+                            xform
+                    );
+                }
+            }
+            else if (pattern instanceof PDShadingPattern) {
+                PDShadingPattern shadingPattern = (PDShadingPattern) pattern;
+                PDShading shading = shadingPattern.getShading();
+                if (shading == null) {
+                    android.graphics.Paint paint = new android.graphics.Paint();
+                    paint.setColor(android.graphics.Color.TRANSPARENT);
+                    return paint;
+                }
+                android.graphics.Paint paint = new android.graphics.Paint();
+                paint.setColor(android.graphics.Color.TRANSPARENT);
+                return paint;
+            }
+            else {
+                // fallback
+                android.graphics.Paint paint = new android.graphics.Paint();
+                paint.setColor(android.graphics.Color.TRANSPARENT);
+                return paint;
+            }
+        }
     }
 
-    /**
-     * Sets the clipping path using caching for performance. We track lastClip manually because
-     * {@link Graphics2D#getClip()} returns a new object instead of the same one passed to
-     * {@link Graphics2D#setClip(java.awt.Shape) setClip()}. You may need to call this if you
-     * override {@link #showGlyph(Matrix, PDFont, int, Vector) showGlyph()}. See
-     * <a href="https://issues.apache.org/jira/browse/PDFBOX-5093">PDFBOX-5093</a> for more.
-     */
     protected final void setClip()
     {
         Region clippingPath = getGraphicsState().getCurrentClippingPath();
@@ -420,18 +504,19 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         {
             if (renderingMode.isFill())
             {
-                var rRaint = new Paint(paint);
+                var paint = getPaint(getGraphicsState().getNonStrokingColor());
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(getNonStrokingColor());
+
                 setClip();
+
                 canvas.drawPath(glyphPath, paint);
             }
 
             if (renderingMode.isStroke())
             {
-                var rRaint = new Paint(paint);
+                var paint = getPaint(getGraphicsState().getStrokingColor());
                 paint.setStyle(Paint.Style.STROKE);
-                paint.setColor(getStrokingColor());
+
                 setClip();
                 setStroke();
                 canvas.drawPath(glyphPath, paint);
@@ -481,17 +566,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
 //    private Paint getStrokingPaint() throws IOException TODO: PdfBox-Android
 
-    private int getStrokingColor() throws IOException
-    {
-        return getColor(getGraphicsState().getStrokingColor());
-    }
-
 //    protected final Paint getNonStrokingPaint() throws IOException TODO: PdfBox-Android
-
-    protected final int getNonStrokingColor() throws IOException
-    {
-        return getColor(getGraphicsState().getNonStrokingColor());
-    }
 
     // set stroke based on the current CTM and the current stroke
     private void setStroke()
@@ -593,9 +668,11 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         if (isContentRendered())
         {
             setStroke();
+
+            var paint = getPaint(getGraphicsState().getStrokingColor());
             paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(getStrokingColor());
             setClip();
+
             canvas.drawPath(linePath, paint);
         }
         linePath.reset();
@@ -605,7 +682,9 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     public void fillPath(Path.FillType windingRule) throws IOException
     {
         PDGraphicsState graphicsState = getGraphicsState();
-        paint.setColor(getNonStrokingColor());
+
+        var paint = getPaint(getGraphicsState().getNonStrokingColor());
+        paint.setStyle(Paint.Style.STROKE);
         setClip();
         linePath.setFillType(windingRule);
 
@@ -810,9 +889,10 @@ public class PageDrawer extends PDFGraphicsStreamEngine
                 canvas.restore();
             }
             else {
-                var nonStrokingPaint = new Paint(paint);
-                nonStrokingPaint.setColor(getNonStrokingColor());
-                var image = pdImage.getStencilImage(nonStrokingPaint);
+                var paint = getPaint(getGraphicsState().getNonStrokingColor());
+                paint.setStyle(Paint.Style.STROKE);
+                setClip();
+                var image = pdImage.getStencilImage(paint);
 
                 // draw the image
                 drawBufferedImage(pdImage, image, at, canvas);

@@ -40,11 +40,14 @@ import java.util.Map;
  */
 
 public class PDSeparation extends PDSpecialColorSpace {
+    private static final int COLORANT_NAMES = 1;
+
     private final COSName name;
     private final PDColorSpace alternateColorSpace;
     private final PDFunction tintTransform;
 
     public PDSeparation(COSArray separation, PDResources resources) throws IOException {
+        array = separation;
         name = (COSName) separation.getObject(1);
         alternateColorSpace = PDColorSpace.create(separation.getObject(2), resources);
         tintTransform = PDFunction.create(separation.getObject(3));
@@ -94,6 +97,13 @@ public class PDSeparation extends PDSpecialColorSpace {
         rgbImage.setPixels(pixels, 0, width, 0, 0, width, height);
         return rgbImage;
     }
+
+    public String getColorantName()
+    {
+        COSName name = (COSName)array.getObject(COLORANT_NAMES);
+        return name.getName();
+    }
+
 
     @Override
     public String getName() {
