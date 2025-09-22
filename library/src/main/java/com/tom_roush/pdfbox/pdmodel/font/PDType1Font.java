@@ -55,7 +55,7 @@ import static com.tom_roush.pdfbox.pdmodel.font.UniUtil.getUniNameOfCodePoint;
  *
  * @author Ben Litchfield
  */
-public class PDType1Font extends PDSimpleFont
+public class PDType1Font extends PDSimpleFont  implements PDVectorFont
 {
     // alternative names for glyphs which are commonly encountered
     private static final Map<String, String> ALT_NAMES = new HashMap<String, String>();
@@ -685,5 +685,27 @@ public class PDType1Font extends PDSimpleFont
     public boolean isDamaged()
     {
         return isDamaged;
+    }
+
+    @Override
+    public Path getPath(int code) throws IOException {
+        String name = getEncoding().getName(code);
+        return getPath(name);
+    }
+
+    @Override
+    public boolean hasGlyph(int code) throws IOException {
+        return !getEncoding().getName(code).equals(".notdef");
+    }
+
+    @Override
+    public Path getNormalizedPath(int code) throws IOException {
+        String name = getEncoding().getName(code);
+        Path path = getPath(name);
+        if (path == null)
+        {
+            return getPath(".notdef");
+        }
+        return path;
     }
 }
