@@ -12,8 +12,12 @@ Usage
 Add the following to dependency to `build.gradle`:
 
 ```gradle
+repositories {
+   maven { url 'https://jitpack.io' }
+}
+...
 dependencies {
-   implementation 'com.tom-roush:pdfbox-android:2.0.27.2'
+   implementation 'com.tom-roush:pdfbox-android:2.0.27.3B'
 }
 ```
 
@@ -38,7 +42,7 @@ Android does not come with native support for handling JPX images. These images 
 To include the JP2Android library, add the following to your project's Gradle `dependencies` section. Note that this library is available in JCenter only, so you will need to add `jcenter()` to your repository list.
 ```gradle
 dependencies {
-    implementation 'com.gemalto.jp2:jp2-android:1.0.3'
+    implementation 'com.github.ainceborn:JP2ForAndroid:1.0.3.1'
 }
 ```
 
@@ -46,5 +50,4 @@ Important notes
 ==============
 
 * Currently based on PDFBox v2.0.27
-
-* Requires API 19 or greater for full functionality
+* Requires API 24 or greater
