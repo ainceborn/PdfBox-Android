@@ -158,11 +158,11 @@ public class MainActivity extends Activity {
         // Render the page and save it to an image file
         try {
             // Load in an already created PDF
-            PDDocument document = PDDocument.load(assetManager.open("FormTest.pdf"));
+            PDDocument document = PDDocument.load(assetManager.open("manual.pdf"));
             // Create a renderer for the document
             PDFRenderer renderer = new PDFRenderer(document);
             // Render the image to an RGB Bitmap
-            pageImage = renderer.renderImage(0, 1, ImageType.RGB);
+            pageImage = renderer.renderImage(1, 1, ImageType.RGB);
 
             // Save the render result to an image
             //tv.setText("Successfully rendered image to " + path);
