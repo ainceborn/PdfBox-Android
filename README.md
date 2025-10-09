@@ -17,7 +17,7 @@ repositories {
 }
 ...
 dependencies {
-   implementation 'com.tom-roush:pdfbox-android:2.0.27.3B'
+   implementation 'com.tom-roush:pdfbox-android:2.0.27.4'
 }
 ```
 
