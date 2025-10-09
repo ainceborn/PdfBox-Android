@@ -41,7 +41,7 @@ import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceCMYK;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceGray;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationMarkup;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationFreeText;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderEffectDictionary;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.layout.AppearanceStyle;
@@ -73,9 +73,9 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
     @Override
     public void generateNormalAppearance()
     {
-        PDAnnotationMarkup annotation = (PDAnnotationMarkup) getAnnotation();
+        PDAnnotationFreeText annotation = (PDAnnotationFreeText) getAnnotation();
         float[] pathsArray;
-        if (PDAnnotationMarkup.IT_FREE_TEXT_CALLOUT.equals(annotation.getIntent()))
+        if (PDAnnotationFreeText.IT_FREE_TEXT_CALLOUT.equals(annotation.getIntent()))
         {
             pathsArray = annotation.getCallout();
             if (pathsArray == null || pathsArray.length != 4 && pathsArray.length != 6)
@@ -159,7 +159,7 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
             }
 
             // paint the styles here and after line(s) draw, to avoid line crossing a filled shape
-            if (PDAnnotationMarkup.IT_FREE_TEXT_CALLOUT.equals(annotation.getIntent())
+            if (PDAnnotationFreeText.IT_FREE_TEXT_CALLOUT.equals(annotation.getIntent())
                 // check only needed to avoid q cm Q if LE_NONE
                 && !LE_NONE.equals(annotation.getLineEndingStyle())
                 && pathsArray.length >= 4)
@@ -368,7 +368,7 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
     }
 
     // get the last non stroking color from the /DA entry
-    private PDColor extractNonStrokingColor(PDAnnotationMarkup annotation)
+    private PDColor extractNonStrokingColor(PDAnnotationFreeText annotation)
     {
         // It could also work with a regular expression, but that should be written so that
         // "/LucidaConsole 13.94766 Tf .392 .585 .93 rg" does not produce "2 .585 .93 rg" as result
@@ -435,7 +435,7 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
 
     //TODO extractNonStrokingColor and extractFontDetails
     // might somehow be replaced with PDDefaultAppearanceString, which is quite similar.
-    private void extractFontDetails(PDAnnotationMarkup annotation)
+    private void extractFontDetails(PDAnnotationFreeText annotation)
     {
         String defaultAppearance = annotation.getDefaultAppearance();
         if (defaultAppearance == null && document != null)

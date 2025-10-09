@@ -39,6 +39,16 @@ public class COSArray extends COSBase implements Iterable<COSBase>, COSUpdateInf
 
     private final COSUpdateState updateState;
 
+    public static COSArray of(float... floats)
+    {
+        ArrayList<COSBase> objects = new ArrayList<>(floats.length);
+        for (float f : floats)
+        {
+            objects.add(new COSFloat(f));
+        }
+        return new COSArray(objects, true);
+    }
+
     /**
      * Constructor.
      */
@@ -102,6 +112,16 @@ public class COSArray extends COSBase implements Iterable<COSBase>, COSUpdateInf
     public void clear()
     {
         objects.clear();
+    }
+
+    /**
+     * Returns true if the container is empty, false otherwise.
+     *
+     * @return true if the container is empty, false otherwise
+     */
+    public boolean isEmpty()
+    {
+        return objects.isEmpty();
     }
 
     /**

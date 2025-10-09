@@ -30,6 +30,7 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationMarkup;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquare;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquareCircle;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderEffectDictionary;
@@ -55,7 +56,7 @@ public class PDSquareAppearanceHandler extends PDAbstractAppearanceHandler
     public void generateNormalAppearance()
     {
         float lineWidth = getLineWidth();
-        PDAnnotationSquareCircle annotation = (PDAnnotationSquareCircle) getAnnotation();
+        PDAnnotationSquare annotation = (PDAnnotationSquare) getAnnotation();
         PDAppearanceContentStream contentStream  = null;
 
         try

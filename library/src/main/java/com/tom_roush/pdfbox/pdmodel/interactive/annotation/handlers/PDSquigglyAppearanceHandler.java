@@ -36,7 +36,7 @@ import com.tom_roush.pdfbox.pdmodel.graphics.color.PDPattern;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.pattern.PDTilingPattern;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquiggly;
 import com.tom_roush.pdfbox.util.Matrix;
 
 /**
@@ -57,7 +57,7 @@ public class PDSquigglyAppearanceHandler extends PDAbstractAppearanceHandler
     @Override
     public void generateNormalAppearance()
     {
-        PDAnnotationTextMarkup annotation = (PDAnnotationTextMarkup) getAnnotation();
+        PDAnnotationSquiggly annotation = (PDAnnotationSquiggly) getAnnotation();
         PDRectangle rect = annotation.getRectangle();
         if (rect == null)
         {

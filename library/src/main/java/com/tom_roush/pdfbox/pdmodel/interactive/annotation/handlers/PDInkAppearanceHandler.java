@@ -26,7 +26,7 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationMarkup;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationInk;
 
 /**
  * Handler to generate the ink annotations appearance.
@@ -47,7 +47,7 @@ public class PDInkAppearanceHandler extends PDAbstractAppearanceHandler
     @Override
     public void generateNormalAppearance()
     {
-        PDAnnotationMarkup ink = (PDAnnotationMarkup) getAnnotation();
+        PDAnnotationInk ink = (PDAnnotationInk) getAnnotation();
         PDColor color = ink.getColor();
         if (color == null || color.getComponents().length == 0)
         {

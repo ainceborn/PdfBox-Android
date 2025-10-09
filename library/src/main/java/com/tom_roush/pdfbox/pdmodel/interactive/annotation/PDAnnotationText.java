@@ -225,7 +225,6 @@ public class PDAnnotationText extends PDAnnotationMarkup
      *
      * @param appearanceHandler
      */
-    @Override
     public void setCustomAppearanceHandler(PDAppearanceHandler appearanceHandler)
     {
         customAppearanceHandler = appearanceHandler;

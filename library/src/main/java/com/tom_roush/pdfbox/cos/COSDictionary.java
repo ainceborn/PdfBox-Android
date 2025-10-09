@@ -26,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
@@ -1614,6 +1615,17 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
     @Override
     public COSUpdateState getUpdateState() {
         return updateState;
+    }
+
+    /**
+     * Convenience method that calls {@link Map#forEach(java.util.function.BiConsumer) Map.forEach(BiConsumer)}.
+     *
+     * @param action The action to be performed for each entry
+     *
+     */
+    public void forEach(BiConsumer<? super COSName, ? super COSBase> action)
+    {
+        items.forEach(action);
     }
 
 }

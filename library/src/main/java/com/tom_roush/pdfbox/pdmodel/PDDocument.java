@@ -47,6 +47,7 @@ import com.tom_roush.pdfbox.io.MemoryUsageSetting;
 import com.tom_roush.pdfbox.io.RandomAccessBuffer;
 import com.tom_roush.pdfbox.io.RandomAccessBufferedFileInputStream;
 import com.tom_roush.pdfbox.io.RandomAccessRead;
+import com.tom_roush.pdfbox.io.RandomAccessStreamCache;
 import com.tom_roush.pdfbox.io.ScratchFile;
 import com.tom_roush.pdfbox.pdfparser.PDFParser;
 import com.tom_roush.pdfbox.pdfwriter.COSWriter;
