@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.tom_roush.harmony.awt.geom.AffineTransform;
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
@@ -266,7 +267,7 @@ public class Overlay implements Closeable
 
     private PDDocument loadPDF(String pdfName) throws IOException
     {
-        return PDDocument.load(new File(pdfName));
+        return Loader.loadPDF(new File(pdfName));
     }
 
     /**

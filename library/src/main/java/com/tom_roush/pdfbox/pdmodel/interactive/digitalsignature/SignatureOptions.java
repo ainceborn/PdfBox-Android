@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import com.tom_roush.pdfbox.cos.COSDocument;
-import com.tom_roush.pdfbox.io.RandomAccessBuffer;
-import com.tom_roush.pdfbox.io.RandomAccessBufferedFileInputStream;
 import com.tom_roush.pdfbox.io.RandomAccessRead;
+import com.tom_roush.pdfbox.io.RandomAccessReadBuffer;
+import com.tom_roush.pdfbox.io.RandomAccessReadBufferedFile;
 import com.tom_roush.pdfbox.pdfparser.PDFParser;
 import com.tom_roush.pdfbox.pdmodel.interactive.digitalsignature.visible.PDVisibleSigProperties;
 
@@ -79,7 +79,7 @@ public class SignatureOptions implements Closeable
      */
     public void setVisualSignature(File file) throws IOException
     {
-        initFromRandomAccessRead(new RandomAccessBufferedFileInputStream(file));
+        initFromRandomAccessRead(new RandomAccessReadBufferedFile(file));
     }
 
     /**
@@ -90,15 +90,14 @@ public class SignatureOptions implements Closeable
      */
     public void setVisualSignature(InputStream is) throws IOException
     {
-        initFromRandomAccessRead(new RandomAccessBuffer(is));
+        initFromRandomAccessRead(new RandomAccessReadBuffer(is));
     }
 
     private void initFromRandomAccessRead(RandomAccessRead rar) throws IOException
     {
         pdfSource = rar;
         PDFParser parser = new PDFParser(pdfSource);
-        parser.parse();
-        visualSignature = parser.getDocument();
+        visualSignature = parser.parse().getDocument();
     }
 
     /**

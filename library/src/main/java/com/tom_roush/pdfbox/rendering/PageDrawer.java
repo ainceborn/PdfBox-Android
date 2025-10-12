@@ -82,7 +82,9 @@ import com.tom_roush.pdfbox.pdmodel.interactive.annotation.AnnotationFilter;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationUnknown;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceEntry;
 import com.tom_roush.pdfbox.util.Matrix;
+import com.tom_roush.pdfbox.util.PathDebugger;
 import com.tom_roush.pdfbox.util.PdfBoxAndroidUtils;
 import com.tom_roush.pdfbox.util.Vector;
 
@@ -674,6 +676,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             setClip();
 
             canvas.drawPath(linePath, paint);
+            PathDebugger.logPath(linePath,1f);
         }
         linePath.reset();
     }
@@ -1158,27 +1161,12 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     {
         lastClip = null;
         // Device checks shouldn't be needed
-        if (annotation.isNoView())
+        if (shouldSkipAnnotation(annotation))
         {
             return;
         }
-        if (annotation.isHidden())
-        {
-            return;
-        }
-        if (annotation.isInvisible() && annotation instanceof PDAnnotationUnknown)
-        {
-            // "If set, do not display the annotation if it does not belong to one
-            // of the standard annotation types and no annotation handler is available."
-            return;
-        }
+
         //TODO support NoZoom, example can be found in p5 of PDFBOX-2348
-
-        if (isHiddenOCG(annotation.getOptionalContent()))
-        {
-            return;
-        }
-
         PDAppearanceDictionary appearance = annotation.getAppearance();
         if (appearance == null || appearance.getNormalAppearance() == null)
         {
@@ -1187,19 +1175,83 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
         if (annotation.isNoRotate() && getCurrentPage().getRotation() != 0)
         {
+            appearance = annotation.getAppearance();
+            if (appearance != null)
+            {
+                PDAppearanceEntry appearanceEntry = appearance.getNormalAppearance();
+                if (appearanceEntry != null && appearanceEntry.isStream() &&
+                        hasTransparency(appearanceEntry.getAppearanceStream()))
+                {
+                    // PDFBOX-4744: avoid appearances with transparency groups until we have fixed
+                    // the rendering. A real solution should probably be
+                    // in PDFStreamEngine.processAnnotation().
+                    annotation.constructAppearances();
+                }
+            }
             PDRectangle rect = annotation.getRectangle();
             android.graphics.Matrix savedTransform = canvas.getMatrix();
             // "The upper-left corner of the annotation remains at the same point in
             //  default user space; the annotation pivots around that point."
             canvas.rotate(getCurrentPage().getRotation(),
-                rect.getLowerLeftX(), rect.getUpperRightY());
+                    rect.getLowerLeftX(), rect.getUpperRightY());
             super.showAnnotation(annotation);
             canvas.setMatrix(savedTransform);
+            annotation.setAppearance(appearance); // restore
         }
         else
         {
             super.showAnnotation(annotation);
         }
+    }
+
+    private boolean shouldSkipAnnotation(PDAnnotation annotation)
+    {
+        if (destination == RenderDestination.PRINT && !annotation.isPrinted())
+        {
+            return true;
+        }
+        if ((destination == RenderDestination.VIEW || destination == RenderDestination.EXPORT) &&
+                annotation.isNoView())
+        {
+            return true;
+        }
+        if (annotation.isHidden())
+        {
+            return true;
+        }
+        if (annotation.isInvisible() && annotation instanceof PDAnnotationUnknown)
+        {
+            // "If set, do not display the annotation if it does not belong to one
+            // of the standard annotation types and no annotation handler is available."
+            return true;
+        }
+        return isHiddenOCG(annotation.getOptionalContent());
+    }
+
+    private boolean hasTransparency(PDFormXObject form) throws IOException
+    {
+        if (form == null)
+        {
+            return false;
+        }
+        PDResources resources = form.getResources();
+        if (resources == null)
+        {
+            return false;
+        }
+        for (COSName name : resources.getXObjectNames())
+        {
+            PDXObject xObject = resources.getXObject(name);
+            if (xObject instanceof PDTransparencyGroup)
+            {
+                return true;
+            }
+            if (xObject instanceof PDFormXObject && hasTransparency((PDFormXObject) xObject))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

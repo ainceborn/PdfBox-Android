@@ -41,6 +41,8 @@ public class AffineTransform implements Cloneable, Serializable
     public static final int TYPE_MASK_SCALE = TYPE_UNIFORM_SCALE | TYPE_GENERAL_SCALE;
     public static final int TYPE_MASK_ROTATION = TYPE_QUADRANT_ROTATION | TYPE_GENERAL_ROTATION;
 
+    private static final int[] rot90conversion = new int[]{4, 5, 4, 5, 2, 3, 6, 7};
+
     /**
      * The <code>TYPE_UNKNOWN</code> is an initial type value
      */
@@ -64,7 +66,8 @@ public class AffineTransform implements Cloneable, Serializable
     /**
      * The transformation <code>type</code>
      */
-    transient int type;
+    transient int type = 0;
+    transient int state;
 
     public AffineTransform()
     {
@@ -720,6 +723,71 @@ public class AffineTransform implements Cloneable, Serializable
             0.0f, 0.0f, 1.0f
         });
         return retval;
+    }
+
+    public void quadrantRotate(int var1) {
+        switch (var1 & 3) {
+            case 0:
+            default:
+                break;
+            case 1:
+                this.rotate90();
+                break;
+            case 2:
+                this.rotate180();
+                break;
+            case 3:
+                this.rotate270();
+        }
+
+    }
+
+    private void rotate90() {
+        double var1 = this.m00;
+        this.m00 = this.m01;
+        this.m01 = -var1;
+        var1 = this.m10;
+        this.m10 = this.m11;
+        this.m11 = -var1;
+        int var3 = rot90conversion[this.state];
+        if ((var3 & 6) == 2 && this.m00 == (double)1.0F && this.m11 == (double)1.0F) {
+            var3 -= 2;
+        }
+
+        this.state = var3;
+        this.type = -1;
+    }
+
+    private void rotate180() {
+        this.m00 = -this.m00;
+        this.m11 = -this.m11;
+        int var1 = this.state;
+        if ((var1 & 4) != 0) {
+            this.m01 = -this.m01;
+            this.m10 = -this.m10;
+        } else if (this.m00 == (double)1.0F && this.m11 == (double)1.0F) {
+            this.state = var1 & -3;
+        } else {
+            this.state = var1 | 2;
+        }
+
+        this.type = -1;
+    }
+
+    private void rotate270() {
+        double var1 = this.m00;
+        this.m00 = -this.m01;
+        this.m01 = var1;
+        var1 = this.m10;
+        this.m10 = -this.m11;
+        this.m11 = var1;
+        int var3 = rot90conversion[this.state];
+        if ((var3 & 6) == 2 && this.m00 == (double)1.0F && this.m11 == (double)1.0F) {
+            var3 -= 2;
+        }
+
+        this.state = var3;
+        this.type = -1;
     }
 
     public class NoninvertibleTransformException extends java.lang.Exception

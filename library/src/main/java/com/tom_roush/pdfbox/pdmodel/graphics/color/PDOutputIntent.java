@@ -16,6 +16,9 @@
  */
 package com.tom_roush.pdfbox.pdmodel.graphics.color;
 
+import android.graphics.ColorSpace;
+
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -54,14 +57,14 @@ public final class PDOutputIntent implements COSObjectable
     }
 
     @Override
-    public COSBase getCOSObject()
+    public COSDictionary getCOSObject()
     {
         return dictionary;
     }
 
     public COSStream getDestOutputIntent()
     {
-        return (COSStream) dictionary.getDictionaryObject(COSName.DEST_OUTPUT_PROFILE);
+        return dictionary.getCOSStream(COSName.DEST_OUTPUT_PROFILE);
     }
 
     public String getInfo()
@@ -105,7 +108,7 @@ public final class PDOutputIntent implements COSObjectable
     }
 
     private PDStream configureOutputProfile(PDDocument doc, InputStream colorProfile)
-        throws IOException
+            throws IOException
     {
 //        ICC_Profile icc = ICC_Profile.getInstance(colorProfile);
 //        PDStream stream = new PDStream(doc, new ByteArrayInputStream(icc.getData()), COSName.FLATE_DECODE);

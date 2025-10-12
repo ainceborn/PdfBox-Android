@@ -18,13 +18,13 @@ package com.tom_roush.pdfbox.io;
 
 import android.util.Log;
 
-import java.io.Closeable;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.BitSet;
-
-import com.tom_roush.pdfbox.android.PDFBoxConfig;
+import java.util.List;
 
 /**
  * Implements a memory page handling mechanism as base for creating (multiple)
@@ -45,12 +45,13 @@ import com.tom_roush.pdfbox.android.PDFBoxConfig;
  *
  * <p>Using this class for {@link RandomAccess} buffers allows for a direct control
  * on the maximum memory usage and allows processing large files for which we
- * otherwise would get an {@link OutOfMemoryError} in case of using {@link RandomAccessBuffer}.</p>
+ * otherwise would get an {@link OutOfMemoryError} in case of using {@link RandomAccessReadBuffer}.</p>
  *
  * <p>This base class for providing pages is thread safe (the buffer implementations are not).</p>
  */
-public class ScratchFile implements Closeable
+public class ScratchFile implements RandomAccessStreamCache
 {
+
     /** number of pages by which we enlarge the scratch file (reduce I/O-operations) */
     private static final int ENLARGE_PAGE_COUNT = 16;
     /** in case of unrestricted main memory usage this is the initial number of pages
@@ -74,6 +75,8 @@ public class ScratchFile implements Closeable
     private final int maxPageCount;
     private final boolean useScratchFile;
     private final boolean maxMainMemoryIsRestricted;
+
+    private final List<ScratchFileBuffer> buffers = new ArrayList<>();
 
     private volatile boolean isClosed = false;
 
@@ -100,13 +103,14 @@ public class ScratchFile implements Closeable
      * <p>Depending on the size of allowed memory usage a number of pages (memorySize/{@link #PAGE_SIZE})
      * will be stored in-memory and only additional pages will be written to/read from scratch file.</p>
      *
-     * @param memUsageSetting set how memory/temporary files are used for buffering streams etc. 
+     * @param memUsageSetting set how memory/temporary files are used for buffering streams etc.
      *
      * @throws IOException If scratch file directory was given but don't exist.
      */
     public ScratchFile(MemoryUsageSetting memUsageSetting) throws IOException
     {
-        maxMainMemoryIsRestricted = (!memUsageSetting.useMainMemory()) || memUsageSetting.isMainMemoryRestricted();
+        maxMainMemoryIsRestricted = !memUsageSetting.useMainMemory()
+                || memUsageSetting.isMainMemoryRestricted();
         useScratchFile = maxMainMemoryIsRestricted && memUsageSetting.useTempFile();
         scratchFileDirectory = useScratchFile ? memUsageSetting.getTempDir() : null;
 
@@ -116,17 +120,24 @@ public class ScratchFile implements Closeable
         }
 
         maxPageCount = memUsageSetting.isStorageRestricted() ?
-            (int) Math.min(Integer.MAX_VALUE, memUsageSetting.getMaxStorageBytes() / PAGE_SIZE) :
-            Integer.MAX_VALUE;
+                (int) Math.min(Integer.MAX_VALUE, memUsageSetting.getMaxStorageBytes() / PAGE_SIZE) :
+                Integer.MAX_VALUE;
 
         inMemoryMaxPageCount = memUsageSetting.useMainMemory() ?
-            (memUsageSetting.isMainMemoryRestricted() ?
-                (int) Math.min(Integer.MAX_VALUE, memUsageSetting.getMaxMainMemoryBytes() / PAGE_SIZE) :
-                Integer.MAX_VALUE) :
-            0;
-        inMemoryPages = new byte[maxMainMemoryIsRestricted ? inMemoryMaxPageCount : INIT_UNRESTRICTED_MAINMEM_PAGECOUNT][];
+                (memUsageSetting.isMainMemoryRestricted() ?
+                        (int) Math.min(Integer.MAX_VALUE, memUsageSetting.getMaxMainMemoryBytes() / PAGE_SIZE) :
+                        Integer.MAX_VALUE) :
+                0;
+    }
 
-        freePages.set(0, inMemoryPages.length);
+    private void initPages()
+    {
+        if (inMemoryPages == null)
+        {
+            inMemoryPages = new byte[maxMainMemoryIsRestricted ? inMemoryMaxPageCount
+                    : INIT_UNRESTRICTED_MAINMEM_PAGECOUNT][];
+            freePages.set(0, inMemoryPages.length);
+        }
     }
 
     /**
@@ -144,7 +155,37 @@ public class ScratchFile implements Closeable
         catch (IOException ioe)
         {
             // cannot happen for main memory setup
-            Log.e("PdfBox-Android", "Unexpected exception occurred creating main memory scratch file instance: " + ioe.getMessage() );
+            Log.w(
+                    "PdfBox-Android",
+                    "Unexpected exception occurred creating main memory scratch file instance: " +
+                            ioe.getMessage(), ioe
+            );
+            return null;
+        }
+    }
+
+    /**
+     * Getter for an instance to only use main-memory with the defined maximum.
+     *
+     * @param maxMainMemoryBytes maximum number of main-memory to be used; <code>-1</code> for no restriction;
+     * <code>0</code> will also be interpreted here as no restriction
+     *
+     * @return instance configured to only use main memory with no size restriction or null if cannot create scratch
+     * file
+     */
+    public static ScratchFile getMainMemoryOnlyInstance(long maxMainMemoryBytes)
+    {
+        try
+        {
+            return new ScratchFile(MemoryUsageSetting.setupMainMemoryOnly(maxMainMemoryBytes));
+        }
+        catch (IOException ioe)
+        {
+            // cannot happen for main memory setup
+            Log.w(
+                    "PdfBox-Android",
+                    "Unexpected exception occurred creating main memory scratch file instance: " +
+                            ioe.getMessage(), ioe);
             return null;
         }
     }
@@ -159,6 +200,7 @@ public class ScratchFile implements Closeable
     {
         synchronized (freePages)
         {
+            initPages();
             int idx = freePages.nextSetBit( 0 );
 
             if (idx < 0)
@@ -184,7 +226,7 @@ public class ScratchFile implements Closeable
     }
 
     /**
-     * This will provide new free pages by either enlarging the scratch file 
+     * This will provide new free pages by either enlarging the scratch file
      * by a number of pages defined by {@link #ENLARGE_PAGE_COUNT} - in case
      * scratch file usage is allowed - or increase the {@link #inMemoryPages}
      * array in case main memory was not restricted. If neither of both is
@@ -218,11 +260,11 @@ public class ScratchFile implements Closeable
                     {
                         raf = new java.io.RandomAccessFile(file, "rw");
                     }
-                    catch (IOException e)
+                    catch (FileNotFoundException e)
                     {
                         if (!file.delete())
                         {
-                            Log.w("PdfBox-Android", "Error deleting scratch file: " + file.getAbsolutePath());
+                            Log.w("PdfBox-Android","Error deleting scratch file: " +  file.getAbsolutePath());
                         }
                         throw e;
                     }
@@ -233,37 +275,16 @@ public class ScratchFile implements Closeable
 
                 if (expectedFileLen != fileLen)
                 {
-                    throw new IOException("Expected scratch file size of " + expectedFileLen +
-                        " but found " + fileLen + " in file " + file);
+                    throw new IOException("Expected scratch file size of " + expectedFileLen + " but found " + fileLen);
                 }
 
-                // enlarge if we do not int overflow
+                // enlarge if we do not overflow
                 if (pageCount + ENLARGE_PAGE_COUNT > pageCount)
                 {
-                    if (PDFBoxConfig.isDebugEnabled())
-                    {
-                        Log.d("PdfBox-Android", "file: " + file);
-                        Log.d("PdfBox-Android", "fileLen before: " + fileLen + ", raf length: " + raf.length() +
-                            ", file length: " + file.length());
-                    }
                     fileLen += ENLARGE_PAGE_COUNT * PAGE_SIZE;
 
                     raf.setLength(fileLen);
-                    if (PDFBoxConfig.isDebugEnabled())
-                    {
-                        Log.d("PdfBox-Android", "fileLen after1: " + fileLen + ", raf length: " + raf.length() +
-                            ", file length: " + file.length());
-                    }
-                    if (fileLen != raf.length())
-                    {
-                        // PDFBOX-4601 possible AWS lambda bug that setLength() doesn't throw
-                        // if not enough space
-                        long origFilePointer = raf.getFilePointer();
-                        raf.seek(fileLen - 1);
-                        raf.write(0);
-                        raf.seek(origFilePointer);
-                        Log.d("PdfBox-Android", "fileLen after2:  " + fileLen + ", raf length: " + raf.length() + ", file length: " + file.length());
-                    }
+
                     freePages.set(pageCount, pageCount + ENLARGE_PAGE_COUNT);
                 }
             }
@@ -299,7 +320,7 @@ public class ScratchFile implements Closeable
      *
      * @param pageIdx index of page to read
      *
-     * @return byte array of size {@link #PAGE_SIZE} filled with page data read from file 
+     * @return byte array of size {@link #PAGE_SIZE} filled with page data read from file
      *
      * @throws IOException
      */
@@ -418,21 +439,17 @@ public class ScratchFile implements Closeable
      *
      * @throws IOException If an error occurred.
      */
+    @Override
     public RandomAccess createBuffer() throws IOException
     {
-        return new ScratchFileBuffer(this);
+        ScratchFileBuffer newBuffer = new ScratchFileBuffer(this);
+        synchronized (buffers)
+        {
+            buffers.add(newBuffer);
+        }
+        return newBuffer;
     }
 
-    /**
-     * Creates a new buffer using this page handler and initializes it with the
-     * data read from provided input stream (input stream is copied to buffer).
-     * The buffer data pointer is reset to point to first byte.
-     *
-     * @param input The input stream that is to be copied into the buffer.
-     * @return A new buffer containing data read from input stream.
-     *
-     * @throws IOException If an error occurred.
-     */
     public RandomAccess createBuffer(InputStream input) throws IOException
     {
         ScratchFileBuffer buf = new ScratchFileBuffer(this);
@@ -448,11 +465,18 @@ public class ScratchFile implements Closeable
         return buf;
     }
 
+    void removeBuffer(ScratchFileBuffer buffer)
+    {
+        synchronized (buffers)
+        {
+            buffers.remove(buffer);
+        }
+    }
     /**
      * Allows a buffer which is cleared/closed to release its pages to be re-used.
      *
      * @param pageIndexes pages indexes of pages to release
-     * @param count number of page indexes contained in provided array 
+     * @param count number of page indexes contained in provided array
      */
     void markPagesAsFree(int[] pageIndexes, int off, int count) {
 
@@ -496,6 +520,14 @@ public class ScratchFile implements Closeable
 
             isClosed = true;
 
+            for (ScratchFileBuffer buffer : buffers)
+            {
+                if (buffer != null && !buffer.isClosed())
+                {
+                    buffer.close(false);
+                }
+            }
+            buffers.clear();
             if (raf != null)
             {
                 try

@@ -41,6 +41,7 @@ import com.tom_roush.fontbox.ttf.TTFParser;
 import com.tom_roush.fontbox.ttf.TrueTypeCollection;
 import com.tom_roush.fontbox.ttf.TrueTypeFont;
 import com.tom_roush.fontbox.util.autodetect.FontFileFinder;
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.android.TestResourceGenerator;
 import com.tom_roush.pdfbox.cos.COSName;
@@ -97,7 +98,7 @@ public class PDFontTest
             IOUtils.copy(testContext.getAssets().open("pdfbox/com/tom_roush/pdfbox/pdmodel/font/F001u_3_7j.pdf"), os);
             os.close();
 
-            doc = PDDocument.load(pdf);
+            doc = Loader.loadPDF(pdf);
             PDFRenderer renderer = new PDFRenderer(doc);
             renderer.renderImage(0);
             // the allegation is that renderImage() will crash the JVM or hang
@@ -170,7 +171,7 @@ public class PDFontTest
         doc.save(outputFile);
         doc.close();
 
-        doc = PDDocument.load(outputFile);
+        doc = Loader.loadPDF(outputFile);
 
         font = (PDType1Font) doc.getPage(0).getResources().getFont(COSName.getPDFName("F1"));
         Assert.assertEquals(WinAnsiEncoding.INSTANCE, font.getEncoding());
@@ -266,7 +267,7 @@ public class PDFontTest
     public void testPDFox5048() throws IOException
     {
         InputStream is = new URL("https://issues.apache.org/jira/secure/attachment/13017227/stringwidth.pdf").openStream();
-        PDDocument doc = PDDocument.load(is);
+        PDDocument doc = Loader.loadPDF(is);
         PDPage page = doc.getPage(0);
         PDFont font = page.getResources().getFont(COSName.getPDFName("F70"));
         Assert.assertTrue(font.isDamaged());
@@ -278,7 +279,7 @@ public class PDFontTest
 
     private void testPDFBox3826checkFonts(byte[] byteArray, File fontFile) throws IOException
     {
-        PDDocument doc = PDDocument.load(byteArray);
+        PDDocument doc = Loader.loadPDF(byteArray);
 
         PDPage page2 = doc.getPage(0);
 
@@ -385,7 +386,7 @@ public class PDFontTest
 
         Assert.assertTrue(tempFontFile.delete());
 
-        doc = PDDocument.load(tempPdfFile);
+        doc = Loader.loadPDF(tempPdfFile);
         PDFTextStripper stripper = new PDFTextStripper();
         String extractedText = stripper.getText(doc);
         Assert.assertEquals(text, extractedText.trim());
@@ -425,7 +426,7 @@ public class PDFontTest
         doc.save(baos);
         doc.close();
 
-        doc = PDDocument.load(baos.toByteArray());
+        doc = Loader.loadPDF(baos.toByteArray());
         PDFTextStripper stripper = new PDFTextStripper();
         stripper.setLineSeparator("\n");
         String extractedText = stripper.getText(doc);

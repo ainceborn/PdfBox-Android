@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.io.IOUtils;
@@ -65,7 +66,7 @@ public class PDAcroFormInstrumentationTest
     @Test
     public void testFlatten() throws IOException
     {
-        PDDocument testPdf = PDDocument.load(testContext.getAssets().open(IN_DIR + "/" + "AlignmentTests.pdf"));
+        PDDocument testPdf = Loader.loadPDF(testContext.getAssets().open(IN_DIR + "/" + "AlignmentTests.pdf"));
         testPdf.getDocumentCatalog().getAcroForm().flatten();
         assertTrue(testPdf.getDocumentCatalog().getAcroForm().getFields().isEmpty());
         File file = new File(OUT_DIR, "AlignmentTests-flattened.pdf");
@@ -84,7 +85,7 @@ public class PDAcroFormInstrumentationTest
     @Test
     public void testFlattenWidgetNoRef() throws IOException
     {
-        PDDocument testPdf = PDDocument.load(testContext.getAssets().open(IN_DIR + "/" + "AlignmentTests.pdf"));
+        PDDocument testPdf = Loader.loadPDF(testContext.getAssets().open(IN_DIR + "/" + "AlignmentTests.pdf"));
         PDAcroForm acroForm = testPdf.getDocumentCatalog().getAcroForm();
         for (PDField field : acroForm.getFieldTree()) {
             for (PDAnnotationWidget widget : field.getWidgets()) {
@@ -115,7 +116,7 @@ public class PDAcroFormInstrumentationTest
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(testContext.getAssets().open(IN_DIR + "/" + "AlignmentTests.pdf"));
+            testPdf = Loader.loadPDF(testContext.getAssets().open(IN_DIR + "/" + "AlignmentTests.pdf"));
             PDAcroForm acroFormToFlatten = testPdf.getDocumentCatalog().getAcroForm();
             int numFieldsBeforeFlatten = acroFormToFlatten.getFields().size();
             int numWidgetsBeforeFlatten = countWidgets(testPdf);

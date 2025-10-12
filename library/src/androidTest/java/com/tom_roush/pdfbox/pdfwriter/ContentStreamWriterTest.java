@@ -26,6 +26,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.android.TestResourceGenerator;
 import com.tom_roush.pdfbox.cos.COSName;
@@ -98,7 +99,7 @@ public class ContentStreamWriterTest
       String filename = "PDFBOX-4750.pdf";
       File file = TestResourceGenerator.downloadTestResource(testDirIn, filename, "https://issues.apache.org/jira/secure/attachment/12991833/PDFBOX-4750-test.pdf");
       assumeTrue(file.exists());
-      PDDocument doc = PDDocument.load(file);
+      PDDocument doc = Loader.loadPDF(file);
 
       PDFRenderer r = new PDFRenderer(doc);
       for (int i = 0; i < doc.getNumberOfPages(); ++i)
@@ -115,7 +116,7 @@ public class ContentStreamWriterTest
          parser.parse();
          OutputStream os = newContent.createOutputStream(COSName.FLATE_DECODE);
          ContentStreamWriter tokenWriter = new ContentStreamWriter(os);
-         tokenWriter.writeTokens(parser.getTokens());
+         tokenWriter.writeTokens(parser.parse());
          os.close();
 
          page.setContents(newContent);

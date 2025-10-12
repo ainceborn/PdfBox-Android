@@ -16,90 +16,26 @@
  */
 package com.tom_roush.pdfbox.pdfparser;
 
-import android.util.Log;
-
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 
-import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
-import com.tom_roush.pdfbox.cos.COSDocument;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.io.IOUtils;
-import com.tom_roush.pdfbox.io.RandomAccessBuffer;
-import com.tom_roush.pdfbox.io.RandomAccessFile;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
+import com.tom_roush.pdfbox.pdmodel.fdf.FDFDocument;
 
 public class FDFParser extends COSParser
 {
     /**
      * Constructs parser for given file using memory buffer.
      *
-     * @param filename the filename of the pdf to be parsed
+     * @param source the source of the pdf to be parsed
      *
      * @throws IOException If something went wrong.
      */
-    public FDFParser(String filename) throws IOException
+    public FDFParser(RandomAccessRead source) throws IOException
     {
-        this(new File(filename));
-    }
-
-    /**
-     * Constructs parser for given file using given buffer for temporary
-     * storage.
-     *
-     * @param file the pdf to be parsed
-     *
-     * @throws IOException If something went wrong.
-     */
-    public FDFParser(File file) throws IOException
-    {
-        super(new RandomAccessFile(file, "r"));
-        fileLen = file.length();
-        init();
-    }
-
-    /**
-     * Constructor.
-     *
-     * @param input input stream representing the pdf.
-     * @throws IOException If something went wrong.
-     */
-    public FDFParser(InputStream input) throws IOException
-    {
-        super(new RandomAccessBuffer(input));
-        fileLen = source.length();
-        init();
-    }
-
-    /**
-     * Tell if the dictionary is a FDF catalog.
-     *
-     * @param dictionary
-     * @return
-     */
-    @Override
-    protected final boolean isCatalog(COSDictionary dictionary)
-    {
-        return dictionary.containsKey(COSName.FDF);
-    }
-
-    private void init()
-    {
-        String eofLookupRangeStr = System.getProperty(SYSPROP_EOFLOOKUPRANGE);
-        if (eofLookupRangeStr != null)
-        {
-            try
-            {
-                setEOFLookupRange(Integer.parseInt(eofLookupRangeStr));
-            }
-            catch (NumberFormatException nfe)
-            {
-                Log.w("PdfBox-Android", "System property " + SYSPROP_EOFLOOKUPRANGE
-                    + " does not contain an integer value, but: '" + eofLookupRangeStr + "'");
-            }
-        }
-        document = new COSDocument();
+        super(source);
     }
 
     /**
@@ -111,55 +47,23 @@ public class FDFParser extends COSParser
      */
     private void initialParse() throws IOException
     {
-        COSDictionary trailer = null;
-        boolean rebuildTrailer = false;
-        try
-        {
-            // parse startxref
-            long startXRefOffset = getStartxrefOffset();
-            if (startXRefOffset > 0)
-            {
-                trailer = parseXref(startXRefOffset);
-            }
-            else if (isLenient())
-            {
-                rebuildTrailer = true;
-            }
-        }
-        catch (IOException exception)
-        {
-            if (isLenient())
-            {
-                rebuildTrailer = true;
-            }
-            else
-            {
-                throw exception;
-            }
-        }
-        if (rebuildTrailer)
-        {
-            trailer = rebuildTrailer();
-        }
+        COSDictionary trailer = retrieveTrailer();
 
-        COSBase rootObject = parseTrailerValuesDynamically(trailer);
-
-        // resolve all objects
-        // A FDF doesn't have a catalog, all FDF fields are within the root object
-        if (rootObject instanceof COSDictionary)
+        COSDictionary root = trailer.getCOSDictionary(COSName.ROOT);
+        if (root == null)
         {
-            parseDictObjects((COSDictionary) rootObject, (COSName[]) null);
+            throw new IOException("Missing root object specification in trailer.");
         }
         initialParseDone = true;
     }
 
     /**
-     * This will parse the stream and populate the COSDocument object.
+     * This will parse the stream and populate the FDFDocument object.
      *
-     * @throws IOException If there is an error reading from the stream or corrupt data
-     * is found.
+     * @return the parsed FDFDocument
+     * @throws IOException If there is an error reading from the stream or corrupt data is found.
      */
-    public void parse() throws IOException
+    public FDFDocument parse() throws IOException
     {
         // set to false if all is processed
         boolean exceptionOccurred = true;
@@ -171,6 +75,7 @@ public class FDFParser extends COSParser
             }
             initialParse();
             exceptionOccurred = false;
+            return new FDFDocument(document, source);
         }
         finally
         {

@@ -16,6 +16,8 @@
  */
 package com.tom_roush.pdfbox.cos;
 
+import android.util.Log;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -41,23 +43,21 @@ import com.tom_roush.pdfbox.util.SmallMap;
  */
 public class COSDictionary extends COSBase implements COSUpdateInfo
 {
+
     private static final String PATH_SEPARATOR = "/";
-    private static final int MAP_THRESHOLD = 1000;
-    private boolean needToBeUpdated;
 
     /**
      * The name-value pairs of this dictionary. The pairs are kept in the order they were added to the dictionary.
      */
-    protected Map<COSName, COSBase> items = new SmallMap<COSName, COSBase>();
-
+    protected Map<COSName, COSBase> items = new LinkedHashMap<>();
     private final COSUpdateState updateState;
+
     /**
      * Constructor.
      */
     public COSDictionary()
     {
         updateState = new COSUpdateState(this);
-        // default constructor
     }
 
     /**
@@ -100,8 +100,9 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
         {
             Object nextValue = entry.getValue();
             if (nextValue.equals(value)
-                || (nextValue instanceof COSObject && ((COSObject) nextValue).getObject()
-                .equals(value)))
+                    || (nextValue instanceof COSObject &&
+                    !((COSObject) nextValue).isObjectNull() &&
+                    ((COSObject) nextValue).getObject().equals(value)))
             {
                 return entry.getKey();
             }
@@ -125,6 +126,7 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
     public void clear()
     {
         items.clear();
+        getUpdateState().update();
     }
 
     /**
@@ -157,29 +159,6 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
         if (retval == null && secondKey != null)
         {
             retval = getDictionaryObject(secondKey);
-        }
-        return retval;
-    }
-
-    /**
-     * This is a special case of getDictionaryObject that takes multiple keys, it will handle the situation where
-     * multiple keys could get the same value, ie if either CS or ColorSpace is used to get the colorspace. This will
-     * get an object from this dictionary. If the object is a reference then it will dereference it and get it from the
-     * document. If the object is COSNull then null will be returned.
-     *
-     * @param keyList The list of keys to find a value.
-     *
-     * @return The object that matches the key.
-     *
-     * @deprecated Will be removed in 3.0. A value may have to keys, the regular one and sometimes an additional
-     * abbreviation. More than 2 values doesn't make sense.
-     */
-    public COSBase getDictionaryObject(String[] keyList)
-    {
-        COSBase retval = null;
-        for (int i = 0; i < keyList.length && retval == null; i++)
-        {
-            retval = getDictionaryObject(COSName.getPDFName(keyList[i]));
         }
         return retval;
     }
@@ -220,11 +199,18 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
         }
         else
         {
-            if (items instanceof SmallMap && items.size() >= MAP_THRESHOLD)
+            if ((value instanceof COSDictionary || value instanceof COSArray) && !value.isDirect()
+                    && value.getKey() != null)
             {
-                items = new LinkedHashMap<COSName, COSBase>(items);
+                COSObject cosObject = new COSObject(value, value.getKey());
+                items.put(key, cosObject);
+                getUpdateState().update(cosObject);
             }
-            items.put(key, value);
+            else
+            {
+                items.put(key, value);
+                getUpdateState().update(value);
+            }
         }
     }
 
@@ -340,27 +326,15 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
     }
 
     /**
-     * Set the value of a date entry in the dictionary.
-     *
-     * @param embedded The embedded dictionary.
-     * @param key The key to the date value.
-     * @param date The date value.
-     */
-    public void setEmbeddedDate(String embedded, String key, Calendar date)
-    {
-        setEmbeddedDate(embedded, COSName.getPDFName(key), date);
-    }
-
-    /**
      * Set the date object.
      *
      * @param embedded The embedded dictionary.
      * @param key The key to the date.
      * @param date The date to set.
      */
-    public void setEmbeddedDate(String embedded, COSName key, Calendar date)
+    public void setEmbeddedDate(COSName embedded, COSName key, Calendar date)
     {
-        COSDictionary dic = (COSDictionary) getDictionaryObject(embedded);
+        COSDictionary dic = getCOSDictionary(embedded);
         if (dic == null && date != null)
         {
             dic = new COSDictionary();
@@ -409,22 +383,9 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      * @param key The key to the object,
      * @param value The string value for the name.
      */
-    public void setEmbeddedString(String embedded, String key, String value)
+    public void setEmbeddedString(COSName embedded, COSName key, String value)
     {
-        setEmbeddedString(embedded, COSName.getPDFName(key), value);
-    }
-
-    /**
-     * This is a convenience method that will convert the value to a COSString object. If it is null then the object
-     * will be removed.
-     *
-     * @param embedded The embedded dictionary to set the item in.
-     * @param key The key to the object,
-     * @param value The string value for the name.
-     */
-    public void setEmbeddedString(String embedded, COSName key, String value)
-    {
-        COSDictionary dic = (COSDictionary) getDictionaryObject(embedded);
+        COSDictionary dic = getCOSDictionary(embedded);
         if (dic == null && value != null)
         {
             dic = new COSDictionary();
@@ -488,21 +449,9 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      * @param key The key to the object,
      * @param value The int value for the name.
      */
-    public void setEmbeddedInt(String embeddedDictionary, String key, int value)
+    public void setEmbeddedInt(COSName embeddedDictionary, COSName key, int value)
     {
-        setEmbeddedInt(embeddedDictionary, COSName.getPDFName(key), value);
-    }
-
-    /**
-     * This is a convenience method that will convert the value to a COSInteger object.
-     *
-     * @param embeddedDictionary The embedded dictionary.
-     * @param key The key to the object,
-     * @param value The int value for the name.
-     */
-    public void setEmbeddedInt(String embeddedDictionary, COSName key, int value)
-    {
-        COSDictionary embedded = (COSDictionary) getDictionaryObject(embeddedDictionary);
+        COSDictionary embedded = getCOSDictionary(embeddedDictionary);
         if (embedded == null)
         {
             embedded = new COSDictionary();
@@ -607,8 +556,26 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
     }
 
     /**
-     * This is a convenience method that will get the dictionary object that is expected to be a
-     * COSStream. Null is returned if the entry does not exist in the dictionary.
+     * This is a convenience method that will get the dictionary object that is expected to be a COSDictionary. Null is
+     * returned if the entry does not exist in the dictionary.
+     *
+     * @param firstKey The first key to the item in the dictionary.
+     * @param secondKey The second key to the item in the dictionary.
+     * @return The COSDictionary.
+     */
+    public COSDictionary getCOSDictionary(COSName firstKey, COSName secondKey)
+    {
+        COSBase dictionary = getDictionaryObject(firstKey, secondKey);
+        if (dictionary instanceof COSDictionary)
+        {
+            return (COSDictionary) dictionary;
+        }
+        return null;
+    }
+
+    /**
+     * This is a convenience method that will get the dictionary object that is expected to be a COSStream. Null is
+     * returned if the entry does not exist in the dictionary.
      *
      * @param key The key to the item in the dictionary.
      * @return The COSStream.
@@ -792,20 +759,7 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      * @param key The key to the item in the dictionary.
      * @return The name converted to a string.
      */
-    public String getEmbeddedString(String embedded, String key)
-    {
-        return getEmbeddedString(embedded, COSName.getPDFName(key), null);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param embedded The embedded dictionary.
-     * @param key The key to the item in the dictionary.
-     * @return The name converted to a string.
-     */
-    public String getEmbeddedString(String embedded, COSName key)
+    public String getEmbeddedString(COSName embedded, COSName key)
     {
         return getEmbeddedString(embedded, key, null);
     }
@@ -819,29 +773,10 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      * @param defaultValue The default value to return.
      * @return The name converted to a string.
      */
-    public String getEmbeddedString(String embedded, String key, String defaultValue)
+    public String getEmbeddedString(COSName embedded, COSName key, String defaultValue)
     {
-        return getEmbeddedString(embedded, COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string.
-     *
-     * @param embedded The embedded dictionary.
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The default value to return.
-     * @return The name converted to a string.
-     */
-    public String getEmbeddedString(String embedded, COSName key, String defaultValue)
-    {
-        String retval = defaultValue;
-        COSBase base = getDictionaryObject(embedded);
-        if (base instanceof COSDictionary)
-        {
-            retval = ((COSDictionary) base).getString(key, defaultValue);
-        }
-        return retval;
+        COSDictionary eDic = getCOSDictionary(embedded);
+        return eDic != null ? eDic.getString(key, defaultValue) : defaultValue;
     }
 
     /**
@@ -909,24 +844,8 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      * @param embedded The embedded dictionary to get.
      * @param key The key to the item in the dictionary.
      * @return The name converted to a string.
-     * @throws IOException If there is an error converting to a date.
      */
-    public Calendar getEmbeddedDate(String embedded, String key) throws IOException
-    {
-        return getEmbeddedDate(embedded, COSName.getPDFName(key), null);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param embedded The embedded dictionary to get.
-     * @param key The key to the item in the dictionary.
-     * @return The name converted to a string.
-     *
-     * @throws IOException If there is an error converting to a date.
-     */
-    public Calendar getEmbeddedDate(String embedded, COSName key) throws IOException
+    public Calendar getEmbeddedDate(COSName embedded, COSName key)
     {
         return getEmbeddedDate(embedded, key, null);
     }
@@ -936,35 +855,14 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      *
      * @param embedded The embedded dictionary to get.
      * @param key The key to the item in the dictionary.
-     * @param defaultValue The default value to return if the entry does not exist in the dictionary or if the date was invalid.
+     * @param defaultValue The default value to return if the entry does not exist in the dictionary or if the date was
+     * invalid.
      * @return The name converted to a string.
-     * @throws IOException If there is an error converting to a date.
      */
-    public Calendar getEmbeddedDate(String embedded, String key, Calendar defaultValue)
-        throws IOException
+    public Calendar getEmbeddedDate(COSName embedded, COSName key, Calendar defaultValue)
     {
-        return getEmbeddedDate(embedded, COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a date.
-     *
-     * @param embedded The embedded dictionary to get.
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The default value to return if the entry does not exist in the dictionary or if the date was invalid.
-     * @return The name converted to a string.
-     * @throws IOException If there is an error converting to a date.
-     */
-    public Calendar getEmbeddedDate(String embedded, COSName key, Calendar defaultValue)
-        throws IOException
-    {
-        Calendar retval = defaultValue;
-        COSDictionary eDic = (COSDictionary) getDictionaryObject(embedded);
-        if (eDic != null)
-        {
-            retval = eDic.getDate(key, defaultValue);
-        }
-        return retval;
+        COSDictionary eDic = getCOSDictionary(embedded);
+        return eDic != null ? eDic.getDate(key, defaultValue) : defaultValue;
     }
 
     /**
@@ -1024,20 +922,7 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      *
      * @return The value of the embedded integer.
      */
-    public int getEmbeddedInt(String embeddedDictionary, String key)
-    {
-        return getEmbeddedInt(embeddedDictionary, COSName.getPDFName(key));
-    }
-
-    /**
-     * Get an integer from an embedded dictionary. Useful for 1-1 mappings. default:-1
-     *
-     * @param embeddedDictionary The name of the embedded dictionary.
-     * @param key The key in the embedded dictionary.
-     *
-     * @return The value of the embedded integer.
-     */
-    public int getEmbeddedInt(String embeddedDictionary, COSName key)
+    public int getEmbeddedInt(COSName embeddedDictionary, COSName key)
     {
         return getEmbeddedInt(embeddedDictionary, key, -1);
     }
@@ -1051,29 +936,10 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      *
      * @return The value of the embedded integer.
      */
-    public int getEmbeddedInt(String embeddedDictionary, String key, int defaultValue)
+    public int getEmbeddedInt(COSName embeddedDictionary, COSName key, int defaultValue)
     {
-        return getEmbeddedInt(embeddedDictionary, COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * Get an integer from an embedded dictionary. Useful for 1-1 mappings.
-     *
-     * @param embeddedDictionary The name of the embedded dictionary.
-     * @param key The key in the embedded dictionary.
-     * @param defaultValue The value if there is no embedded dictionary or it does not contain the key.
-     *
-     * @return The value of the embedded integer.
-     */
-    public int getEmbeddedInt(String embeddedDictionary, COSName key, int defaultValue)
-    {
-        int retval = defaultValue;
-        COSDictionary embedded = (COSDictionary) getDictionaryObject(embeddedDictionary);
-        if (embedded != null)
-        {
-            retval = embedded.getInt(key, defaultValue);
-        }
-        return retval;
+        COSDictionary embedded = getCOSDictionary(embeddedDictionary);
+        return embedded != null ? embedded.getInt(key, defaultValue) : defaultValue;
     }
 
     /**
@@ -1104,28 +970,6 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
      * dictionary value is null then the default value will be returned.
      *
-     * @param keyList The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The integer value.
-     *
-     * @deprecated Will be removed in 3.0. A value may have to keys, the regular one and sometimes an additional
-     * abbreviation. More than 2 values doesn't make sense.
-     */
-    public int getInt(String[] keyList, int defaultValue)
-    {
-        int retval = defaultValue;
-        COSBase obj = getDictionaryObject(keyList);
-        if (obj instanceof COSNumber)
-        {
-            retval = ((COSNumber) obj).intValue();
-        }
-        return retval;
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
-     * dictionary value is null then the default value will be returned.
-     *
      * @param key The key to the item in the dictionary.
      * @param defaultValue The value to return if the dictionary item is null.
      * @return The integer value.
@@ -1137,7 +981,7 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
 
     /**
      * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
-     * dictionary value is null then the default value will be returned.
+     * dictionary value is null then the defaultvalue will be returned.
      *
      * @param key The key to the item in the dictionary.
      * @param defaultValue The value to return if the dictionary item is null.
@@ -1204,28 +1048,6 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
     public long getLong(COSName key)
     {
         return getLong(key, -1L);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an long. If the
-     * dictionary value is null then the default value will be returned.
-     *
-     * @param keyList The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The long value.
-     *
-     * @deprecated Will be removed in 3.0. A value may have to keys, the regular one and sometimes an additional
-     * abbreviation. More than 2 values doesn't make sense.
-     */
-    public long getLong(String[] keyList, long defaultValue)
-    {
-        long retval = defaultValue;
-        COSBase obj = getDictionaryObject(keyList);
-        if (obj instanceof COSNumber)
-        {
-            retval = ((COSNumber) obj).longValue();
-        }
-        return retval;
     }
 
     /**
@@ -1338,6 +1160,7 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
     public void removeItem(COSName key)
     {
         items.remove(key);
+        getUpdateState().update();
     }
 
     /**
@@ -1409,6 +1232,17 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
     }
 
     /**
+     * Convenience method that calls {@link Map#forEach(java.util.function.BiConsumer) Map.forEach(BiConsumer)}.
+     *
+     * @param action The action to be performed for each entry
+     *
+     */
+    public void forEach(BiConsumer<? super COSName, ? super COSBase> action)
+    {
+        items.forEach(action);
+    }
+
+    /**
      * This will get all of the values for the dictionary.
      *
      * @return All the values for the dictionary.
@@ -1422,26 +1256,12 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      * visitor pattern double dispatch method.
      *
      * @param visitor The object to notify when visiting this object.
-     * @return The object that the visitor returns.
-     *
      * @throws IOException If there is an error visiting this object.
      */
     @Override
-    public Object accept(ICOSVisitor visitor) throws IOException
+    public void accept(ICOSVisitor visitor) throws IOException
     {
-        return visitor.visitFromDictionary(this);
-    }
-
-    @Override
-    public boolean isNeedToBeUpdated()
-    {
-        return needToBeUpdated;
-    }
-
-    @Override
-    public void setNeedToBeUpdated(boolean flag)
-    {
-        needToBeUpdated = flag;
+        visitor.visitFromDictionary(this);
     }
 
     /**
@@ -1452,10 +1272,6 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
      */
     public void addAll(COSDictionary dict)
     {
-        if (items instanceof SmallMap && items.size() + dict.items.size() >= MAP_THRESHOLD)
-        {
-            items = new LinkedHashMap<COSName, COSBase>(items);
-        }
         items.putAll(dict.items);
     }
 
@@ -1482,31 +1298,8 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
     }
 
     /**
-     * This will add all of the dictionaries keys/values to this dictionary, but
-     * only if they don't already exist. If a key already exists in this
-     * dictionary then nothing is changed.
-     *
-     * @param dic The dictionaries to get the keys from.
-     *
-     * @deprecated This method should no longer be used and will be removed in
-     * 3.0 because it could also merge attributes that should not be merged
-     * (filter and length) in a COSStream.
-     */
-    @Deprecated
-    public void mergeInto(COSDictionary dic)
-    {
-        for (Map.Entry<COSName, COSBase> entry : dic.entrySet())
-        {
-            if (getItem(entry.getKey()) == null)
-            {
-                setItem(entry.getKey(), entry.getValue());
-            }
-        }
-    }
-
-    /**
      * Nice method, gives you every object you want Arrays works properly too. Try "P/Annots/[k]/Rect" where k means the
-     * index of the Annotsarray.
+     * index of the Annots array.
      *
      * @param objPath the relative path to the object.
      * @return the object
@@ -1548,10 +1341,11 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
     {
         try
         {
-            return getDictionaryString(this, new ArrayList<COSBase>());
+            return getDictionaryString(this, new ArrayList<>());
         }
         catch (IOException e)
         {
+            Log.e("PdfBox-Android", "An exception occurred trying - returning error message instead", e);
             return "COSDictionary{" + e.getMessage() + "}";
         }
     }
@@ -1565,11 +1359,11 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
         if (objs.contains(base))
         {
             // avoid endless recursion
-            return String.valueOf(base.hashCode());
+            return "hash:" + base.hashCode();
         }
-        objs.add(base);
         if (base instanceof COSDictionary)
         {
+            objs.add(base);
             StringBuilder sb = new StringBuilder("COSDictionary{");
             for (Map.Entry<COSName, COSBase> x : ((COSDictionary) base).entrySet())
             {
@@ -1581,17 +1375,19 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
             sb.append("}");
             if (base instanceof COSStream)
             {
-                InputStream stream = ((COSStream) base).createRawInputStream();
-                byte[] b = IOUtils.toByteArray(stream);
-                sb.append("COSStream{").append(Arrays.hashCode(b)).append("}");
-                stream.close();
+                try (InputStream stream = ((COSStream) base).createRawInputStream())
+                {
+                    byte[] b = stream.readAllBytes();
+                    sb.append("COSStream{").append(Arrays.hashCode(b)).append("}");
+                }
             }
             return sb.toString();
         }
         if (base instanceof COSArray)
         {
+            objs.add(base);
             StringBuilder sb = new StringBuilder("COSArray{");
-            for (COSBase x : ((COSArray) base))
+            for (COSBase x : (COSArray) base)
             {
                 sb.append(getDictionaryString(x, objs));
                 sb.append(";");
@@ -1601,31 +1397,86 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
         }
         if (base instanceof COSObject)
         {
+            objs.add(base);
             COSObject obj = (COSObject) base;
-            return "COSObject{" + getDictionaryString(obj.getObject(), objs) + "}";
+            return "COSObject{"
+                    + getDictionaryString(
+                    obj.isObjectNull() ? COSNull.NULL : obj.getObject(), objs)
+                    + "}";
         }
         return base.toString();
     }
 
+    /**
+     * Returns the current {@link COSUpdateState} of this {@link COSDictionary}.
+     *
+     * @return The current {@link COSUpdateState} of this {@link COSDictionary}.
+     * @see COSUpdateState
+     */
     @Override
-    public COSIncrement toIncrement() {
-        return COSUpdateInfo.super.toIncrement();
-    }
-
-    @Override
-    public COSUpdateState getUpdateState() {
+    public COSUpdateState getUpdateState()
+    {
         return updateState;
     }
 
     /**
-     * Convenience method that calls {@link Map#forEach(java.util.function.BiConsumer) Map.forEach(BiConsumer)}.
+     * Collects all indirect objects numbers within this dictionary and all included dictionaries. It is used to avoid
+     * mixed up object numbers when importing an existing page to another pdf.
      *
-     * @param action The action to be performed for each entry
+     * Expert use only. You might run into an endless recursion if choosing a wrong starting point.
+     *
+     * @param indirectObjects a collection of already found indirect objects.
      *
      */
-    public void forEach(BiConsumer<? super COSName, ? super COSBase> action)
+    public void getIndirectObjectKeys(Collection<COSObjectKey> indirectObjects)
     {
-        items.forEach(action);
+        if (indirectObjects == null)
+        {
+            return;
+        }
+        COSObjectKey key = getKey();
+        if (key != null)
+        {
+            // avoid endless recursions
+            if (indirectObjects.contains(key))
+            {
+                return;
+            }
+            else
+            {
+                indirectObjects.add(key);
+            }
+        }
+        for (Map.Entry<COSName, COSBase> entry : items.entrySet())
+        {
+            COSBase cosBase = entry.getValue();
+            COSObjectKey cosBaseKey = cosBase != null ? cosBase.getKey() : null;
+            // avoid endless recursions
+            if (COSName.PARENT.equals(entry.getKey())
+                    || (cosBaseKey != null && indirectObjects.contains(cosBaseKey)))
+            {
+                continue;
+            }
+            if (cosBase instanceof COSObject)
+            {
+                // dereference object
+                cosBase = ((COSObject) cosBase).getObject();
+            }
+            if (cosBase instanceof COSDictionary)
+            {
+                // descend to included dictionary to collect all included indirect objects
+                ((COSDictionary) cosBase).getIndirectObjectKeys(indirectObjects);
+            }
+            else if (cosBase instanceof COSArray)
+            {
+                // descend to included array to collect all included indirect objects
+                ((COSArray) cosBase).getIndirectObjectKeys(indirectObjects);
+            }
+            else if (cosBaseKey != null)
+            {
+                // add key for all indirect objects other than COSDictionary/COSArray
+                indirectObjects.add(cosBaseKey);
+            }
+        }
     }
-
 }

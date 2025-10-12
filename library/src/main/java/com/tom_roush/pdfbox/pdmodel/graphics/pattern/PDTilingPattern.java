@@ -24,6 +24,8 @@ import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSStream;
+import com.tom_roush.pdfbox.io.RandomAccessInputStream;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.ResourceCache;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
@@ -173,10 +175,18 @@ public class PDTilingPattern extends PDAbstractPattern implements PDContentStrea
     @Override
     public InputStream getContents() throws IOException
     {
+        RandomAccessRead contentsForRandomAccess = getContentsForRandomAccess();
+        return contentsForRandomAccess != null
+                ? new RandomAccessInputStream(contentsForRandomAccess) : null;
+    }
+
+    @Override
+    public RandomAccessRead getContentsForRandomAccess() throws IOException
+    {
         COSDictionary dict = getCOSObject();
         if (dict instanceof COSStream)
         {
-            return ((COSStream) getCOSObject()).createInputStream();
+            return ((COSStream) getCOSObject()).createView();
         }
         return null;
     }
@@ -189,13 +199,8 @@ public class PDTilingPattern extends PDAbstractPattern implements PDContentStrea
     @Override
     public PDResources getResources()
     {
-        PDResources retval = null;
-        COSBase base = getCOSObject().getDictionaryObject(COSName.RESOURCES);
-        if (base instanceof COSDictionary)
-        {
-            retval = new PDResources((COSDictionary) base);
-        }
-        return retval;
+        COSDictionary resources = getCOSObject().getCOSDictionary(COSName.RESOURCES);
+        return resources != null ? new PDResources(resources, resourceCache) : null;
     }
 
     /**
@@ -217,13 +222,8 @@ public class PDTilingPattern extends PDAbstractPattern implements PDContentStrea
     @Override
     public PDRectangle getBBox()
     {
-        PDRectangle retval = null;
-        COSBase base = getCOSObject().getDictionaryObject(COSName.BBOX);
-        if (base instanceof COSArray)
-        {
-            retval = new PDRectangle((COSArray) base);
-        }
-        return retval;
+        COSArray bbox = getCOSObject().getCOSArray(COSName.BBOX);
+        return bbox != null ? new PDRectangle(bbox) : null;
     }
 
     /**

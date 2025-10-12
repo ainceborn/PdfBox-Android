@@ -18,6 +18,7 @@ import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxConfig;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentCatalog;
@@ -158,7 +159,7 @@ public class MainActivity extends Activity {
         // Render the page and save it to an image file
         try {
             // Load in an already created PDF
-            PDDocument document = PDDocument.load(assetManager.open("manual.pdf"));
+            PDDocument document = Loader.loadPDF(assetManager.open("manual.pdf"));
             // Create a renderer for the document
             PDFRenderer renderer = new PDFRenderer(document);
             // Render the image to an RGB Bitmap
@@ -181,7 +182,7 @@ public class MainActivity extends Activity {
     public void fillForm(View v) {
         try {
             // Load the document and get the AcroForm
-            PDDocument document = PDDocument.load(assetManager.open("FormTest.pdf"));
+            PDDocument document = Loader.loadPDF(assetManager.open("FormTest.pdf"));
             PDDocumentCatalog docCatalog = document.getDocumentCatalog();
             PDAcroForm acroForm = docCatalog.getAcroForm();
 
@@ -222,7 +223,7 @@ public class MainActivity extends Activity {
         String parsedText = null;
         PDDocument document = null;
         try {
-            document = PDDocument.load(assetManager.open("Hello.pdf"));
+            document = Loader.loadPDF(assetManager.open("Hello.pdf"));
         } catch(IOException e) {
             Log.e("PdfBox-Android-Sample", "Exception thrown while loading document to strip", e);
         }

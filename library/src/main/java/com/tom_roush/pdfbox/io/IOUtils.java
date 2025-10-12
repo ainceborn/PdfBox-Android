@@ -34,6 +34,7 @@ public final class IOUtils
 {
 
     //TODO PDFBox should really use Apache Commons IO.
+    private static final RandomAccessStreamCache.StreamCacheCreateFunction streamCache = RandomAccessStreamCacheImpl::new;
 
     private IOUtils()
     {
@@ -144,5 +145,15 @@ public final class IOUtils
             }
         }
         return initialException;
+    }
+
+    public static RandomAccessStreamCache.StreamCacheCreateFunction createMemoryOnlyStreamCache()
+    {
+        return streamCache;
+    }
+
+    public static RandomAccessStreamCache.StreamCacheCreateFunction createTempFileOnlyStreamCache()
+    {
+        return MemoryUsageSetting.setupTempFileOnly().streamCache;
     }
 }

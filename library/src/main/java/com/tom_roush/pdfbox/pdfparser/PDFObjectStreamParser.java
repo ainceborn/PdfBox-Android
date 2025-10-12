@@ -16,31 +16,27 @@
  */
 package com.tom_roush.pdfbox.pdfparser;
 
-import android.util.Log;
+import com.tom_roush.pdfbox.cos.COSBase;
+import com.tom_roush.pdfbox.cos.COSDocument;
+import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.cos.COSObjectKey;
+import com.tom_roush.pdfbox.cos.COSStream;
+import com.tom_roush.pdfbox.pdfparser.BaseParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
-import com.tom_roush.pdfbox.android.PDFBoxConfig;
-import com.tom_roush.pdfbox.cos.COSBase;
-import com.tom_roush.pdfbox.cos.COSDocument;
-import com.tom_roush.pdfbox.cos.COSName;
-import com.tom_roush.pdfbox.cos.COSObject;
-import com.tom_roush.pdfbox.cos.COSStream;
-
 /**
- * This will parse a PDF 1.5 object stream and extract all of the objects from the stream.
+ * This will parse a PDF 1.5 object stream and extract the object with given object number from the stream.
  *
  * @author Ben Litchfield
  *
  */
 public class PDFObjectStreamParser extends BaseParser
 {
-    private List<COSObject> streamObjects = null;
     private final int numberOfObjects;
     private final int firstObject;
 
@@ -53,7 +49,7 @@ public class PDFObjectStreamParser extends BaseParser
      */
     public PDFObjectStreamParser(COSStream stream, COSDocument document) throws IOException
     {
-        super(new InputStreamSource(stream.createInputStream()));
+        super(stream.createView());
         this.document = document;
         // get mandatory number of objects
         numberOfObjects = stream.getInt(COSName.N);
@@ -78,77 +74,162 @@ public class PDFObjectStreamParser extends BaseParser
     }
 
     /**
-     * This will parse the tokens in the stream.  This will close the
-     * stream when it is finished parsing.
+     * Search for/parse the object with the given object number. The stream is closed after parsing the object with the
+     * given number.
      *
-     * @throws IOException If there is an error while parsing the stream.
+     * @param objectNumber the number of the object to b e parsed
+     * @return the parsed object or null if the object with the given number can't be found
+     * @throws IOException if there is an error while parsing the stream
      */
-    public void parse() throws IOException
+    public COSBase parseObject(long objectNumber) throws IOException
     {
+        COSBase streamObject = null;
         try
         {
-            Map<Integer, Long> offsets = readOffsets();
-            streamObjects = new ArrayList<COSObject>(offsets.size());
-            for (Entry<Integer, Long> offset : offsets.entrySet())
+            Integer objectOffset = privateReadObjectNumbers().get(objectNumber);
+            if (objectOffset != null)
             {
-                COSBase cosObject = parseObject(offset.getKey());
-                COSObject object = new COSObject(cosObject);
-                object.setGenerationNumber(0);
-                object.setObjectNumber(offset.getValue());
-                streamObjects.add(object);
-                if (PDFBoxConfig.isDebugEnabled())
+                // jump to the offset of the first object
+                long currentPosition = source.getPosition();
+                if (firstObject > 0 && currentPosition < firstObject)
                 {
-                    Log.d("PdfBox-Android", "parsed=" + object);
+                    source.skip(firstObject - (int) currentPosition);
+                }
+                // jump to the offset of the object to be parsed
+                source.skip(objectOffset);
+                streamObject = parseDirObject();
+                if (streamObject != null)
+                {
+                    streamObject.setDirect(false);
                 }
             }
         }
         finally
         {
-            seqSource.close();
+            source.close();
+            document = null;
         }
+        return streamObject;
     }
 
     /**
-     * This will get the objects that were parsed from the stream.
+     * Parse all compressed objects. The stream is closed after parsing.
      *
-     * @return All of the objects in the stream.
+     * @return a map containing all parsed objects using the object number as key
+     * @throws IOException if there is an error while parsing the stream
      */
-    public List<COSObject> getObjects()
+    public Map<COSObjectKey, COSBase> parseAllObjects() throws IOException
     {
-        return streamObjects;
+        Map<COSObjectKey, COSBase> allObjects = new HashMap<>();
+        try
+        {
+            Map<Integer, Long> objectNumbers = privateReadObjectOffsets();
+            // count the number of object numbers eliminating double entries
+            long numberOfObjNumbers = objectNumbers.values().stream().distinct().count();
+            // the usage of the index should be restricted to cases where more than one
+            // object use the same object number.
+            // there are malformed pdfs in the wild which would lead to false results if
+            // pdfbox always relies on the index if available. In most cases the object number
+            // is sufficient to choose the correct object
+            boolean indexNeeded = objectNumbers.size() > numberOfObjNumbers;
+            long currentPosition = source.getPosition();
+            if (firstObject > 0 && currentPosition < firstObject)
+            {
+                source.skip(firstObject - (int) currentPosition);
+            }
+            int index = 0;
+            for (Entry<Integer, Long> entry : objectNumbers.entrySet())
+            {
+                COSObjectKey objectKey = getObjectKey(entry.getValue(), 0);
+                // skip object if the index doesn't match
+                if (indexNeeded && objectKey.getStreamIndex() > -1
+                        && objectKey.getStreamIndex() != index)
+                {
+                    index++;
+                    continue;
+                }
+                int finalPosition = firstObject + entry.getKey();
+                currentPosition = source.getPosition();
+                if (finalPosition > 0 && currentPosition < finalPosition)
+                {
+                    // jump to the offset of the object to be parsed
+                    source.skip(finalPosition - (int) currentPosition);
+                }
+                COSBase streamObject = parseDirObject();
+                if (streamObject != null)
+                {
+                    streamObject.setDirect(false);
+                }
+                allObjects.put(objectKey, streamObject);
+                index++;
+            }
+        }
+        finally
+        {
+            source.close();
+            document = null;
+        }
+        return allObjects;
     }
 
-    private Map<Integer, Long> readOffsets() throws IOException
+    private Map<Long, Integer> privateReadObjectNumbers() throws IOException
     {
-        // according to the pdf spec the offsets shall be sorted ascending
-        // but we can't rely on that, so that we have to sort the offsets
-        // as the sequential parsers relies on it, see PDFBOX-4927
-        Map<Integer, Long> objectNumbers = new TreeMap<Integer, Long>();
-        long firstObjectPosition = seqSource.getPosition() + firstObject - 1;
+        // don't initialize map using numberOfObjects as there might by less object numbers than expected
+        Map<Long, Integer> objectNumbers = new HashMap<>();
+        long firstObjectPosition = source.getPosition() + firstObject - 1;
         for (int i = 0; i < numberOfObjects; i++)
         {
             // don't read beyond the part of the stream reserved for the object numbers
-            if (seqSource.getPosition() >= firstObjectPosition)
+            if (source.getPosition() >= firstObjectPosition)
             {
                 break;
             }
             long objectNumber = readObjectNumber();
             int offset = (int) readLong();
-            objectNumbers.put(offset, objectNumber);
+            objectNumbers.put(objectNumber, offset);
         }
         return objectNumbers;
     }
 
-    private COSBase parseObject(int offset) throws IOException
+    private Map<Integer, Long> privateReadObjectOffsets() throws IOException
     {
-        long currentPosition = seqSource.getPosition();
-        int finalPosition = firstObject + offset;
-        if (finalPosition > 0 && currentPosition < finalPosition)
+        // according to the pdf spec the offsets shall be sorted ascending
+        // but we can't rely on that, so that we have to sort the offsets
+        // as the sequential parsers relies on it, see PDFBOX-4927
+        Map<Integer, Long> objectOffsets = new TreeMap<>();
+        long firstObjectPosition = source.getPosition() + firstObject - 1;
+        for (int i = 0; i < numberOfObjects; i++)
         {
-            // jump to the offset of the object to be parsed
-            seqSource.readFully(finalPosition - (int) currentPosition);
+            // don't read beyond the part of the stream reserved for the object numbers
+            if (source.getPosition() >= firstObjectPosition)
+            {
+                break;
+            }
+            long objectNumber = readObjectNumber();
+            int offset = (int) readLong();
+            objectOffsets.put(offset, objectNumber);
         }
-        return parseDirObject();
+        return objectOffsets;
     }
 
+    /**
+     * Read all object numbers from the compressed object stream. The stream is closed after reading the object numbers.
+     *
+     * @return a map off all object numbers and the corresponding offset within the object stream.
+     * @throws IOException if there is an error while parsing the stream
+     */
+    public Map<Long, Integer> readObjectNumbers() throws IOException
+    {
+        Map<Long, Integer> objectNumbers = null;
+        try
+        {
+            objectNumbers = privateReadObjectNumbers();
+        }
+        finally
+        {
+            source.close();
+            document = null;
+        }
+        return objectNumbers;
+    }
 }

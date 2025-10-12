@@ -18,6 +18,7 @@ package com.tom_roush.pdfbox.cos;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * This class represents an integer number in a PDF document.
@@ -70,12 +71,12 @@ public final class COSInteger extends COSNumber
     /**
      * Constant for an out of range value which is bigger than Log.MAX_VALUE.
      */
-    protected static final COSInteger OUT_OF_RANGE_MAX = getInvalid(true);
+    static final COSInteger OUT_OF_RANGE_MAX = getInvalid(true);
 
     /**
      * Constant for an out of range value which is smaller than Log.MIN_VALUE.
      */
-    protected static final COSInteger OUT_OF_RANGE_MIN = getInvalid(false);
+    static final COSInteger OUT_OF_RANGE_MIN = getInvalid(false);
 
     /**
      * Returns a COSInteger instance with the given value.
@@ -101,7 +102,7 @@ public final class COSInteger extends COSNumber
     private static COSInteger getInvalid(boolean maxValue)
     {
         return maxValue ? new COSInteger(Long.MAX_VALUE, false)
-            : new COSInteger(Long.MIN_VALUE, false);
+                : new COSInteger(Long.MIN_VALUE, false);
     }
 
     private final long value;
@@ -111,6 +112,7 @@ public final class COSInteger extends COSNumber
      * constructor.
      *
      * @param val The integer value of this object.
+     * @param valid indicates if the value is valid.
      */
     private COSInteger(long val, boolean valid)
     {
@@ -158,19 +160,6 @@ public final class COSInteger extends COSNumber
     }
 
     /**
-     * polymorphic access to value as float.
-     *
-     * @return The double value of this object.
-     *
-     * @deprecated will be removed in a future release
-     */
-    @Override
-    public double doubleValue()
-    {
-        return value;
-    }
-
-    /**
      * Polymorphic access to value as int
      * This will get the integer value of this object.
      *
@@ -208,13 +197,12 @@ public final class COSInteger extends COSNumber
      * visitor pattern double dispatch method.
      *
      * @param visitor The object to notify when visiting this object.
-     * @return any object, depending on the visitor implementation, or null
      * @throws IOException If an error occurs while visiting this object.
      */
     @Override
-    public Object accept(ICOSVisitor visitor) throws IOException
+    public void accept(ICOSVisitor visitor) throws IOException
     {
-        return visitor.visitFromInt(this);
+        visitor.visitFromInt(this);
     }
 
     /**
@@ -225,7 +213,7 @@ public final class COSInteger extends COSNumber
      */
     public void writePDF( OutputStream output ) throws IOException
     {
-        output.write(String.valueOf(value).getBytes("ISO-8859-1"));
+        output.write(String.valueOf(value).getBytes(StandardCharsets.ISO_8859_1));
     }
 
 }

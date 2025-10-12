@@ -16,10 +16,13 @@
  */
 package com.tom_roush.pdfbox.multipdf;
 
+import static com.tom_roush.Global.TAG;
+
 import android.util.Log;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
@@ -52,6 +55,7 @@ import com.tom_roush.pdfbox.util.Matrix;
  */
 public class LayerUtility
 {
+
     private static final boolean DEBUG = true;
 
     private final PDDocument targetDoc;
@@ -59,12 +63,12 @@ public class LayerUtility
 
     /**
      * Creates a new instance.
-     * @param document the PDF document to modify
+     * @param targetDoc the PDF document to modify
      */
-    public LayerUtility(PDDocument document)
+    public LayerUtility(PDDocument targetDoc)
     {
-        this.targetDoc = document;
-        this.cloner = new PDFCloneUtility(document);
+        this.targetDoc = targetDoc;
+        this.cloner = new PDFCloneUtility(targetDoc);
     }
 
     /**
@@ -86,14 +90,16 @@ public class LayerUtility
     public void wrapInSaveRestore(PDPage page) throws IOException
     {
         COSStream saveGraphicsStateStream = getDocument().getDocument().createCOSStream();
-        OutputStream saveStream = saveGraphicsStateStream.createOutputStream();
-        saveStream.write("q\n".getBytes("ISO-8859-1"));
-        saveStream.close();
+        try (OutputStream saveStream = saveGraphicsStateStream.createOutputStream())
+        {
+            saveStream.write("q\n".getBytes(StandardCharsets.ISO_8859_1));
+        }
 
         COSStream restoreGraphicsStateStream = getDocument().getDocument().createCOSStream();
-        OutputStream restoreStream = restoreGraphicsStateStream.createOutputStream();
-        restoreStream.write("Q\n".getBytes("ISO-8859-1"));
-        restoreStream.close();
+        try (OutputStream restoreStream = restoreGraphicsStateStream.createOutputStream())
+        {
+            restoreStream.write("Q\n".getBytes(StandardCharsets.ISO_8859_1));
+        }
 
         //Wrap the existing page's content in a save/restore pair (q/Q) to have a controlled
         //environment to add additional content.
@@ -103,10 +109,11 @@ public class LayerUtility
         {
             COSStream contentsStream = (COSStream)contents;
 
-            COSArray array = new COSArray();
-            array.add(saveGraphicsStateStream);
-            array.add(contentsStream);
-            array.add(restoreGraphicsStateStream);
+            COSArray array = new COSArray(Arrays.asList(
+                    saveGraphicsStateStream,
+                    contentsStream,
+                    restoreGraphicsStateStream
+            ));
 
             pageDictionary.setItem(COSName.CONTENTS, array);
         }
@@ -131,7 +138,7 @@ public class LayerUtility
      * make sure that the graphics state is reset.
      *
      * @param sourceDoc the source PDF document that contains the page to be copied
-     * @param pageNumber the page number of the page to be copied
+     * @param pageNumber the 0-based page number of the page to be copied
      * @return a Form XObject containing the original page's content
      * @throws IOException if an I/O error occurs
      */
@@ -142,7 +149,7 @@ public class LayerUtility
     }
 
     private static final Set<String> PAGE_TO_FORM_FILTER =
-        new HashSet<String>(Arrays.asList("Group", "LastModified", "Metadata"));
+            new HashSet<>(Arrays.asList("Group", "LastModified", "Metadata"));
 
     /**
      * Imports a page from some PDF file as a Form XObject so it can be placed on another page
@@ -184,22 +191,22 @@ public class LayerUtility
         //Transform to FOP's user space
         //at.scale(1 / viewBox.getWidth(), 1 / viewBox.getHeight());
         at.translate(mediaBox.getLowerLeftX() - viewBox.getLowerLeftX(),
-            mediaBox.getLowerLeftY() - viewBox.getLowerLeftY());
+                mediaBox.getLowerLeftY() - viewBox.getLowerLeftY());
         switch (rotation)
         {
             case 90:
                 at.scale(viewBox.getWidth() / viewBox.getHeight(), viewBox.getHeight() / viewBox.getWidth());
                 at.translate(0, viewBox.getWidth());
-                at.rotate(-Math.PI / 2.0);
+                at.quadrantRotate(3); // 270
                 break;
             case 180:
                 at.translate(viewBox.getWidth(), viewBox.getHeight());
-                at.rotate(-Math.PI);
+                at.quadrantRotate(2); // 180
                 break;
             case 270:
                 at.scale(viewBox.getWidth() / viewBox.getHeight(), viewBox.getHeight() / viewBox.getWidth());
                 at.translate(viewBox.getHeight(), 0);
-                at.rotate(-Math.PI * 1.5);
+                at.quadrantRotate(1); // 90
                 break;
             default:
                 //no additional transformations necessary
@@ -240,8 +247,8 @@ public class LayerUtility
      * @throws IOException if an I/O error occurs
      */
     public PDOptionalContentGroup appendFormAsLayer(PDPage targetPage,
-        PDFormXObject form, AffineTransform transform,
-        String layerName) throws IOException
+                                                    PDFormXObject form, AffineTransform transform,
+                                                    String layerName) throws IOException
     {
         PDDocumentCatalog catalog = targetDoc.getDocumentCatalog();
         PDOptionalContentProperties ocprops = catalog.getOCProperties();
@@ -258,29 +265,31 @@ public class LayerUtility
         PDRectangle cropBox = targetPage.getCropBox();
         if ((cropBox.getLowerLeftX() < 0 || cropBox.getLowerLeftY() < 0) && transform.isIdentity())
         {
-            // PDFBOX-4044 
-            Log.w("PdfBox-Android", "Negative cropBox " + cropBox +
-                " and identity transform may make your form invisible");
+            // PDFBOX-4044
+            Log.w(TAG, String.format(
+                    "Negative cropBox %s and identity transform may make your form invisible", cropBox));
+
         }
 
         PDOptionalContentGroup layer = new PDOptionalContentGroup(layerName);
         ocprops.addGroup(layer);
 
-        PDPageContentStream contentStream = new PDPageContentStream(
-            targetDoc, targetPage, AppendMode.APPEND, !DEBUG);
-        contentStream.beginMarkedContent(COSName.OC, layer);
-        contentStream.saveGraphicsState();
-        contentStream.transform(new Matrix(transform));
-        contentStream.drawForm(form);
-        contentStream.restoreGraphicsState();
-        contentStream.endMarkedContent();
-        contentStream.close();
+        try (PDPageContentStream contentStream = new PDPageContentStream(
+                targetDoc, targetPage, AppendMode.APPEND, !DEBUG))
+        {
+            contentStream.beginMarkedContent(COSName.OC, layer);
+            contentStream.saveGraphicsState();
+            contentStream.transform(new Matrix(transform));
+            contentStream.drawForm(form);
+            contentStream.restoreGraphicsState();
+            contentStream.endMarkedContent();
+        }
 
         return layer;
     }
 
     private void transferDict(COSDictionary orgDict, COSDictionary targetDict, Set<String> filter)
-        throws IOException
+            throws IOException
     {
         for (Map.Entry<COSName, COSBase> entry : orgDict.entrySet())
         {
@@ -296,7 +305,7 @@ public class LayerUtility
      * Imports OCProperties from source document to target document so hidden layers can still be
      * hidden after import.
      *
-     * @param sourceDoc The source PDF document that contains the /OCProperties to be copied.
+     * @param srcDoc The source PDF document that contains the /OCProperties to be copied.
      * @throws IOException If an I/O error occurs.
      */
     private void importOcProperties(PDDocument srcDoc) throws IOException
@@ -314,7 +323,7 @@ public class LayerUtility
         if (dstOCProperties == null)
         {
             dstCatalog.setOCProperties(new PDOptionalContentProperties(
-                (COSDictionary) cloner.cloneForNewDocument(srcOCProperties)));
+                    cloner.cloneForNewDocument(srcOCProperties.getCOSObject())));
         }
         else
         {

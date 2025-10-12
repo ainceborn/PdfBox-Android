@@ -23,6 +23,7 @@ import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSStream;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
@@ -131,7 +132,7 @@ public class ValidateXImage
         document.save(pdfFile);
         document.close();
 
-        document = PDDocument.load(pdfFile, (String)null);
+        document = Loader.loadPDF(pdfFile, (String)null);
         assertEquals(1, count(document.getPage(0).getResources().getXObjectNames()));
         new PDFRenderer(document).renderImage(0);
         document.close();

@@ -18,21 +18,23 @@ package com.tom_roush.pdfbox.pdfparser;
 
 import android.util.Log;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 
-import com.tom_roush.pdfbox.cos.COSBase;
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSDictionary;
-import com.tom_roush.pdfbox.cos.COSDocument;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.io.RandomAccessRead;
-import com.tom_roush.pdfbox.io.ScratchFile;
+import com.tom_roush.pdfbox.io.RandomAccessStreamCache.StreamCacheCreateFunction;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException;
 
 public class PDFParser extends COSParser
 {
+    private static final String TAG = "PdfBox-Android";
+
     /**
      * Constructor.
      * Unrestricted main memory will be used for buffering PDF streams.
@@ -42,20 +44,7 @@ public class PDFParser extends COSParser
      */
     public PDFParser(RandomAccessRead source) throws IOException
     {
-        this(source, "", ScratchFile.getMainMemoryOnlyInstance());
-    }
-
-    /**
-     * Constructor.
-     *
-     * @param source input representing the pdf.
-     * @param scratchFile use a {@link ScratchFile} for temporary storage.
-     *
-     * @throws IOException If something went wrong.
-     */
-    public PDFParser(RandomAccessRead source, ScratchFile scratchFile) throws IOException
-    {
-        this(source, "", scratchFile);
+        this(source, "");
     }
 
     /**
@@ -68,22 +57,7 @@ public class PDFParser extends COSParser
      */
     public PDFParser(RandomAccessRead source, String decryptionPassword) throws IOException
     {
-        this(source, decryptionPassword, ScratchFile.getMainMemoryOnlyInstance());
-    }
-
-    /**
-     * Constructor.
-     *
-     * @param source input representing the pdf.
-     * @param decryptionPassword password to be used for decryption.
-     * @param scratchFile use a {@link ScratchFile} for temporary storage.
-     *
-     * @throws IOException If something went wrong.
-     */
-    public PDFParser(RandomAccessRead source, String decryptionPassword, ScratchFile scratchFile)
-        throws IOException
-    {
-        this(source, decryptionPassword, null, null, scratchFile);
+        this(source, decryptionPassword, null, null);
     }
 
     /**
@@ -92,15 +66,15 @@ public class PDFParser extends COSParser
      *
      * @param source input representing the pdf.
      * @param decryptionPassword password to be used for decryption.
-     * @param keyStore key store to be used for decryption when using public key security 
+     * @param keyStore key store to be used for decryption when using public key security
      * @param alias alias to be used for decryption when using public key security
      *
      * @throws IOException If something went wrong.
      */
     public PDFParser(RandomAccessRead source, String decryptionPassword, InputStream keyStore,
-        String alias) throws IOException
+                     String alias) throws IOException
     {
-        this(source, decryptionPassword, keyStore, alias, ScratchFile.getMainMemoryOnlyInstance());
+        this(source, decryptionPassword, keyStore, alias, null);
     }
 
     /**
@@ -108,52 +82,16 @@ public class PDFParser extends COSParser
      *
      * @param source input representing the pdf.
      * @param decryptionPassword password to be used for decryption.
-     * @param keyStore key store to be used for decryption when using public key security 
+     * @param keyStore key store to be used for decryption when using public key security
      * @param alias alias to be used for decryption when using public key security
-     * @param scratchFile buffer handler for temporary storage; it will be closed on
-     *        {@link COSDocument#close()}
+     * @param streamCacheCreateFunction a function to create an instance of the stream cache
      *
      * @throws IOException If something went wrong.
      */
     public PDFParser(RandomAccessRead source, String decryptionPassword, InputStream keyStore,
-        String alias, ScratchFile scratchFile) throws IOException
+                     String alias, StreamCacheCreateFunction streamCacheCreateFunction) throws IOException
     {
-        super(source, decryptionPassword, keyStore, alias);
-        fileLen = source.length();
-        init(scratchFile);
-    }
-
-    private void init(ScratchFile scratchFile)
-    {
-        String eofLookupRangeStr = System.getProperty(SYSPROP_EOFLOOKUPRANGE);
-        if (eofLookupRangeStr != null)
-        {
-            try
-            {
-                setEOFLookupRange(Integer.parseInt(eofLookupRangeStr));
-            }
-            catch (NumberFormatException nfe)
-            {
-                Log.w("PdfBox-Android", "System property " + SYSPROP_EOFLOOKUPRANGE
-                    + " does not contain an integer value, but: '" + eofLookupRangeStr + "'");
-            }
-        }
-        document = new COSDocument(scratchFile);
-    }
-
-    /**
-     * This will get the PD document that was parsed.  When you are done with
-     * this document you must call close() on it to release resources.
-     *
-     * @return The document at the PD layer.
-     *
-     * @throws IOException If there is an error getting the document.
-     */
-    public PDDocument getPDDocument() throws IOException
-    {
-        PDDocument doc = new PDDocument(getDocument(), source, getAccessPermission());
-        doc.setEncryptionDictionary(getEncryption());
-        return doc;
+        super(source, decryptionPassword, keyStore, alias, streamCacheCreateFunction);
     }
 
     /**
@@ -168,45 +106,49 @@ public class PDFParser extends COSParser
     {
         COSDictionary trailer = retrieveTrailer();
 
-        COSBase base = parseTrailerValuesDynamically(trailer);
-        if (!(base instanceof COSDictionary))
+        COSDictionary root = trailer.getCOSDictionary(COSName.ROOT);
+        if (root == null)
         {
-            throw new IOException("Expected root dictionary, but got this: " + base);
+            throw new IOException("Missing root object specification in trailer.");
         }
-        COSDictionary root = (COSDictionary) base;
         // in some pdfs the type value "Catalog" is missing in the root object
         if (isLenient() && !root.containsKey(COSName.TYPE))
         {
             root.setItem(COSName.TYPE, COSName.CATALOG);
         }
-        // parse all objects, starting at the root dictionary
-        parseDictObjects(root, (COSName[]) null);
-        // parse all objects of the info dictionary
-        COSBase infoBase = trailer.getDictionaryObject(COSName.INFO);
-        if (infoBase instanceof COSDictionary)
-        {
-            parseDictObjects((COSDictionary) infoBase, (COSName[]) null);
-        }
         // check pages dictionaries
         checkPages(root);
-        if (!(root.getDictionaryObject(COSName.PAGES) instanceof COSDictionary))
-        {
-            throw new IOException("Page tree root must be a dictionary");
-        }
         document.setDecrypted();
         initialParseDone = true;
     }
 
     /**
-     * This will parse the stream and populate the COSDocument object.  This will close
-     * the keystore stream when it is done parsing.
+     * This will parse the stream and populate the PDDocument object. This will close the keystore stream when it is
+     * done parsing. Lenient mode is active by default.
+     *
+     * @return the populated PDDocument
      *
      * @throws InvalidPasswordException If the password is incorrect.
-     * @throws IOException If there is an error reading from the stream or corrupt data
-     * is found.
+     * @throws IOException If there is an error reading from the stream or corrupt data is found.
      */
-    public void parse() throws IOException
+    public PDDocument parse() throws IOException
     {
+        return parse(true);
+    }
+
+    /**
+     * This will parse the stream and populate the PDDocument object. This will close the keystore stream when it is
+     * done parsing.
+     *
+     * @param lenient activate leniency if set to true
+     * @return the populated PDDocument
+     *
+     * @throws InvalidPasswordException If the password is incorrect.
+     * @throws IOException If there is an error reading from the stream or corrupt data is found.
+     */
+    public PDDocument parse(boolean lenient) throws IOException
+    {
+        setLenient(lenient);
         // set to false if all is processed
         boolean exceptionOccurred = true;
         try
@@ -214,7 +156,14 @@ public class PDFParser extends COSParser
             // PDFBOX-1922 read the version header and rewind
             if (!parsePDFHeader() && !parseFDFHeader())
             {
-                throw new IOException( "Error: Header doesn't contain versioninfo" );
+                if (lenient)
+                {
+                    Log.w(TAG, "Error: Header doesn't contain versioninfo");
+                }
+                else
+                {
+                    throw new IOException("Error: Header doesn't contain versioninfo");
+                }
             }
 
             if (!initialParseDone)
@@ -222,6 +171,9 @@ public class PDFParser extends COSParser
                 initialParse();
             }
             exceptionOccurred = false;
+            PDDocument pdDocument = createDocument();
+            pdDocument.setEncryptionDictionary(getEncryption());
+            return pdDocument;
         }
         finally
         {
@@ -231,6 +183,54 @@ public class PDFParser extends COSParser
                 document = null;
             }
         }
+    }
+
+    /**
+     * Create the resulting document. Maybe overwritten if the parser uses another class as document.
+     *
+     * @return the resulting document
+     * @throws IOException if the method is called before parsing the document
+     */
+    protected PDDocument createDocument() throws IOException
+    {
+        return new PDDocument(document, source, getAccessPermission());
+    }
+
+    /**
+     * Parses a PDF. Unrestricted main memory will be used for buffering PDF streams.
+     *
+     * @param file file to be loaded
+     *
+     * @return loaded document
+     *
+     * @throws InvalidPasswordException If the file required a non-empty password.
+     * @throws IOException in case of a file reading or parsing error
+     *
+     * @deprecated use {@link Loader#loadPDF(File)} instead
+     */
+    @Deprecated
+    public static PDDocument load(File file) throws IOException
+    {
+        return Loader.loadPDF(file);
+    }
+
+    /**
+     * Parses a PDF. Unrestricted main memory will be used for buffering PDF streams.
+     *
+     * @param file file to be loaded
+     * @param password password to be used for decryption
+     *
+     * @return loaded document
+     *
+     * @throws InvalidPasswordException If the password is incorrect.
+     * @throws IOException in case of a file reading or parsing error
+     *
+     * @deprecated use {@link Loader#loadPDF(File, String)} instead
+     */
+    @Deprecated
+    public static PDDocument load(File file, String password) throws IOException
+    {
+        return Loader.loadPDF(file, password);
     }
 
 }

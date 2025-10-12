@@ -31,6 +31,8 @@ import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.cos.COSStream;
+import com.tom_roush.pdfbox.io.RandomAccessInputStream;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 import com.tom_roush.pdfbox.pdfparser.PDFStreamParser;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
@@ -45,6 +47,7 @@ import com.tom_roush.pdfbox.util.Matrix;
  */
 public final class PDType3CharProc implements COSObjectable, PDContentStream
 {
+    private static final String TAG = "PdfBox-Android";
     private final PDType3Font font;
     private final COSStream charStream;
 
@@ -73,7 +76,13 @@ public final class PDType3CharProc implements COSObjectable, PDContentStream
     @Override
     public InputStream getContents() throws IOException
     {
-        return charStream.createInputStream();
+        return new RandomAccessInputStream(getContentsForRandomAccess());
+    }
+
+    @Override
+    public RandomAccessRead getContentsForRandomAccess() throws IOException
+    {
+        return charStream.createView();
     }
 
     @Override
@@ -82,9 +91,9 @@ public final class PDType3CharProc implements COSObjectable, PDContentStream
         if (charStream.containsKey(COSName.RESOURCES))
         {
             // PDFBOX-5294
-            Log.w("PdfBox-Android", "Using resources dictionary found in charproc entry");
-            Log.w("PdfBox-Android", "This should have been in the font or in the page dictionary");
-            return new PDResources((COSDictionary) charStream.getDictionaryObject(COSName.RESOURCES));
+            Log.w(TAG, "Using resources dictionary found in charproc entry");
+            Log.w(TAG, "This should have been in the font or in the page dictionary");
+            return new PDResources(charStream.getCOSDictionary(COSName.RESOURCES));
         }
         return font.getResources();
     }
@@ -104,7 +113,7 @@ public final class PDType3CharProc implements COSObjectable, PDContentStream
      */
     public PDRectangle getGlyphBBox() throws IOException
     {
-        List<COSBase> arguments = new ArrayList<COSBase>();
+        List<COSBase> arguments = new ArrayList<>();
         PDFStreamParser parser = new PDFStreamParser(this);
         Object token = parser.parseNextToken();
         while (token != null)
@@ -123,10 +132,10 @@ public final class PDType3CharProc implements COSObjectable, PDContentStream
                     float x = ((COSNumber) arguments.get(2)).floatValue();
                     float y = ((COSNumber) arguments.get(3)).floatValue();
                     return new PDRectangle(
-                        x,
-                        y,
-                        ((COSNumber) arguments.get(4)).floatValue() - x,
-                        ((COSNumber) arguments.get(5)).floatValue() - y);
+                            x,
+                            y,
+                            ((COSNumber) arguments.get(4)).floatValue() - x,
+                            ((COSNumber) arguments.get(5)).floatValue() - y);
                 }
                 else
                 {
@@ -157,7 +166,7 @@ public final class PDType3CharProc implements COSObjectable, PDContentStream
      */
     public float getWidth() throws IOException
     {
-        List<COSBase> arguments = new ArrayList<COSBase>();
+        List<COSBase> arguments = new ArrayList<>();
         PDFStreamParser parser = new PDFStreamParser(this);
         Object token = parser.parseNextToken();
         while (token != null)

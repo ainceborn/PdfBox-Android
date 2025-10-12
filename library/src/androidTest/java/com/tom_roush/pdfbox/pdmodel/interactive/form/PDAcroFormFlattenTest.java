@@ -29,6 +29,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.rendering.PDFRenderer;
@@ -323,7 +324,7 @@ public class PDAcroFormFlattenTest
       File inputFile = new File(IN_DIR, targetFileName);
       File outputFile = new File(OUT_DIR, targetFileName);
 
-      PDDocument testPdf = PDDocument.load(inputFile);
+      PDDocument testPdf = Loader.loadPDF(inputFile);
       testPdf.getDocumentCatalog().getAcroForm().flatten();
       testPdf.setAllSecurityToBeRemoved(true);
       assertTrue(testPdf.getDocumentCatalog().getAcroForm().getFields().isEmpty());
@@ -349,7 +350,7 @@ public class PDAcroFormFlattenTest
 
       File file = new File(IN_DIR,targetFile);
 
-      PDDocument document = PDDocument.load(file, (String) null);
+      PDDocument document = Loader.loadPDF(file, (String) null);
       String outputPrefix = file.getName() + "-";
       int numPages = document.getNumberOfPages();
 

@@ -293,4 +293,30 @@ public final class Hex
         }
         return baos.toByteArray();
     }
+
+    /**
+     * Converts a given character to its corresponding hexadecimal value. Valid characters are '0'-'9', 'A'-'F', or
+     * 'a'-'f'. Returns -256 for invalid characters.
+     * <p>
+     * The value of -256 is chosen so that to hex digits can be combined before checking for an invalid hex string
+     *
+     * @param c the character to be converted to a hexadecimal value
+     * @return the hexadecimal value of the character, or -256 if the character is invalid
+     */
+    public static int getHexValue(char c)
+    {
+        if (c >= '0' && c <= '9')
+        {
+            return c - '0';
+        }
+        else if (c >= 'A' && c <= 'F')
+        {
+            return c - 'A' + 10;
+        }
+        else if (c >= 'a' && c <= 'f')
+        {
+            return c - 'a' + 10;
+        }
+        return -256;
+    }
 }

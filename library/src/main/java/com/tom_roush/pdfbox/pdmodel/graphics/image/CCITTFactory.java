@@ -29,9 +29,9 @@ import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.filter.Filter;
 import com.tom_roush.pdfbox.filter.FilterFactory;
-import com.tom_roush.pdfbox.io.RandomAccess;
-import com.tom_roush.pdfbox.io.RandomAccessBuffer;
-import com.tom_roush.pdfbox.io.RandomAccessFile;
+import com.tom_roush.pdfbox.io.RandomAccessReadBuffer;
+import com.tom_roush.pdfbox.io.RandomAccessReadBufferedFile;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceGray;
@@ -49,7 +49,7 @@ public final class CCITTFactory
     }
 
     /**
-     * Creates a new CCITT group 4 (T6) compressed image XObject from a b/w Bitmap. This
+     * Creates a new CCITT group 4 (T6) compressed image XObject from a b/w BufferedImage. This
      * compression technique usually results in smaller images than those produced by {@link LosslessFactory#createFromImage(PDDocument, Bitmap)
      * }.
      *
@@ -57,7 +57,7 @@ public final class CCITTFactory
      * @param image the image.
      * @return a new image XObject.
      * @throws IOException if there is an error creating the image.
-     * @throws IllegalArgumentException if the Bitmap is not a b/w image.
+     * @throws IllegalArgumentException if the BufferedImage is not a b/w image.
      */
     public static PDImageXObject createFromImage(PDDocument document, Bitmap image)
         throws IOException
@@ -109,7 +109,7 @@ public final class CCITTFactory
      * @throws IOException if there is an error reading the TIFF data.
      */
     public static PDImageXObject createFromByteArray(PDDocument document, byte[] byteArray)
-        throws IOException
+            throws IOException
     {
         return createFromByteArray(document, byteArray, 0);
     }
@@ -130,22 +130,17 @@ public final class CCITTFactory
      * @throws IOException if there is an error reading the TIFF data.
      */
     public static PDImageXObject createFromByteArray(PDDocument document, byte[] byteArray, int number)
-        throws IOException
+            throws IOException
     {
-        RandomAccess raf = new RandomAccessBuffer(byteArray);
-        try
+        try (RandomAccessRead raf = new RandomAccessReadBuffer(byteArray))
         {
             return createFromRandomAccessImpl(document, raf, number);
-        }
-        finally
-        {
-            raf.close();
         }
     }
 
     private static PDImageXObject prepareImageXObject(PDDocument document,
-        byte[] byteArray, int width, int height,
-        PDColorSpace initColorSpace) throws IOException
+                                                      byte[] byteArray, int width, int height,
+                                                      PDColorSpace initColorSpace) throws IOException
     {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
@@ -157,54 +152,17 @@ public final class CCITTFactory
 
         ByteArrayInputStream encodedByteStream = new ByteArrayInputStream(baos.toByteArray());
         PDImageXObject image = new PDImageXObject(document, encodedByteStream, COSName.CCITTFAX_DECODE,
-            width, height, 1, initColorSpace);
+                width, height, 1, initColorSpace);
         dict.setInt(COSName.K, -1);
         image.getCOSObject().setItem(COSName.DECODE_PARMS, dict);
         return image;
     }
 
     /**
-     * Creates a new CCITT Fax compressed image XObject from the first image of a TIFF file.
-     *
-     * @param document the document to create the image as part of.
-     * @param reader the random access TIFF file which contains a suitable CCITT
-     * compressed image
-     * @return a new image XObject
-     * @throws IOException if there is an error reading the TIFF data.
-     *
-     * @deprecated Use {@link #createFromFile(PDDocument, File)} instead.
-     */
-    @Deprecated
-    public static PDImageXObject createFromRandomAccess(PDDocument document, RandomAccess reader)
-        throws IOException
-    {
-        return createFromRandomAccessImpl(document, reader, 0);
-    }
-
-    /**
-     * Creates a new CCITT Fax compressed image XObject from a specific image of a TIFF file.
-     *
-     * @param document the document to create the image as part of.
-     * @param reader the random access TIFF file which contains a suitable CCITT
-     * compressed image
-     * @param number TIFF image number, starting from 0
-     * @return a new image XObject, or null if no such page
-     * @throws IOException if there is an error reading the TIFF data.
-     *
-     * @deprecated Use {@link #createFromFile(PDDocument, File, int)} instead.
-     */
-    @Deprecated
-    public static PDImageXObject createFromRandomAccess(PDDocument document, RandomAccess reader,
-        int number) throws IOException
-    {
-        return createFromRandomAccessImpl(document, reader, number);
-    }
-
-    /**
      * Creates a new CCITT Fax compressed image XObject from the first image of a TIFF file. Only
      * single-strip CCITT T4 or T6 compressed TIFF files are supported. If you're not sure what TIFF
      * files you have, use
-     * {@link LosslessFactory#createFromImage(com.tom_roush.pdfbox.pdmodel.PDDocument, android.graphics.Bitmap)}
+     * {@link LosslessFactory#createFromImage(PDDocument, Bitmap)}
      * or {@link CCITTFactory#createFromImage(PDDocument, Bitmap) }
      * instead.
      *
@@ -214,7 +172,7 @@ public final class CCITTFactory
      * @throws IOException if there is an error reading the TIFF data.
      */
     public static PDImageXObject createFromFile(PDDocument document, File file)
-        throws IOException
+            throws IOException
     {
         return createFromFile(document, file, 0);
     }
@@ -234,16 +192,11 @@ public final class CCITTFactory
      * @throws IOException if there is an error reading the TIFF data.
      */
     public static PDImageXObject createFromFile(PDDocument document, File file, int number)
-        throws IOException
+            throws IOException
     {
-        RandomAccessFile raf = new RandomAccessFile(file, "r");
-        try
+        try (RandomAccessRead raf = new RandomAccessReadBufferedFile(file))
         {
             return createFromRandomAccessImpl(document, raf, number);
-        }
-        finally
-        {
-            raf.close();
         }
     }
 
@@ -258,8 +211,8 @@ public final class CCITTFactory
      * @throws IOException if there is an error reading the TIFF data.
      */
     private static PDImageXObject createFromRandomAccessImpl(PDDocument document,
-        RandomAccess reader,
-        int number) throws IOException
+                                                             RandomAccessRead reader,
+                                                             int number) throws IOException
     {
         COSDictionary decodeParms = new COSDictionary();
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -270,12 +223,12 @@ public final class CCITTFactory
         }
         ByteArrayInputStream encodedByteStream = new ByteArrayInputStream(bos.toByteArray());
         PDImageXObject pdImage = new PDImageXObject(document,
-            encodedByteStream,
-            COSName.CCITTFAX_DECODE,
-            decodeParms.getInt(COSName.COLUMNS),
-            decodeParms.getInt(COSName.ROWS),
-            1,
-            PDDeviceGray.INSTANCE);
+                encodedByteStream,
+                COSName.CCITTFAX_DECODE,
+                decodeParms.getInt(COSName.COLUMNS),
+                decodeParms.getInt(COSName.ROWS),
+                1,
+                PDDeviceGray.INSTANCE);
 
         COSDictionary dict = pdImage.getCOSObject();
         dict.setItem(COSName.DECODE_PARMS, decodeParms);
@@ -283,10 +236,11 @@ public final class CCITTFactory
     }
 
     // extracts the CCITT stream from the TIFF file
-    private static void extractFromTiff(RandomAccess reader, OutputStream os,
-        COSDictionary params, int number) throws IOException
+    private static void extractFromTiff(RandomAccessRead reader,
+                                        OutputStream os,
+                                        COSDictionary params, int number) throws IOException
     {
-        try
+        try (os)
         {
             // First check the basic tiff header
             reader.seek(0);
@@ -310,7 +264,7 @@ public final class CCITTFactory
             long address = readlong(endianess, reader);
             reader.seek(address);
 
-            // If some higher page number is required, skip this page's tags, 
+            // If some higher page number is required, skip this page's tags,
             // then read the next page's address
             for (int i = 0; i < number; i++)
             {
@@ -502,13 +456,9 @@ public final class CCITTFactory
             }
 
         }
-        finally
-        {
-            os.close();
-        }
     }
 
-    private static int readshort(char endianess, RandomAccess raf) throws IOException
+    private static int readshort(char endianess, RandomAccessRead raf) throws IOException
     {
         if (endianess == 'I')
         {
@@ -517,7 +467,7 @@ public final class CCITTFactory
         return (raf.read() << 8) | raf.read();
     }
 
-    private static int readlong(char endianess, RandomAccess raf) throws IOException
+    private static int readlong(char endianess, RandomAccessRead raf) throws IOException
     {
         if (endianess == 'I')
         {

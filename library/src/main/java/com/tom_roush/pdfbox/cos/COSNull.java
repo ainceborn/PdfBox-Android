@@ -29,7 +29,7 @@ public final class COSNull extends COSBase
     /**
      * The null token.
      */
-    public static final byte[] NULL_BYTES = new byte[] {110, 117, 108, 108}; //"null".getBytes( "ISO-8859-1" );
+    public static final byte[] NULL_BYTES = {110, 117, 108, 108}; //"null".getBytes( "ISO-8859-1" );
 
     /**
      * The one null object in the system.
@@ -48,13 +48,12 @@ public final class COSNull extends COSBase
      * Visitor pattern double dispatch method.
      *
      * @param visitor The object to notify when visiting this object.
-     * @return any object, depending on the visitor implementation, or null
      * @throws IOException If an error occurs while visiting this object.
      */
     @Override
-    public Object accept( ICOSVisitor visitor ) throws IOException
+    public void accept(ICOSVisitor visitor) throws IOException
     {
-        return visitor.visitFromNull( this );
+        visitor.visitFromNull(this);
     }
 
     /**

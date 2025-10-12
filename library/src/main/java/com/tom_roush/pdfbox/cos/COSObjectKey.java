@@ -24,18 +24,14 @@ package com.tom_roush.pdfbox.cos;
  */
 public class COSObjectKey implements Comparable<COSObjectKey>
 {
-    private final long number;
-    private int generation;
-
-    /**
-     * Constructor.
-     *
-     * @param object The object that this key will represent.
-     */
-    public COSObjectKey(COSObject object)
-    {
-        this(object.getObjectNumber(), object.getGenerationNumber());
-    }
+    private static final int NUMBER_OFFSET = Short.SIZE;
+    private static final long GENERATION_MASK = (long) Math.pow(2, NUMBER_OFFSET) - 1;
+    // combined number and generation
+    // The lowest 16 bits hold the generation 0-65535
+    // The rest is used for the number (even though 34 bit are sufficient for 10 digits)
+    private final long numberAndGeneration;
+    // index within a compressed object stream if applicable otherwise -1
+    private final int streamIndex;
 
     /**
      * Constructor.
@@ -45,8 +41,50 @@ public class COSObjectKey implements Comparable<COSObjectKey>
      */
     public COSObjectKey(long num, int gen)
     {
-        number = num;
-        generation = gen;
+        this(num, gen, -1);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param num The object number.
+     * @param gen The object generation number.
+     * @param index The index within a compressed object stream
+     */
+    public COSObjectKey(long num, int gen, int index)
+    {
+        if (num < 0)
+        {
+            throw new IllegalArgumentException("Object number must not be a negative value");
+        }
+        if (gen < 0)
+        {
+            throw new IllegalArgumentException("Generation number must not be a negative value");
+        }
+        numberAndGeneration = computeInternalHash(num, gen);
+        this.streamIndex = index;
+    }
+
+    /**
+     * Calculate the internal hash value for the given object number and generation number.
+     *
+     * @param num the object number
+     * @param gen the generation number
+     * @return the internal hash for the given values
+     */
+    public static long computeInternalHash(long num, int gen)
+    {
+        return num << NUMBER_OFFSET | (gen & GENERATION_MASK);
+    }
+
+    /**
+     * Return the internal hash value which is based on the number and the generation.
+     *
+     * @return the internal hash value
+     */
+    public long getInternalHash()
+    {
+        return numberAndGeneration;
     }
 
     /**
@@ -56,9 +94,8 @@ public class COSObjectKey implements Comparable<COSObjectKey>
     public boolean equals(Object obj)
     {
         COSObjectKey objToBeCompared = obj instanceof COSObjectKey ? (COSObjectKey)obj : null;
-        return objToBeCompared != null &&
-            objToBeCompared.getNumber() == getNumber() &&
-            objToBeCompared.getGeneration() == getGeneration();
+        return objToBeCompared != null
+                && objToBeCompared.numberAndGeneration == numberAndGeneration;
     }
 
     /**
@@ -68,19 +105,7 @@ public class COSObjectKey implements Comparable<COSObjectKey>
      */
     public int getGeneration()
     {
-        return generation;
-    }
-
-    /**
-     * This will set the generation number. It is intended for fixes only.
-     *
-     * @param genNumber the new generation number.
-     *
-     * @deprecated will be removed in the next major release
-     */
-    public void fixGeneration(int genNumber)
-    {
-        generation = genNumber;
+        return (int) (numberAndGeneration & GENERATION_MASK);
     }
 
     /**
@@ -90,7 +115,17 @@ public class COSObjectKey implements Comparable<COSObjectKey>
      */
     public long getNumber()
     {
-        return number;
+        return numberAndGeneration >>> NUMBER_OFFSET;
+    }
+
+    /**
+     * The index within a compressed object stream.
+     *
+     * @return the index within a compressed object stream if applicable otherwise -1
+     */
+    public int getStreamIndex()
+    {
+        return streamIndex;
     }
 
     /**
@@ -99,43 +134,19 @@ public class COSObjectKey implements Comparable<COSObjectKey>
     @Override
     public int hashCode()
     {
-        // most likely generation is 0. Shift number 4 times (fast as multiply)
-        // to support generation numbers up to 15
-        return Long.valueOf((number << 4) + generation).hashCode();
+        return Long.hashCode(numberAndGeneration);
     }
 
     @Override
     public String toString()
     {
-        return number + " " + generation + " R";
+        return getNumber() + " " + getGeneration() + " R";
     }
 
     @Override
     public int compareTo(COSObjectKey other)
     {
-        if (getNumber() < other.getNumber())
-        {
-            return -1;
-        }
-        else if (getNumber() > other.getNumber())
-        {
-            return 1;
-        }
-        else
-        {
-            if (getGeneration() < other.getGeneration())
-            {
-                return -1;
-            }
-            else if (getGeneration() > other.getGeneration())
-            {
-                return 1;
-            }
-            else
-            {
-                return 0;
-            }
-        }
+        return Long.compare(numberAndGeneration, other.numberAndGeneration);
     }
 
 }

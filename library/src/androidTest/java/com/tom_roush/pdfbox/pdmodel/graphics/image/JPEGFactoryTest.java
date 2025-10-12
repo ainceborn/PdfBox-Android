@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.android.TestResourceGenerator;
 import com.tom_roush.pdfbox.cos.COSName;
@@ -333,7 +334,7 @@ public class JPEGFactoryTest
     private void checkJpegStream(File testResultsDir, String filename, InputStream resourceStream)
         throws IOException
     {
-        PDDocument doc = PDDocument.load(new File(testResultsDir, filename));
+        PDDocument doc = Loader.loadPDF(new File(testResultsDir, filename));
         PDImageXObject img =
             (PDImageXObject) doc.getPage(0).getResources().getXObject(COSName.getPDFName("Im1"));
         InputStream dctStream = img.createInputStream(Arrays.asList(COSName.DCT_DECODE.getName()));

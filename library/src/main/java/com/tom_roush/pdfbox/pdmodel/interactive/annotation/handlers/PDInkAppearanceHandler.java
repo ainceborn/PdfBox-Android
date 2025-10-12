@@ -18,9 +18,6 @@ package com.tom_roush.pdfbox.pdmodel.interactive.annotation.handlers;
 
 import android.util.Log;
 
-import java.io.IOException;
-
-import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.PDAppearanceContentStream;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
@@ -28,12 +25,15 @@ import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationInk;
 
+import java.io.IOException;
+
 /**
  * Handler to generate the ink annotations appearance.
  *
  */
 public class PDInkAppearanceHandler extends PDAbstractAppearanceHandler
 {
+
     public PDInkAppearanceHandler(PDAnnotation annotation)
     {
         super(annotation);
@@ -91,12 +91,8 @@ public class PDInkAppearanceHandler extends PDAbstractAppearanceHandler
         rect.setUpperRightY(Math.max(maxY + ab.width * 2, rect.getUpperRightY()));
         ink.setRectangle(rect);
 
-        PDAppearanceContentStream cs = null;
-
-        try
+        try (PDAppearanceContentStream cs = getNormalAppearanceAsContentStream())
         {
-            cs = getNormalAppearanceAsContentStream();
-
             setOpacity(cs, ink.getConstantOpacity());
 
             cs.setStrokingColor(color);
@@ -131,11 +127,8 @@ public class PDInkAppearanceHandler extends PDAbstractAppearanceHandler
         }
         catch (IOException ex)
         {
+
             Log.e("PdfBox-Android", ex.getMessage(), ex);
-        }
-        finally
-        {
-            IOUtils.closeQuietly(cs);
         }
     }
 

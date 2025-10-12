@@ -216,7 +216,7 @@ public class Splitter
     protected PDDocument createNewDocument() throws IOException
     {
         PDDocument document = memoryUsageSetting == null ?
-            new PDDocument() : new PDDocument(memoryUsageSetting);
+            new PDDocument() : new PDDocument(memoryUsageSetting.streamCache);
         document.getDocument().setVersion(getSourceDocument().getVersion());
         PDDocumentInformation sourceDocumentInformation = getSourceDocument().getDocumentInformation();
         if (sourceDocumentInformation != null)

@@ -10,6 +10,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 import com.tom_roush.harmony.awt.AWTColor;
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
@@ -147,7 +148,7 @@ public class TestOptionalContentGroupsInstrumentationTest
          doc.close();
 
          // render PDF with science disabled and alternatives with same name enabled
-         doc = PDDocument.load(new File(testResultsDir, "ocg-generation-same-name-off.pdf"));
+         doc =  Loader.loadPDF(new File(testResultsDir, "ocg-generation-same-name-off.pdf"));
          doc.getDocumentCatalog().getOCProperties().setGroupEnabled("background", false);
          doc.getDocumentCatalog().getOCProperties().setGroupEnabled("science", false);
          doc.getDocumentCatalog().getOCProperties().setGroupEnabled("alternative", true);
