@@ -21,6 +21,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
@@ -151,7 +152,7 @@ public class TestRadioButtons
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+            testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
 
             PDAcroForm acroForm = testPdf.getDocumentCatalog().getAcroForm();
             PDRadioButton field = (PDRadioButton) acroForm.getField("Checking/Savings");
@@ -179,7 +180,7 @@ public class TestRadioButtons
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+            testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
             PDAcroForm acroForm = testPdf.getDocumentCatalog().getAcroForm();
             PDRadioButton field = (PDRadioButton) acroForm.getField("Checking/Savings");
             // check defaults
@@ -208,7 +209,7 @@ public class TestRadioButtons
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+            testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
             PDAcroForm acroForm = testPdf.getDocumentCatalog().getAcroForm();
             PDRadioButton field = (PDRadioButton) acroForm.getField("Checking/Savings");
             // check defaults
@@ -250,7 +251,7 @@ public class TestRadioButtons
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+            testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
             PDAcroForm acroForm = testPdf.getDocumentCatalog().getAcroForm();
             PDRadioButton field = (PDRadioButton) acroForm.getField("Checking/Savings");
             // check defaults
@@ -283,7 +284,7 @@ public class TestRadioButtons
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+            testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
             PDAcroForm acroForm = testPdf.getDocumentCatalog().getAcroForm();
             PDRadioButton field = (PDRadioButton) acroForm.getField("Checking/Savings");
             // check defaults
@@ -322,7 +323,7 @@ public class TestRadioButtons
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+            testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
             PDAcroForm acroForm = testPdf.getDocumentCatalog().getAcroForm();
             PDRadioButton field = (PDRadioButton) acroForm.getField("Checking/Savings");
             assertEquals("if there is no value set the index shall be -1", -1, field.getSelectedIndex());
@@ -346,7 +347,7 @@ public class TestRadioButtons
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+            testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
             PDAcroForm acroForm = testPdf.getDocumentCatalog().getAcroForm();
             PDRadioButton field = (PDRadioButton) acroForm.getField("Checking/Savings");
             field.setValue( "Checking");
@@ -371,7 +372,7 @@ public class TestRadioButtons
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+            testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
             PDAcroForm acroForm = testPdf.getDocumentCatalog().getAcroForm();
             PDRadioButton field = (PDRadioButton) acroForm.getField("Checking/Savings");
             field.setValue(4);

@@ -18,6 +18,7 @@ package com.tom_roush.pdfbox.multipdf;
 
 import java.io.File;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 
 import junit.framework.TestCase;
@@ -74,7 +75,7 @@ public class PageExtractorTest extends TestCase
         try
         {
             // this should work for most users
-            sourcePdf = PDDocument.load(new File("src/test/resources/pdfbox/input/cweb.pdf"));
+            sourcePdf = Loader.loadPDF(new File("src/test/resources/pdfbox/input/cweb.pdf"));
             PageExtractor instance = new PageExtractor(sourcePdf);
             result = instance.extract();
             assertEquals(sourcePdf.getNumberOfPages(), result.getNumberOfPages());

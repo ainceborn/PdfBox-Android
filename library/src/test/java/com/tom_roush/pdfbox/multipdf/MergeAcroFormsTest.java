@@ -21,6 +21,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
@@ -76,8 +77,8 @@ public class MergeAcroFormsTest
 
         try
         {
-            compliantDocument = PDDocument.load(new File(IN_DIR,"PDFBoxLegacyMerge-SameMerged.pdf"));
-            toBeCompared = PDDocument.load(new File(OUT_DIR,"PDFBoxLegacyMerge-SameMerged.pdf"));
+            compliantDocument = Loader.loadPDF(new File(IN_DIR,"PDFBoxLegacyMerge-SameMerged.pdf"));
+            toBeCompared = Loader.loadPDF(new File(OUT_DIR,"PDFBoxLegacyMerge-SameMerged.pdf"));
 
 
             PDAcroForm compliantAcroForm = compliantDocument.getDocumentCatalog().getAcroForm();
@@ -129,8 +130,8 @@ public class MergeAcroFormsTest
 
         try
         {
-            compliantDocument = PDDocument.load(new File(IN_DIR,"AcrobatMerge-TextFieldsOnly-SameMerged.pdf"));
-            toBeCompared = PDDocument.load(new File(OUT_DIR,"PDFBoxJoinFieldsMerge-TextFieldsOnly-SameMerged.pdf"));
+            compliantDocument = Loader.loadPDF(new File(IN_DIR,"AcrobatMerge-TextFieldsOnly-SameMerged.pdf"));
+            toBeCompared = Loader.loadPDF(new File(OUT_DIR,"PDFBoxJoinFieldsMerge-TextFieldsOnly-SameMerged.pdf"));
 
 
             PDAcroForm compliantAcroForm = compliantDocument.getDocumentCatalog().getAcroForm();
@@ -197,24 +198,20 @@ public class MergeAcroFormsTest
         InputStream s1 = null;
         InputStream s2 = null;
         // Merge the PDFs form PDFBOX-1031
-        PDFMergerUtility merger = new PDFMergerUtility();
         try {
+            PDFMergerUtility merger = new PDFMergerUtility();
+
             File f1 = new File(TARGET_PDF_DIR, "PDFBOX-1031-1.pdf");
-            assumeTrue(f1.exists());
-            s1 = new FileInputStream(f1);
-
             File f2 = new File(TARGET_PDF_DIR, "PDFBOX-1031-2.pdf");
-            assumeTrue(f2.exists());
-            s2 = new FileInputStream(f2);
+            File pdfOutput = new File(OUT_DIR,"PDFBOX-1031.pdf");
 
-            File pdfOutput = new File(OUT_DIR, "PDFBOX-1031.pdf");
             merger.setDestinationFileName(pdfOutput.getAbsolutePath());
-            merger.addSource(s1);
-            merger.addSource(s2);
+            merger.addSource(f1);
+            merger.addSource(f2);
             merger.mergeDocuments(null);
 
             // Test merge result
-            PDDocument mergedPDF = PDDocument.load(pdfOutput);
+            PDDocument mergedPDF = Loader.loadPDF(pdfOutput);
             assertEquals("There shall be 2 pages", 2, mergedPDF.getNumberOfPages());
 
             assertNotNull("There shall be an /Annots entry for the first page", mergedPDF.getPage(0).getCOSObject().getDictionaryObject(COSName.ANNOTS));
@@ -234,29 +231,24 @@ public class MergeAcroFormsTest
      * PDFBOX-1100 Ensure that after merging the PDFs there is an AP and V entry.
      */
     @Test
-    public void testAPEntry() throws IOException {
+    public void testAPEntry() throws IOException
+    {
 
-        InputStream is1 = null;
-        InputStream is2 = null;
+        File file1 = new File(TARGET_PDF_DIR, "PDFBOX-1100-1.pdf");
+        File file2 = new File(TARGET_PDF_DIR, "PDFBOX-1100-2.pdf");
         // Merge the PDFs form PDFBOX-1100
         PDFMergerUtility merger = new PDFMergerUtility();
 
-        try {
-            File file1 = new File(TARGET_PDF_DIR, "PDFBOX-1100-1.pdf");
-            assumeTrue(file1.exists());
-            is1 = new FileInputStream(file1);
+        File pdfOutput = new File(OUT_DIR,"PDFBOX-1100.pdf");
 
-            File file2 = new File(TARGET_PDF_DIR, "PDFBOX-1100-2.pdf");
-            assumeTrue(file2.exists());
-            is2 = new FileInputStream(file2);
-            File pdfOutput = new File(OUT_DIR, "PDFBOX-1100.pdf");
-            merger.setDestinationFileName(pdfOutput.getAbsolutePath());
-            merger.addSource(is1);
-            merger.addSource(is2);
-            merger.mergeDocuments(null);
+        merger.setDestinationFileName(pdfOutput.getAbsolutePath());
+        merger.addSource(file1);
+        merger.addSource(file2);
+        merger.mergeDocuments(null);
 
-            // Test merge result
-            PDDocument mergedPDF = PDDocument.load(pdfOutput);
+        // Test merge result
+        try (PDDocument mergedPDF = Loader.loadPDF(pdfOutput))
+        {
             assertEquals("There shall be 2 pages", 2, mergedPDF.getNumberOfPages());
 
             PDAcroForm acroForm = mergedPDF.getDocumentCatalog().getAcroForm();
@@ -266,13 +258,8 @@ public class MergeAcroFormsTest
             assertNotNull("There shall be a /V entry for the field", formField.getCOSObject().getDictionaryObject(COSName.V));
 
             formField = acroForm.getField("Testfeld2");
-            assertNotNull("There shall be an /AP entry for the field", formField.getCOSObject().getDictionaryObject(COSName.AP));
-            assertNotNull("There shall be a /V entry for the field", formField.getCOSObject().getDictionaryObject(COSName.V));
-
-            mergedPDF.close();
-        } finally {
-            IOUtils.closeQuietly(is1);
-            IOUtils.closeQuietly(is2);
+            assertNotNull( "There shall be an /AP entry for the field", formField.getCOSObject().getDictionaryObject(COSName.AP));
+            assertNotNull( "There shall be a /V entry for the field", formField.getCOSObject().getDictionaryObject(COSName.V));
         }
     }
 }

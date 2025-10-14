@@ -23,6 +23,7 @@ import java.io.PrintWriter;
 import java.net.URISyntaxException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.pdmodel.fdf.FDFDocument;
 import com.tom_roush.pdfbox.pdmodel.fdf.FDFField;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm;
@@ -53,7 +54,7 @@ public class TestFDF extends TestCase
 
     private void checkFields(String name) throws IOException, URISyntaxException
     {
-        FDFDocument fdf = FDFDocument.load(new File(TestFDF.class.getResource(name).toURI()));
+        FDFDocument fdf = Loader.loadFDF(new File(TestFDF.class.getResource(name).toURI()));
         fdf.saveXFDF(new PrintWriter(new ByteArrayOutputStream()));
 
         List<FDFField> fields = fdf.getCatalog().getFDF().getFields();
@@ -64,7 +65,7 @@ public class TestFDF extends TestCase
         assertEquals("Test1", fields.get(0).getValue());
         assertEquals("Test2", fields.get(1).getValue());
 
-        PDDocument pdf = PDDocument.load(new File(TestFDF.class.getResource("/pdfbox/com/tom_roush/pdfbox/pdfparser/SimpleForm2Fields.pdf").toURI()));
+        PDDocument pdf = Loader.loadPDF(new File(TestFDF.class.getResource("/pdfbox/com/tom_roush/pdfbox/pdfparser/SimpleForm2Fields.pdf").toURI()));
         PDAcroForm acroForm = pdf.getDocumentCatalog().getAcroForm();
         acroForm.importFDF(fdf);
         assertEquals("Test1", acroForm.getField("Field1").getValueAsString());

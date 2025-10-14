@@ -120,7 +120,7 @@ public class PDFStreamParserTest extends TestCase
     {
         PDFStreamParser pdfStreamParser = new PDFStreamParser(s.getBytes());
         pdfStreamParser.parse();
-        return pdfStreamParser.getTokens();
+        return pdfStreamParser.parse();
     }
 
 }

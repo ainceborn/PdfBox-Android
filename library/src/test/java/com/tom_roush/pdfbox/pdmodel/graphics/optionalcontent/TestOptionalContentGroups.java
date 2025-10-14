@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 import com.tom_roush.harmony.awt.AWTColor;
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentCatalog;
@@ -159,7 +160,7 @@ public class TestOptionalContentGroups extends TestCase
             testOCGGeneration();
         }
 
-        PDDocument doc = PDDocument.load(pdfFile);
+        PDDocument doc = Loader.loadPDF(pdfFile);
         try
         {
             assertEquals(1.5f, doc.getVersion());

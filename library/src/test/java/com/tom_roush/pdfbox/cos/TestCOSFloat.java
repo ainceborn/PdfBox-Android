@@ -185,7 +185,7 @@ public class TestCOSFloat extends TestCOSNumber
             COSFloat testFloat = new COSFloat(num);
             // compare the string representation instead of the numeric values 
             // as the cast from float to double adds some more fraction digits
-            Assert.assertEquals(Float.toString(num), Double.toString(testFloat.doubleValue()));
+            Assert.assertEquals(Float.toString(num),testFloat.floatValue());
         }
 
     }

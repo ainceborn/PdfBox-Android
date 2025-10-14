@@ -18,6 +18,7 @@ package com.tom_roush.pdfbox.pdmodel;
 
 import java.io.IOException;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDDocumentOutline;
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem;
 
@@ -46,7 +47,7 @@ public class TestPDPageTree
     @Test
     public void indexOfPageFromOutlineDestination() throws IOException
     {
-        doc = PDDocument.load(TestPDPageTree.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/with_outline.pdf"));
+        doc = Loader.loadPDF(TestPDPageTree.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/with_outline.pdf"));
         PDDocumentOutline outline = doc.getDocumentCatalog().getDocumentOutline();
         for (PDOutlineItem current : outline.children())
         {
@@ -60,7 +61,7 @@ public class TestPDPageTree
     @Test
     public void positiveSingleLevel() throws IOException
     {
-        doc = PDDocument.load(TestPDPageTree.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/with_outline.pdf"));
+        doc = Loader.loadPDF(TestPDPageTree.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/with_outline.pdf"));
         for (int i = 0; i < doc.getNumberOfPages(); i++)
         {
             assertEquals(i, doc.getPages().indexOf(doc.getPage(i)));
@@ -70,7 +71,7 @@ public class TestPDPageTree
     @Test
     public void positiveMultipleLevel() throws IOException
     {
-        doc = PDDocument.load(TestPDPageTree.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/page_tree_multiple_levels.pdf"));
+        doc = Loader.loadPDF(TestPDPageTree.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/page_tree_multiple_levels.pdf"));
         for (int i = 0; i < doc.getNumberOfPages(); i++)
         {
             assertEquals(i, doc.getPages().indexOf(doc.getPage(i)));
@@ -80,7 +81,7 @@ public class TestPDPageTree
     @Test
     public void negative() throws IOException
     {
-        doc = PDDocument.load(TestPDPageTree.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/with_outline.pdf"));
+        doc = Loader.loadPDF(TestPDPageTree.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/with_outline.pdf"));
         assertEquals(-1, doc.getPages().indexOf(new PDPage()));
     }
 }

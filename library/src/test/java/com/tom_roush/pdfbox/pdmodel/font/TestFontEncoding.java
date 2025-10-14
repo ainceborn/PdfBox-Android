@@ -20,6 +20,7 @@ package com.tom_roush.pdfbox.pdmodel.font;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSInteger;
@@ -93,7 +94,7 @@ public class TestFontEncoding extends TestCase
         doc.close();
 
         // verify
-        doc = PDDocument.load(baos.toByteArray());
+        doc = Loader.loadPDF(baos.toByteArray());
         PDFTextStripper stripper = new PDFTextStripper();
         String text = stripper.getText(doc);
         assertEquals("~˜", text.trim());

@@ -21,13 +21,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.AnnotationFilter;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationCircle;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationHighlight;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquare;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquareCircle;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup;
 
@@ -70,9 +74,9 @@ public class COSArrayListTest {
    @Before
    public void setUp() throws Exception {
       annotationsList = new ArrayList<PDAnnotation>();
-      PDAnnotationTextMarkup txtMark = new PDAnnotationTextMarkup(PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT);
+      PDAnnotationTextMarkup txtMark = new PDAnnotationHighlight();
       PDAnnotationLink txtLink = new PDAnnotationLink();
-      PDAnnotationSquareCircle aCircle = new PDAnnotationSquareCircle(PDAnnotationSquareCircle.SUB_TYPE_CIRCLE);
+      PDAnnotationSquareCircle aCircle = new PDAnnotationCircle();
 
       annotationsList.add(txtMark);
       annotationsList.add(txtLink);
@@ -137,7 +141,7 @@ public class COSArrayListTest {
       COSArrayList<PDAnnotation> cosArrayList = new COSArrayList<PDAnnotation>(annotationsList, annotationsArray);
 
       // add new annotation
-      PDAnnotationSquareCircle aSquare = new PDAnnotationSquareCircle(PDAnnotationSquareCircle.SUB_TYPE_SQUARE);
+      PDAnnotationSquareCircle aSquare = new PDAnnotationSquare();
       cosArrayList.add(aSquare);
 
       assertEquals("List size shall be 5", 5, annotationsList.size());
@@ -319,7 +323,7 @@ public class COSArrayListTest {
       pdf.addPage(page);
 
       ArrayList<PDAnnotation> pageAnnots = new ArrayList<PDAnnotation>();
-      PDAnnotationTextMarkup txtMark = new PDAnnotationTextMarkup(PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT);
+      PDAnnotationTextMarkup txtMark = new PDAnnotationHighlight();
       PDAnnotationLink txtLink = new PDAnnotationLink();
 
       // enforce the COSDictionaries to be written directly into the COSArray
@@ -337,7 +341,7 @@ public class COSArrayListTest {
       pdf.save(OUT_DIR + "/removeSingleDirectObjectTest.pdf");
       pdf.close();
 
-      pdf = PDDocument.load(new File(OUT_DIR + "/removeSingleDirectObjectTest.pdf"));
+      pdf = Loader.loadPDF(new File(OUT_DIR + "/removeSingleDirectObjectTest.pdf"));
       page = pdf.getPage(0);
 
       COSArrayList<PDAnnotation> annotations = (COSArrayList<PDAnnotation>) page.getAnnotations();
@@ -363,7 +367,7 @@ public class COSArrayListTest {
       pdf.addPage(page);
 
       ArrayList<PDAnnotation> pageAnnots = new ArrayList<PDAnnotation>();
-      PDAnnotationTextMarkup txtMark = new PDAnnotationTextMarkup(PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT);
+      PDAnnotationTextMarkup txtMark = new PDAnnotationHighlight();
       PDAnnotationLink txtLink = new PDAnnotationLink();
 
       pageAnnots.add(txtMark);
@@ -377,7 +381,7 @@ public class COSArrayListTest {
       pdf.save(OUT_DIR + "/removeSingleIndirectObjectTest.pdf");
       pdf.close();
 
-      pdf = PDDocument.load(new File(OUT_DIR + "/removeSingleIndirectObjectTest.pdf"));
+      pdf = Loader.loadPDF(new File(OUT_DIR + "/removeSingleIndirectObjectTest.pdf"));
       page = pdf.getPage(0);
 
       COSArrayList<PDAnnotation> annotations = (COSArrayList<PDAnnotation>) page.getAnnotations();
@@ -408,7 +412,7 @@ public class COSArrayListTest {
       pdf.addPage(page);
 
       ArrayList<PDAnnotation> pageAnnots = new ArrayList<PDAnnotation>();
-      PDAnnotationTextMarkup txtMark = new PDAnnotationTextMarkup(PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT);
+      PDAnnotationTextMarkup txtMark = new PDAnnotationHighlight();
       PDAnnotationLink txtLink = new PDAnnotationLink();
 
       // enforce the COSDictionaries to be written directly into the COSArray
@@ -426,7 +430,7 @@ public class COSArrayListTest {
       pdf.save(OUT_DIR + "/removeDirectObjectTest.pdf");
       pdf.close();
 
-      pdf = PDDocument.load(new File(OUT_DIR + "/removeDirectObjectTest.pdf"));
+      pdf = Loader.loadPDF(new File(OUT_DIR + "/removeDirectObjectTest.pdf"));
       page = pdf.getPage(0);
 
       COSArrayList<PDAnnotation> annotations = (COSArrayList<PDAnnotation>) page.getAnnotations();
@@ -454,7 +458,7 @@ public class COSArrayListTest {
       pdf.addPage(page);
 
       ArrayList<PDAnnotation> pageAnnots = new ArrayList<PDAnnotation>();
-      PDAnnotationTextMarkup txtMark = new PDAnnotationTextMarkup(PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT);
+      PDAnnotationTextMarkup txtMark = new PDAnnotationHighlight();
       PDAnnotationLink txtLink = new PDAnnotationLink();
 
       pageAnnots.add(txtMark);
@@ -468,7 +472,7 @@ public class COSArrayListTest {
       pdf.save(OUT_DIR + "/removeIndirectObjectTest.pdf");
       pdf.close();
 
-      pdf = PDDocument.load(new File(OUT_DIR + "/removeIndirectObjectTest.pdf"));
+      pdf = Loader.loadPDF(new File(OUT_DIR + "/removeIndirectObjectTest.pdf"));
       page = pdf.getPage(0);
 
       COSArrayList<PDAnnotation> annotations = (COSArrayList<PDAnnotation>) page.getAnnotations();
@@ -500,7 +504,7 @@ public class COSArrayListTest {
       pdf.addPage(page);
 
       ArrayList<PDAnnotation> pageAnnots = new ArrayList<PDAnnotation>();
-      PDAnnotationTextMarkup txtMark = new PDAnnotationTextMarkup(PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT);
+      PDAnnotationTextMarkup txtMark = new PDAnnotationHighlight();
       PDAnnotationLink txtLink = new PDAnnotationLink();
 
       // enforce the COSDictionaries to be written directly into the COSArray
@@ -518,7 +522,7 @@ public class COSArrayListTest {
       pdf.save(OUT_DIR + "/retainDirectObjectTest.pdf");
       pdf.close();
 
-      pdf = PDDocument.load(new File(OUT_DIR + "/retainDirectObjectTest.pdf"));
+      pdf = Loader.loadPDF(new File(OUT_DIR + "/retainDirectObjectTest.pdf"));
       page = pdf.getPage(0);
 
       COSArrayList<PDAnnotation> annotations = (COSArrayList<PDAnnotation>) page.getAnnotations();
@@ -550,7 +554,7 @@ public class COSArrayListTest {
       pdf.addPage(page);
 
       ArrayList<PDAnnotation> pageAnnots = new ArrayList<PDAnnotation>();
-      PDAnnotationTextMarkup txtMark = new PDAnnotationTextMarkup(PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT);
+      PDAnnotationTextMarkup txtMark = new PDAnnotationHighlight();
       PDAnnotationLink txtLink = new PDAnnotationLink();
 
       // enforce the COSDictionaries to be written directly into the COSArray
@@ -568,7 +572,7 @@ public class COSArrayListTest {
       pdf.save(OUT_DIR + "/retainIndirectObjectTest.pdf");
       pdf.close();
 
-      pdf = PDDocument.load(new File(OUT_DIR + "/retainIndirectObjectTest.pdf"));
+      pdf = Loader.loadPDF(new File(OUT_DIR + "/retainIndirectObjectTest.pdf"));
       page = pdf.getPage(0);
 
       COSArrayList<PDAnnotation> annotations = (COSArrayList<PDAnnotation>) page.getAnnotations();

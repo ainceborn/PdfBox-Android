@@ -19,6 +19,7 @@ package com.tom_roush.pdfbox.pdmodel.interactive.form;
 import java.io.File;
 import java.io.IOException;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSString;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
@@ -136,7 +137,7 @@ public class TestFields extends TestCase
 
         try
         {
-            doc = PDDocument.load(new File(PATH_OF_PDF));
+            doc = Loader.loadPDF(new File(PATH_OF_PDF));
 
             // get and assert that there is a form
             PDAcroForm form = doc.getDocumentCatalog().getAcroForm();
@@ -205,7 +206,7 @@ public class TestFields extends TestCase
 
         try
         {
-            doc = PDDocument.load(new File(PATH_OF_PDF));
+            doc = Loader.loadPDF(new File(PATH_OF_PDF));
 
             PDAcroForm form = doc.getDocumentCatalog().getAcroForm();
 

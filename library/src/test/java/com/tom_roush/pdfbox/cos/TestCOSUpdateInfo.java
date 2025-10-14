@@ -38,7 +38,13 @@ public class TestCOSUpdateInfo
     public void testIsSetNeedToBeUpdate()
     {
         // COSDictionary
+        COSDocumentState origin = new COSDocumentState();
+        origin.setParsing(false);
+        // COSDictionary
         COSUpdateInfo testCOSDictionary = new COSDictionary();
+        testCOSDictionary.setNeedToBeUpdated(true);
+        assertFalse(testCOSDictionary.isNeedToBeUpdated());
+        testCOSDictionary.getUpdateState().setOriginDocumentState(origin);
         testCOSDictionary.setNeedToBeUpdated(true);
         assertTrue(testCOSDictionary.isNeedToBeUpdated());
         testCOSDictionary.setNeedToBeUpdated(false);
@@ -46,18 +52,14 @@ public class TestCOSUpdateInfo
 
         // COSObject
         COSUpdateInfo testCOSObject;
-        try
-        {
-            testCOSObject = new COSObject(null);
-            testCOSObject.setNeedToBeUpdated(true);
-            assertTrue(testCOSObject.isNeedToBeUpdated());
-            testCOSObject.setNeedToBeUpdated(false);
-            assertFalse(testCOSObject.isNeedToBeUpdated());
-        }
-        catch (IOException e)
-        {
-            fail(e.getMessage());
-        }
+        testCOSObject = new COSObject(null);
+        testCOSObject.setNeedToBeUpdated(true);
+        assertFalse(testCOSObject.isNeedToBeUpdated());
+        testCOSObject.getUpdateState().setOriginDocumentState(origin);
+        testCOSObject.setNeedToBeUpdated(true);
+        assertTrue(testCOSObject.isNeedToBeUpdated());
+        testCOSObject.setNeedToBeUpdated(false);
+        assertFalse(testCOSObject.isNeedToBeUpdated());
     }
 
 }

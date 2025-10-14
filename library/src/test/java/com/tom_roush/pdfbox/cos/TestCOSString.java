@@ -16,6 +16,8 @@
  */
 package com.tom_roush.pdfbox.cos;
 
+import static org.junit.Assert.assertNotEquals;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
@@ -74,15 +76,14 @@ public class TestCOSString extends TestCOSBase
     {
         String inputString = "Test with a text and a few numbers 1, 2 and 3";
         String pdfHex = "<" + createHex(inputString) + ">";
-        COSString cosStr = new COSString(inputString);
-        cosStr.setForceHexForm(true);
+        COSString cosStr = new COSString(inputString, true);
         writePDFTests(pdfHex, cosStr);
 
         COSString escStr = new COSString(ESC_CHAR_STRING);
         writePDFTests("(" + ESC_CHAR_STRING_PDF_FORMAT + ")", escStr);
-        escStr.setForceHexForm(true);
+        COSString escStrHex = new COSString(ESC_CHAR_STRING, true);
         // Escape characters not escaped in hex version
-        writePDFTests("<" + createHex(ESC_CHAR_STRING) + ">", escStr);
+        writePDFTests("<" + createHex(ESC_CHAR_STRING) + ">", escStrHex);
     }
 
     /**
@@ -274,15 +275,31 @@ public class TestCOSString extends TestCOSBase
     @Override
     public void testAccept() throws IOException
     {
-        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-        ICOSVisitor visitor = new COSWriter(outStream);
-        COSString testSubj = new COSString(ESC_CHAR_STRING);
-        testSubj.accept(visitor);
-        Assert.assertEquals("(" + ESC_CHAR_STRING_PDF_FORMAT + ")", outStream.toString());
-        outStream.reset();
-        testSubj.setForceHexForm(true);
-        testSubj.accept(visitor);
-        Assert.assertEquals("<" + createHex(ESC_CHAR_STRING) + ">", outStream.toString());
+        for (int i = 0; i < 10; i++)
+        {
+            // Reflexive
+            COSString x1 = new COSString("Test");
+            assertEquals(x1, x1);
+
+            // Symmetry i.e. if x == y then y == x
+            COSString y1 = new COSString("Test");
+            assertEquals(x1, y1);
+            assertEquals(y1, x1);
+            COSString x2 = new COSString("Test", true);
+            // also if x != y then y != x
+            assertNotEquals(x1, x2);
+            assertNotEquals(x2, x1);
+
+            // Transitive if x == y && y == z then x == z
+            COSString z1 = new COSString("Test");
+            assertEquals(x1, y1);
+            assertEquals(y1, z1);
+            assertEquals(x1, z1);
+            // Test the negative as well if x1 == y1 && y1 != x2 then x1 != x2
+            assertEquals(x1, y1);
+            assertNotEquals(y1, x2);
+            assertNotEquals(x1, x2);
+        }
     }
 
     /**
@@ -295,27 +312,26 @@ public class TestCOSString extends TestCOSBase
         {
             // Reflexive
             COSString x1 = new COSString("Test");
-            Assert.assertEquals(x1, x1);
+            assertEquals(x1, x1);
 
             // Symmetry i.e. if x == y then y == x
             COSString y1 = new COSString("Test");
-            Assert.assertEquals(x1, y1);
-            Assert.assertEquals(y1, x1);
-            COSString x2 = new COSString("Test");
-            x2.setForceHexForm(true);
+            assertEquals(x1, y1);
+            assertEquals(y1, x1);
+            COSString x2 = new COSString("Test", true);
             // also if x != y then y != x
-            Assert.assertNotEquals(x1, x2);
-            Assert.assertNotEquals(x2, x1);
+            assertNotEquals(x1, x2);
+            assertNotEquals(x2, x1);
 
             // Transitive if x == y && y == z then x == z
             COSString z1 = new COSString("Test");
-            Assert.assertEquals(x1, y1);
-            Assert.assertEquals(y1, z1);
-            Assert.assertEquals(x1, z1);
+            assertEquals(x1, y1);
+            assertEquals(y1, z1);
+            assertEquals(x1, z1);
             // Test the negative as well if x1 == y1 && y1 != x2 then x1 != x2
-            Assert.assertEquals(x1, y1);
-            Assert.assertNotEquals(y1, x2);
-            Assert.assertNotEquals(x1, x2);
+            assertEquals(x1, y1);
+            assertNotEquals(y1, x2);
+            assertNotEquals(x1, x2);
         }
     }
 
@@ -326,11 +342,11 @@ public class TestCOSString extends TestCOSBase
     {
         COSString str1 = new COSString("Test1");
         COSString str2 = new COSString("Test2");
-        Assert.assertNotEquals(str1.hashCode(), str2.hashCode());
+        assertNotEquals(str1.hashCode(), str2.hashCode());
         COSString str3 = new COSString("Test1");
-        Assert.assertEquals(str1.hashCode(), str3.hashCode());
-        str3.setForceHexForm(true);
-        Assert.assertNotEquals(str1.hashCode(), str3.hashCode());
+        assertEquals(str1.hashCode(), str3.hashCode());
+        COSString str3Hex = new COSString("Test1", true);
+        assertNotEquals(str1.hashCode(), str3Hex.hashCode());
     }
 
     /**
@@ -347,11 +363,11 @@ public class TestCOSString extends TestCOSBase
         COSString test2 = COSString.parseHex("000000FF00FFFF");
         Assert.assertEquals(test1, test1);
         Assert.assertEquals(test2, test2);
-        Assert.assertNotEquals(test1.toHexString(), test2.toHexString());
+        assertNotEquals(test1.toHexString(), test2.toHexString());
         assertFalse(Arrays.equals(test1.getBytes(), test2.getBytes()));
-        Assert.assertNotEquals(test1, test2);
-        Assert.assertNotEquals(test2, test1);
-        Assert.assertNotEquals(test1.getString(), test2.getString());
+        assertNotEquals(test1, test2);
+        assertNotEquals(test2, test1);
+        assertNotEquals(test1.getString(), test2.getString());
     }
 
     /**
