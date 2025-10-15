@@ -559,9 +559,14 @@ class AppearanceGeneratorHelper {
             // Adobe Acrobat uses the font's bounding box for the leading between the lines
             appearanceStyle.setLeading(font.getBoundingBox().getHeight() * fontScaleY);
 
-            PlainTextFormatter formatter = new PlainTextFormatter.Builder(contents).style(appearanceStyle)
-                .text(textContent).width(contentRect.getWidth()).wrapLines(isMultiLine()).initialOffset(x, y)
-                .textAlign(getTextAlign(widget)).build();
+            PlainTextFormatter formatter = new PlainTextFormatter.Builder(contents)
+                    .style(appearanceStyle)
+                    .text(textContent)
+                    .width(contentRect.getWidth())
+                    .wrapLines(isMultiLine())
+                    .initialOffset(x, y)
+                    .textAlign(getTextAlign(widget))
+                    .build();
             formatter.format();
         }
 

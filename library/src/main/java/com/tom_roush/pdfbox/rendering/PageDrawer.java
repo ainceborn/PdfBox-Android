@@ -671,8 +671,11 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         {
             setStroke();
 
+            PDGraphicsState graphicsState = getGraphicsState();
+
             var paint = getPaint(getGraphicsState().getStrokingColor());
             paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(graphicsState.getLineWidth());
             setClip();
 
             canvas.drawPath(linePath, paint);
@@ -688,6 +691,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
         var paint = getPaint(getGraphicsState().getNonStrokingColor());
         paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(graphicsState.getLineWidth());
         setClip();
         linePath.setFillType(windingRule);
 
