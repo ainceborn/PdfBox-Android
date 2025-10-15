@@ -41,19 +41,19 @@ public class PDFunctionType0 extends PDFunction
 {
 
     /**
-     * An array of 2 x m numbers specifying the linear mapping of input values 
+     * An array of 2 x m numbers specifying the linear mapping of input values
      * into the domain of the function's sample table. Default value: [ 0 (Size0
      * - 1) 0 (Size1 - 1) ...].
      */
     private COSArray encode = null;
     /**
-     * An array of 2 x n numbers specifying the linear mapping of sample values 
+     * An array of 2 x n numbers specifying the linear mapping of sample values
      * into the range appropriate for the function's output values. Default
      * value: same as the value of Range
      */
     private COSArray decode = null;
     /**
-     * An array of m positive integers specifying the number of samples in each 
+     * An array of m positive integers specifying the number of samples in each
      * input dimension of the sample table.
      */
     private COSArray size = null;
@@ -91,13 +91,13 @@ public class PDFunctionType0 extends PDFunction
     {
         if (size == null)
         {
-            size = (COSArray) getCOSObject().getDictionaryObject(COSName.SIZE);
+            size = getCOSObject().getCOSArray(COSName.SIZE);
         }
         return size;
     }
 
     /**
-     * Get the number of bits that the output value will take up.  
+     * Get the number of bits that the output value will take up.
      *
      * Valid values are 1,2,4,8,12,16,24,32.
      *
@@ -134,13 +134,13 @@ public class PDFunctionType0 extends PDFunction
     /**
      * Returns all encode values as COSArray.
      *
-     * @return the encode array. 
+     * @return the encode array.
      */
     private COSArray getEncodeValues()
     {
         if (encode == null)
         {
-            encode = (COSArray) getCOSObject().getDictionaryObject(COSName.ENCODE);
+            encode = getCOSObject().getCOSArray(COSName.ENCODE);
             // the default value is [0 (size[0]-1) 0 (size[1]-1) ...]
             if (encode == null)
             {
@@ -160,13 +160,13 @@ public class PDFunctionType0 extends PDFunction
     /**
      * Returns all decode values as COSArray.
      *
-     * @return the decode array. 
+     * @return the decode array.
      */
     private COSArray getDecodeValues()
     {
         if (decode == null)
         {
-            decode = (COSArray) getCOSObject().getDictionaryObject(COSName.DECODE);
+            decode = getCOSObject().getCOSArray(COSName.DECODE);
             // if decode is null, the default values are the range values
             if (decode == null)
             {
@@ -319,9 +319,6 @@ public class PDFunctionType0 extends PDFunction
             }
             else
             {
-                if (inPrev == null || inPrev.length == 0 || inNext == null || inNext.length == 0) {
-                    return new float[] { 0f };
-                }
                 // branch
                 if (inPrev[step] == inNext[step])
                 {
@@ -389,24 +386,24 @@ public class PDFunctionType0 extends PDFunction
                 samples = new int[arraySize][nOut];
                 int bitsPerSample = getBitsPerSample();
                 int index = 0;
-                try
+
+                try (InputStream is = getPDStream().createInputStream())
                 {
                     // PDF spec 1.7 p.171:
-                    // Each sample value is represented as a sequence of BitsPerSample bits. 
+                    // Each sample value is represented as a sequence of BitsPerSample bits.
                     // Successive values are adjacent in the bit stream; there is no padding at byte boundaries.
-                    InputStream inputStream = getPDStream().createInputStream();
-                    ImageInputStream mciis = new MemoryCacheImageInputStream(inputStream);
-                    for (int i = 0; i < arraySize; i++)
+                    try (ImageInputStream mciis = new MemoryCacheImageInputStream(is))
                     {
-                        for (int k = 0; k < nOut; k++)
+                        for (int i = 0; i < arraySize; i++)
                         {
-                            // TODO will this cast work properly for 32 bitsPerSample or should we use long[]?
-                            samples[index][k] = (int) mciis.readBits(bitsPerSample);
+                            for (int k = 0; k < nOut; k++)
+                            {
+                                // TODO will this cast work properly for 32 bitsPerSample or should we use long[]?
+                                samples[index][k] = (int) mciis.readBits(bitsPerSample);
+                            }
+                            index++;
                         }
-                        index++;
                     }
-                    mciis.close();
-                    inputStream.close();
                 }
                 catch (IOException exception)
                 {
@@ -440,9 +437,10 @@ public class PDFunctionType0 extends PDFunction
         {
             PDRange domain = getDomainForInput(i);
             PDRange encodeValues = getEncodeForParameter(i);
-            input[i] = clipToRange(input[i], domain.getMin(), domain.getMax());
-            input[i] = interpolate(input[i], domain.getMin(), domain.getMax(),
-                encodeValues.getMin(), encodeValues.getMax());
+            float min = domain.getMin();
+            float max = domain.getMax();
+            input[i] = clipToRange(input[i], min, max);
+            input[i] = interpolate(input[i], min, max, encodeValues.getMin(), encodeValues.getMax());
             input[i] = clipToRange(input[i], 0, sizeValues[i] - 1);
             inputPrev[i] = (int) Math.floor(input[i]);
             inputNext[i] = (int) Math.ceil(input[i]);
@@ -465,3 +463,4 @@ public class PDFunctionType0 extends PDFunction
         return outputValues;
     }
 }
+

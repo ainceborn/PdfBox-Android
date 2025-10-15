@@ -36,7 +36,7 @@ import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.filter.DecodeOptions;
 import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
-import com.tom_roush.pdfbox.pdmodel.graphics.color.PDIndexed;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceGray;
 
 /**
  * Reads a sampled image from a PDF file.
@@ -245,12 +245,8 @@ final class SampledImageReader
         DecodeOptions options = new DecodeOptions(currentSubsampling);
         options.setSourceRegion(clipped);
         // read bit stream
-        InputStream iis = null;
-        try
+        try (InputStream iis = pdImage.createInputStream(options))
         {
-            // create stream
-            iis = pdImage.createInputStream(options);
-
             final int inputWidth;
             final int startx;
             final int starty;
@@ -275,6 +271,19 @@ final class SampledImageReader
                 scanWidth = clipped.width();
                 scanHeight = clipped.height();
             }
+            if (colorSpace instanceof PDDeviceGray)
+            {
+                // TYPE_BYTE_GRAY and not TYPE_BYTE_BINARY because this one is handled
+                // without conversion to RGB by Graphics.drawImage
+                // this reduces the memory footprint, only one byte per pixel instead of three.
+                raster = Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8);
+            }
+            else
+            {
+                raster = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                buffer = ByteBuffer.allocate(raster.getRowBytes() * height);
+            }
+
             final byte[] output = buffer.array();
             int idx = 0;
 
@@ -282,7 +291,7 @@ final class SampledImageReader
             // and then simply shift bits out to the left, detecting set bits via sign
             final boolean nosubsampling = currentSubsampling == 1;
             final int stride = (inputWidth + 7) / 8;
-            final int invert = colorSpace instanceof PDIndexed && decode[0] < decode[1] ? 0 : -1;
+            final int invert = decode[0] < decode[1] ? 0 : -1;
             final int endX = startx + scanWidth;
             final byte[] buff = new byte[stride];
             for (int y = 0; y < starty + scanHeight; y++)
@@ -320,13 +329,6 @@ final class SampledImageReader
 
             // use the color space to convert the image to RGB
             return colorSpace.toRGBImage(raster);
-        }
-        finally
-        {
-            if (iis != null)
-            {
-                iis.close();
-            }
         }
     }
 

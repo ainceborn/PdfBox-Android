@@ -42,6 +42,7 @@ import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceCMYK;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceGray;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceN;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDICCBased;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDPattern;
@@ -1123,7 +1124,7 @@ public final class PDPageContentStream implements Closeable
         if (
             color.getColorSpace() instanceof PDPattern ||
             color.getColorSpace() instanceof PDSeparation ||
-//            color.getColorSpace() instanceof PDDeviceN ||
+            color.getColorSpace() instanceof PDDeviceN ||
             color.getColorSpace() instanceof PDICCBased)
         {
             writeOperator(OperatorName.STROKING_COLOR_N);
@@ -1352,9 +1353,9 @@ public final class PDPageContentStream implements Closeable
         }
 
         if (
-              color.getColorSpace() instanceof PDPattern ||
+            color.getColorSpace() instanceof PDPattern ||
             color.getColorSpace() instanceof PDSeparation ||
-//            color.getColorSpace() instanceof PDDeviceN ||
+            color.getColorSpace() instanceof PDDeviceN ||
             color.getColorSpace() instanceof PDICCBased)
         {
             writeOperator(OperatorName.NON_STROKING_COLOR_N);

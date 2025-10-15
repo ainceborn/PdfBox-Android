@@ -44,6 +44,7 @@ import com.tom_roush.pdfbox.util.Matrix;
  */
 public class PDSquigglyAppearanceHandler extends PDAbstractAppearanceHandler
 {
+
     public PDSquigglyAppearanceHandler(PDAnnotation annotation)
     {
         super(annotation);
@@ -103,12 +104,8 @@ public class PDSquigglyAppearanceHandler extends PDAbstractAppearanceHandler
         rect.setUpperRightY(Math.max(maxY + ab.width / 2, rect.getUpperRightY()));
         annotation.setRectangle(rect);
 
-        PDAppearanceContentStream cs = null;
-
-        try
+        try (PDAppearanceContentStream cs = getNormalAppearanceAsContentStream())
         {
-            cs = getNormalAppearanceAsContentStream();
-
             setOpacity(cs, annotation.getConstantOpacity());
 
             cs.setStrokingColor(color);
@@ -135,24 +132,16 @@ public class PDSquigglyAppearanceHandler extends PDAbstractAppearanceHandler
                 form.setResources(new PDResources());
                 form.setMatrix(AffineTransform.getTranslateInstance(0.5f, 0.5f));
                 cs.drawForm(form);
-
-                PDFormContentStream formCS = null;
-
-                try
+                try (PDFormContentStream formCS = new PDFormContentStream(form))
                 {
-                    formCS = new PDFormContentStream(form);
                     PDTilingPattern pattern = new PDTilingPattern();
                     pattern.setBBox(new PDRectangle(0, 0, 10, 12));
                     pattern.setXStep(10);
                     pattern.setYStep(13);
                     pattern.setTilingType(PDTilingPattern.TILING_CONSTANT_SPACING_FASTER_TILING);
                     pattern.setPaintType(PDTilingPattern.PAINT_UNCOLORED);
-
-                    PDPatternContentStream patternCS = null;
-
-                    try
+                    try (PDPatternContentStream patternCS = new PDPatternContentStream(pattern))
                     {
-                        patternCS = new PDPatternContentStream(pattern);
                         // from Adobe
                         patternCS.setLineCapStyle(1);
                         patternCS.setLineJoinStyle(1);
@@ -163,11 +152,6 @@ public class PDSquigglyAppearanceHandler extends PDAbstractAppearanceHandler
                         patternCS.lineTo(10, 1);
                         patternCS.stroke();
                     }
-                    finally
-                    {
-                        IOUtils.closeQuietly(patternCS);
-                    }
-
                     COSName patternName = form.getResources().add(pattern);
                     PDColorSpace patternColorSpace = new PDPattern(null, PDDeviceRGB.INSTANCE);
                     PDColor patternColor = new PDColor(color.getComponents(), patternName, patternColorSpace);
@@ -177,19 +161,11 @@ public class PDSquigglyAppearanceHandler extends PDAbstractAppearanceHandler
                     formCS.addRect(0, 0, (pathsArray[i * 8 + 2] - pathsArray[i * 8]) / height * 40f, 12);
                     formCS.fill();
                 }
-                finally
-                {
-                    IOUtils.closeQuietly(formCS);
-                }
             }
         }
         catch (IOException ex)
         {
             Log.e("PdfBox-Android", ex.getMessage(), ex);
-        }
-        finally
-        {
-            IOUtils.closeQuietly(cs);
         }
     }
 
