@@ -9,13 +9,8 @@ import java.util.List;
 
 public class PathDebugger {
 
-    /**
-     * Возвращает список координат вдоль Path с заданным шагом.
-     *
-     * @param path Path для анализа
-     * @param step шаг в пикселях (например, 5f)
-     * @return список точек [x, y]
-     */
+    public static Boolean isEnabled = false;
+
     public static List<float[]> getPathPoints(Path path, float step) {
         List<float[]> points = new ArrayList<>();
         PathMeasure measure = new PathMeasure(path, false);
@@ -36,10 +31,8 @@ public class PathDebugger {
         return points;
     }
 
-    /**
-     * Логирует все точки Path в Logcat.
-     */
     public static void logPath(Path path, float step) {
+        if(isEnabled == false) return;
         List<float[]> points = getPathPoints(path, step);
         StringBuilder sb = new StringBuilder("Path points:\n");
         for (float[] p : points) {
