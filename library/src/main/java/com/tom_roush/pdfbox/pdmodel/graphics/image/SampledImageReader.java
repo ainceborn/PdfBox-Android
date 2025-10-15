@@ -36,7 +36,6 @@ import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.filter.DecodeOptions;
 import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
-import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceGray;
 
 /**
  * Reads a sampled image from a PDF file.
@@ -271,19 +270,6 @@ final class SampledImageReader
                 scanWidth = clipped.width();
                 scanHeight = clipped.height();
             }
-            if (colorSpace instanceof PDDeviceGray)
-            {
-                // TYPE_BYTE_GRAY and not TYPE_BYTE_BINARY because this one is handled
-                // without conversion to RGB by Graphics.drawImage
-                // this reduces the memory footprint, only one byte per pixel instead of three.
-                raster = Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8);
-            }
-            else
-            {
-                raster = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-                buffer = ByteBuffer.allocate(raster.getRowBytes() * height);
-            }
-
             final byte[] output = buffer.array();
             int idx = 0;
 
