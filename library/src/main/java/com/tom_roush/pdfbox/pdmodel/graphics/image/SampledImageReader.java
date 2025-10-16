@@ -449,7 +449,7 @@ final class SampledImageReader
             for (int y = 0; y < height; y++) {
                 for (int x = 0; x < width; x++) {
                     int gray = bank[idx++] & 0xFF;
-                    int pixel = (gray << 24); // альфа = значение, RGB = 0
+                    int pixel = (gray << 24);
                     bitmap.setPixel(x, y, pixel);
                 }
             }
@@ -461,7 +461,7 @@ final class SampledImageReader
                 r = bank[idx++] & 0xFF;
                 g = numComponents > 1 ? bank[idx++] & 0xFF : r;
                 b = numComponents > 2 ? bank[idx++] & 0xFF : r;
-                if (numComponents > 3) idx += (numComponents - 3); // пропускаем лишние каналы
+                if (numComponents > 3) idx += (numComponents - 3);
                 pixels[i] = Color.rgb(r, g, b);
             }
             bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
