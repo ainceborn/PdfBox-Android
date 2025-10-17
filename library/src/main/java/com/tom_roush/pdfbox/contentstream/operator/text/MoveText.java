@@ -20,6 +20,7 @@ import android.util.Log;
 
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -35,6 +36,12 @@ import com.tom_roush.pdfbox.util.Matrix;
  */
 public class MoveText extends OperatorProcessor
 {
+
+    public MoveText(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws MissingOperandException
     {
@@ -42,6 +49,7 @@ public class MoveText extends OperatorProcessor
         {
             throw new MissingOperandException(operator, arguments);
         }
+        PDFStreamEngine context = getContext();
         Matrix textLineMatrix = context.getTextLineMatrix();
         if (textLineMatrix == null)
         {

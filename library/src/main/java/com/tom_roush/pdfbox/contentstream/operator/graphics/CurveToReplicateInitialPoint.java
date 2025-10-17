@@ -22,6 +22,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -35,6 +36,11 @@ import com.tom_roush.pdfbox.cos.COSNumber;
  */
 public class CurveToReplicateInitialPoint extends GraphicsOperatorProcessor
 {
+    public CurveToReplicateInitialPoint(PDFGraphicsStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> operands) throws IOException
     {
@@ -51,6 +57,7 @@ public class CurveToReplicateInitialPoint extends GraphicsOperatorProcessor
         COSNumber x3 = (COSNumber)operands.get(2);
         COSNumber y3 = (COSNumber)operands.get(3);
 
+        PDFGraphicsStreamEngine context = getGraphicsContext();
         PointF currentPoint = context.getCurrentPoint();
 
         PointF point2 = context.transformedPoint(x2.floatValue(), y2.floatValue());

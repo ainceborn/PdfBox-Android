@@ -92,8 +92,8 @@ public final class Type1Font implements Type1CharStringReader, EncodedFont, Font
     Encoding encoding = null;
     int paintType;
     int fontType;
-    List<Number> fontMatrix = new ArrayList<Number>();
-    List<Number> fontBBox = new ArrayList<Number>();
+    List<Number> fontMatrix = Collections.emptyList();
+    List<Number> fontBBox = Collections.emptyList();
     int uniqueID;
     float strokeWidth;
     String fontID = "";
@@ -110,27 +110,28 @@ public final class Type1Font implements Type1CharStringReader, EncodedFont, Font
     float underlineThickness;
 
     // Private dictionary
-    List<Number> blueValues = new ArrayList<Number>();
-    List<Number> otherBlues = new ArrayList<Number>();
-    List<Number> familyBlues = new ArrayList<Number>();
-    List<Number> familyOtherBlues = new ArrayList<Number>();
+    List<Number> blueValues = Collections.emptyList();
+    List<Number> otherBlues = Collections.emptyList();
+    List<Number> familyBlues = Collections.emptyList();
+    List<Number> familyOtherBlues = Collections.emptyList();
     float blueScale;
     int blueShift;
     int blueFuzz;
-    List<Number> stdHW = new ArrayList<Number>();
-    List<Number> stdVW = new ArrayList<Number>();
-    List<Number> stemSnapH = new ArrayList<Number>();
-    List<Number> stemSnapV = new ArrayList<Number>();
+    List<Number> stdHW = Collections.emptyList();
+    List<Number> stdVW = Collections.emptyList();
+    List<Number> stemSnapH = Collections.emptyList();
+    List<Number> stemSnapV = Collections.emptyList();
     boolean forceBold;
     int languageGroup;
 
     // Subrs array, and CharStrings dictionary
-    final List<byte[]> subrs = new ArrayList<byte[]>();
-    final Map<String, byte[]> charstrings = new LinkedHashMap<String, byte[]>();
+    final List<byte[]> subrs = new ArrayList<>();
+    final Map<String, byte[]> charstrings = new LinkedHashMap<>();
 
     // private caches
-    private final Map<String, Type1CharString> charStringCache =
-        new ConcurrentHashMap<String, Type1CharString>();
+    private final Map<String, Type1CharString> charStringCache = new ConcurrentHashMap<>();
+
+    private Type1CharStringParser charStringParser = null;
 
     // raw data
     private final byte[] segment1;
@@ -199,13 +200,25 @@ public final class Type1Font implements Type1CharStringReader, EncodedFont, Font
             if (bytes == null)
             {
                 bytes = charstrings.get(".notdef");
+                if (bytes == null)
+                {
+                    throw new IOException(".notdef is not defined");
+                }
             }
-            Type1CharStringParser parser = new Type1CharStringParser(fontName, name);
-            List<Object> sequence = parser.parse(bytes, subrs);
+            List<Object> sequence = getParser().parse(bytes, subrs, name);
             type1 = new Type1CharString(this, fontName, name, sequence);
             charStringCache.put(name, type1);
         }
         return type1;
+    }
+
+    private Type1CharStringParser getParser()
+    {
+        if (charStringParser == null)
+        {
+            charStringParser = new Type1CharStringParser(fontName);
+        }
+        return charStringParser;
     }
 
     // font dictionary
@@ -222,6 +235,7 @@ public final class Type1Font implements Type1CharStringReader, EncodedFont, Font
 
     /**
      * Returns the Encoding, if present.
+     *
      * @return the encoding or null
      */
     @Override
@@ -255,6 +269,7 @@ public final class Type1Font implements Type1CharStringReader, EncodedFont, Font
      *
      * @return the font matrix
      */
+    @Override
     public List<Number> getFontMatrix()
     {
         return Collections.unmodifiableList(fontMatrix);
@@ -264,10 +279,16 @@ public final class Type1Font implements Type1CharStringReader, EncodedFont, Font
      * Returns the font bounding box.
      *
      * @return the font bounding box
+     *
+     * @throws IOException if there are less than 4 numbers
      */
     @Override
-    public BoundingBox getFontBBox()
+    public BoundingBox getFontBBox() throws IOException
     {
+        if (fontBBox.size() < 4)
+        {
+            throw new IOException("FontBBox must have 4 numbers, but is " + fontBBox);
+        }
         return new BoundingBox(fontBBox);
     }
 
@@ -552,7 +573,6 @@ public final class Type1Font implements Type1CharStringReader, EncodedFont, Font
     public String toString()
     {
         return getClass().getName() + "[fontName=" + fontName + ", fullName=" + fullName
-            + ", encoding=" + encoding + ", charStringsDict=" + charstrings
-            + "]";
+                + ", encoding=" + encoding + ", charStringsDict=" + charstrings + "]";
     }
 }

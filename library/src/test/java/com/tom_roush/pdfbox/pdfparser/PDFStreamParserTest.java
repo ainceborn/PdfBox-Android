@@ -24,6 +24,9 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
 import junit.framework.TestCase;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertThrows;
+
+import org.junit.Test;
 
 /**
  * Tests for PDFStreamParser.
@@ -40,6 +43,7 @@ public class PDFStreamParserTest extends TestCase
      *
      * @throws IOException
      */
+    @Test
     public void testInlineImages() throws IOException
     {
         testInlineImage2ops("ID\n12345EI Q", "12345", "Q");
@@ -89,6 +93,17 @@ public class PDFStreamParserTest extends TestCase
         testInlineImage2ops("ID\n12EI5EI          Q   ", "12EI5", "Q");
     }
 
+    /**
+     * PDFBOX-6038: test that nested BI is detected.
+     */
+    @Test
+    public void testNestedBI()
+    {
+        IOException ex =
+                assertThrows(IOException.class, () -> testInlineImage2ops("BI/IB/IB BI/ BI", "", ""));
+        assertEquals("Nested '" + OperatorName.BEGIN_INLINE_IMAGE + "' operator not allowed at offset 11, first: 2", ex.getMessage());
+    }
+
     // checks whether there are two operators, one inline image and the named operator
     private void testInlineImage2ops(String s, String imageDataString, String opName) throws IOException
     {
@@ -119,7 +134,6 @@ public class PDFStreamParserTest extends TestCase
     private List<Object> parseTokenString(String s) throws IOException
     {
         PDFStreamParser pdfStreamParser = new PDFStreamParser(s.getBytes());
-        pdfStreamParser.parse();
         return pdfStreamParser.parse();
     }
 

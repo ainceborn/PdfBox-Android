@@ -16,6 +16,7 @@
  */
 package com.tom_roush.pdfbox.multipdf;
 
+import android.os.Build;
 import android.util.Log;
 
 import java.io.IOException;
@@ -32,6 +33,7 @@ import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSObject;
 import com.tom_roush.pdfbox.cos.COSStream;
+import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
 
@@ -152,7 +154,11 @@ public class PDFCloneUtility
         try (OutputStream output = newStream.createRawOutputStream();
              InputStream input = stream.createRawInputStream())
         {
-            input.transferTo(output);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                input.transferTo(output);
+            } else {
+                IOUtils.copy(input, output);
+            }
         }
         clonedVersion.put(stream, newStream);
         for (Map.Entry<COSName, COSBase> entry : stream.entrySet())

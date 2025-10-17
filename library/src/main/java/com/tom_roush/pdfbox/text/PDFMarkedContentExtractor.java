@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Deque;
 
+import com.tom_roush.pdfbox.contentstream.operator.markedcontent.MarkedContentPoint;
+import com.tom_roush.pdfbox.contentstream.operator.markedcontent.MarkedContentPointWithProperties;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.documentinterchange.markedcontent.PDMarkedContent;
@@ -41,14 +43,14 @@ import com.tom_roush.pdfbox.contentstream.operator.markedcontent.EndMarkedConten
 public class PDFMarkedContentExtractor extends LegacyPDFStreamEngine
 {
     private boolean suppressDuplicateOverlappingText = true;
-    private final List<PDMarkedContent> markedContents = new ArrayList<PDMarkedContent>();
-    private final Deque<PDMarkedContent> currentMarkedContents = new ArrayDeque<PDMarkedContent>();
-    private final Map<String, List<TextPosition>> characterListMapping = new HashMap<String, List<TextPosition>>();
+    private final List<PDMarkedContent> markedContents = new ArrayList<>();
+    private final Deque<PDMarkedContent> currentMarkedContents = new ArrayDeque<>();
+    private final Map<String, List<TextPosition>> characterListMapping = new HashMap<>();
 
     /**
-     * Instantiate a new PDFTextStripper object.
+     * Instantiate a new PDFMarkedContentExtractor object.
      */
-    public PDFMarkedContentExtractor() throws IOException
+    public PDFMarkedContentExtractor()
     {
         this(null);
     }
@@ -58,14 +60,14 @@ public class PDFMarkedContentExtractor extends LegacyPDFStreamEngine
      *
      * @param encoding The encoding that the output will be written in.
      */
-    public PDFMarkedContentExtractor(String encoding) throws IOException
+    public PDFMarkedContentExtractor(String encoding)
     {
-        addOperator(new BeginMarkedContentSequenceWithProperties());
-        addOperator(new BeginMarkedContentSequence());
-        addOperator(new EndMarkedContentSequence());
-        addOperator(new DrawObject());
-        // todo: DP - Marked Content Point
-        // todo: MP - Marked Content Point with Properties
+        addOperator(new BeginMarkedContentSequenceWithProperties(this));
+        addOperator(new BeginMarkedContentSequence(this));
+        addOperator(new EndMarkedContentSequence(this));
+        addOperator(new DrawObject(this));
+        addOperator(new MarkedContentPoint(this));
+        addOperator(new MarkedContentPointWithProperties(this));
     }
 
     /**
@@ -88,7 +90,6 @@ public class PDFMarkedContentExtractor extends LegacyPDFStreamEngine
     {
         this.suppressDuplicateOverlappingText = suppressDuplicateOverlappingText;
     }
-
 
     /**
      * This will determine of two floating point numbers are within a specified variance.
@@ -113,7 +114,7 @@ public class PDFMarkedContentExtractor extends LegacyPDFStreamEngine
         else
         {
             PDMarkedContent currentMarkedContent =
-                this.currentMarkedContents.peek();
+                    this.currentMarkedContents.peek();
             if (currentMarkedContent != null)
             {
                 currentMarkedContent.addMarkedContent(markedContent);
@@ -129,6 +130,13 @@ public class PDFMarkedContentExtractor extends LegacyPDFStreamEngine
         {
             this.currentMarkedContents.pop();
         }
+    }
+
+    @Override
+    public void markedContentPoint(COSName tag, COSDictionary properties)
+    {
+        // Nothing happens here yet. If you know anything useful that should happen, please tell us.
+        super.markedContentPoint(tag, properties);
     }
 
     public void xobject(PDXObject xobject)
@@ -156,12 +164,8 @@ public class PDFMarkedContentExtractor extends LegacyPDFStreamEngine
             String textCharacter = text.getUnicode();
             float textX = text.getX();
             float textY = text.getY();
-            List<TextPosition> sameTextCharacters = this.characterListMapping.get( textCharacter );
-            if( sameTextCharacters == null )
-            {
-                sameTextCharacters = new ArrayList<TextPosition>();
-                this.characterListMapping.put( textCharacter, sameTextCharacters );
-            }
+            List<TextPosition> sameTextCharacters =
+                    this.characterListMapping.computeIfAbsent(textCharacter, k -> new ArrayList<>());
 
             // RDD - Here we compute the value that represents the end of the rendered
             // text.  This value is used to determine whether subsequent text rendered
@@ -183,11 +187,11 @@ public class PDFMarkedContentExtractor extends LegacyPDFStreamEngine
                 float charY = sameTextCharacter.getY();
                 //only want to suppress
                 if( charCharacter != null &&
-                    //charCharacter.equals( textCharacter ) &&
-                    within( charX, textX, tolerance ) &&
-                    within( charY,
-                        textY,
-                        tolerance ) )
+                        //charCharacter.equals( textCharacter ) &&
+                        within( charX, textX, tolerance ) &&
+                        within( charY,
+                                textY,
+                                tolerance ) )
                 {
                     suppressCharacter = true;
                     break;
@@ -200,48 +204,9 @@ public class PDFMarkedContentExtractor extends LegacyPDFStreamEngine
             }
         }
 
-        if( showCharacter )
+        if (showCharacter && !this.currentMarkedContents.isEmpty())
         {
-            List<TextPosition> textList = new ArrayList<TextPosition>();
-
-            /* In the wild, some PDF encoded documents put diacritics (accents on
-             * top of characters) into a separate Tj element.  When displaying them
-             * graphically, the two chunks get overlaid.  With text output though,
-             * we need to do the overlay. This code recombines the diacritic with
-             * its associated character if the two are consecutive.
-             */
-            if(textList.isEmpty())
-            {
-                textList.add(text);
-            }
-            else
-            {
-                /* test if we overlap the previous entry.
-                 * Note that we are making an assumption that we need to only look back
-                 * one TextPosition to find what we are overlapping.
-                 * This may not always be true. */
-                TextPosition previousTextPosition = textList.get(textList.size()-1);
-                if(text.isDiacritic() && previousTextPosition.contains(text))
-                {
-                    previousTextPosition.mergeDiacritic(text);
-                }
-                /* If the previous TextPosition was the diacritic, merge it into this
-                 * one and remove it from the list. */
-                else if(previousTextPosition.isDiacritic() && text.contains(previousTextPosition))
-                {
-                    text.mergeDiacritic(previousTextPosition);
-                    textList.remove(textList.size()-1);
-                    textList.add(text);
-                }
-                else
-                {
-                    textList.add(text);
-                }
-            }
-            if (!this.currentMarkedContents.isEmpty())
-            {
-                this.currentMarkedContents.peek().addText(text);
-            }
+            this.currentMarkedContents.peek().addText(text);
         }
     }
 

@@ -25,10 +25,13 @@ import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.text.Bidi;
 import java.text.Normalizer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -42,10 +45,16 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
+import com.tom_roush.pdfbox.contentstream.operator.markedcontent.BeginMarkedContentSequence;
+import com.tom_roush.pdfbox.contentstream.operator.markedcontent.BeginMarkedContentSequenceWithProperties;
+import com.tom_roush.pdfbox.contentstream.operator.markedcontent.EndMarkedContentSequence;
+import com.tom_roush.pdfbox.cos.COSDictionary;
+import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.PDPageTree;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
+import com.tom_roush.pdfbox.pdmodel.documentinterchange.markedcontent.PDMarkedContent;
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem;
 import com.tom_roush.pdfbox.pdmodel.interactive.pagenavigation.PDThreadBead;
 import com.tom_roush.pdfbox.util.IterativeMergeSort;
@@ -84,8 +93,9 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
         {
             // PDFBOX-1946 when run in an applet
             // ignore and use default
+            Log.d("PDFTextStripper", "Couldn't read system properties - using defaults", e);
         }
-        if (strIndent != null && strIndent.length() > 0)
+        if (strIndent != null && !strIndent.isEmpty())
         {
             try
             {
@@ -96,7 +106,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                 // ignore and use default
             }
         }
-        if (strDrop != null && strDrop.length() > 0)
+        if (strDrop != null && !strDrop.isEmpty())
         {
             try
             {
@@ -112,7 +122,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
     /**
      * The platform's line separator.
      */
-    protected final String LINE_SEPARATOR = System.getProperty("line.separator");
+    protected static final String LINE_SEPARATOR = System.lineSeparator();
 
     private String lineSeparator = LINE_SEPARATOR;
     private String wordSeparator = " ";
@@ -123,7 +133,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
     private String articleStart = "";
     private String articleEnd = "";
 
-    private int currentPageNo = 0;
+    private int currentPageNo = 1;
     private int startPage = 1;
     private int endPage = Integer.MAX_VALUE;
     private PDOutlineItem startBookmark = null;
@@ -137,6 +147,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
     private boolean shouldSeparateByBeads = true;
     private boolean sortByPosition = false;
     private boolean addMoreFormatting = false;
+    private boolean ignoreContentStreamSpaceGlyphs = false;
 
     private float indentThreshold = defaultIndentThreshold;
     private float dropThreshold = defaultDropThreshold;
@@ -146,6 +157,12 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
     private float averageCharTolerance = .3f;
 
     private List<PDRectangle> beadRectangles = null;
+
+    // use a stack so we don't get confused if another BDC within "/ActualText... BDC" block
+    private final Deque<PDMarkedContent> currentMarkedContents = new ArrayDeque<>();
+    // to replace the unicode of the first TextPosition and empty the others
+    private boolean firstActualTextPosition = false;
+    private String actualText = null;
 
     /**
      * The charactersByArticle is used to extract text by article divisions. For example a PDF that has two columns like
@@ -161,9 +178,9 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      *
      * Most PDFs won't have any beads, so charactersByArticle will contain a single entry.
      */
-    protected ArrayList<List<TextPosition>> charactersByArticle = new ArrayList<List<TextPosition>>();
+    protected ArrayList<List<TextPosition>> charactersByArticle = new ArrayList<>();
 
-    private Map<String, TreeMap<Float, TreeSet<Float>>> characterListMapping = new HashMap<String, TreeMap<Float, TreeSet<Float>>>();
+    private final Map<String, TreeMap<Float, TreeSet<Float>>> characterListMapping = new HashMap<>();
 
     protected PDDocument document;
     protected Writer output;
@@ -175,11 +192,12 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
 
     /**
      * Instantiate a new PDFTextStripper object.
-     *
-     * @throws IOException If there is an error loading the properties.
      */
-    public PDFTextStripper() throws IOException
+    public PDFTextStripper()
     {
+        addOperator(new BeginMarkedContentSequenceWithProperties(this));
+        addOperator(new BeginMarkedContentSequence(this));
+        addOperator(new EndMarkedContentSequence(this));
     }
 
     /**
@@ -204,12 +222,9 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
 
     private void resetEngine()
     {
-        currentPageNo = 0;
+        currentPageNo = 1;
         document = null;
-        if (charactersByArticle != null)
-        {
-            charactersByArticle.clear();
-        }
+        charactersByArticle.clear();
         characterListMapping.clear();
     }
 
@@ -248,7 +263,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
     protected void processPages(PDPageTree pages) throws IOException
     {
         PDPage startBookmarkPage = startBookmark == null ? null
-            : startBookmark.findDestinationPage(document);
+                : startBookmark.findDestinationPage(document);
         if (startBookmarkPage != null)
         {
             startBookmarkPageNumber = pages.indexOf(startBookmarkPage) + 1;
@@ -260,7 +275,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
         }
 
         PDPage endBookmarkPage = endBookmark == null ? null
-            : endBookmark.findDestinationPage(document);
+                : endBookmark.findDestinationPage(document);
         if (endBookmarkPage != null)
         {
             endBookmarkPageNumber = pages.indexOf(endBookmarkPage) + 1;
@@ -272,8 +287,8 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
         }
 
         if (startBookmarkPageNumber == -1 && startBookmark != null && endBookmarkPageNumber == -1
-            && endBookmark != null
-            && startBookmark.getCOSObject() == endBookmark.getCOSObject())
+                && endBookmark != null
+                && startBookmark.getCOSObject() == endBookmark.getCOSObject())
         {
             // this is a special case where both the start and end bookmark
             // are the same but point to nothing. In this case
@@ -284,11 +299,11 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
 
         for (PDPage page : pages)
         {
-            currentPageNo++;
             if (page.hasContents())
             {
                 processPage(page);
             }
+            currentPageNo++;
         }
     }
 
@@ -326,8 +341,8 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
     public void processPage(PDPage page) throws IOException
     {
         if (currentPageNo >= startPage && currentPageNo <= endPage
-            && (startBookmarkPageNumber == -1 || currentPageNo >= startBookmarkPageNumber)
-            && (endBookmarkPageNumber == -1 || currentPageNo <= endBookmarkPageNumber))
+                && (startBookmarkPageNumber == -1 || currentPageNo >= startBookmarkPageNumber)
+                && (endBookmarkPageNumber == -1 || currentPageNo <= endBookmarkPageNumber))
         {
             startPage(page);
 
@@ -350,11 +365,13 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                 {
                     if (numberOfArticleSections < originalSize)
                     {
+                        //TODO Looks like decrement (--i) needed because next value will be ignored.
+                        // This segment is never reached in tests?!
                         charactersByArticle.remove(i);
                     }
                     else
                     {
-                        charactersByArticle.add(new ArrayList<TextPosition>());
+                        charactersByArticle.add(new ArrayList<>());
                     }
                 }
             }
@@ -362,12 +379,13 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
             super.processPage(page);
             writePage();
             endPage(page);
+            page.removePageResourceFromCache();
         }
     }
 
     private void fillBeadRectangles(PDPage page)
     {
-        beadRectangles = new ArrayList<PDRectangle>();
+        beadRectangles = new ArrayList<>();
         for (PDThreadBead bead : page.getThreadBeads())
         {
             if (bead == null || bead.getRectangle() == null)
@@ -390,7 +408,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
 
             // adjust for cropbox
             PDRectangle cropBox = page.getCropBox();
-            if (cropBox.getLowerLeftX() != 0 || cropBox.getLowerLeftY() != 0)
+            if (Float.compare(cropBox.getLowerLeftX(), 0) != 0 || Float.compare(cropBox.getLowerLeftY(), 0) != 0)
             {
                 rect.setLowerLeftX(rect.getLowerLeftX() - cropBox.getLowerLeftX());
                 rect.setLowerLeftY(rect.getLowerLeftY() - cropBox.getLowerLeftY());
@@ -486,7 +504,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
 
         boolean startOfPage = true; // flag to indicate start of page
         boolean startOfArticle;
-        if (charactersByArticle.size() > 0)
+        if (!charactersByArticle.isEmpty())
         {
             writePageStart();
         }
@@ -502,12 +520,14 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                 // a custom mergesort implementation (which is slower, unfortunately).
                 try
                 {
-                    Collections.sort(textList, comparator);
+                    textList.sort(comparator);
                 }
                 catch (IllegalArgumentException e)
                 {
                     IterativeMergeSort.sort(textList, comparator);
                 }
+                // PDFBOX-5487: Remove all space characters if contained within the adjacent letters
+                removeContainedSpaces(textList);
             }
 
             startArticle();
@@ -516,7 +536,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
             // Now cycle through to print the text.
             // We queue up a line at a time before we print so that we can convert
             // the line from presentation form to logical form (if needed).
-            List<LineItem> line = new ArrayList<LineItem>();
+            List<LineItem> line = new ArrayList<>();
 
             Iterator<TextPosition> textIter = textList.iterator();
             // PDF files don't always store spaces. We will need to guess where we should add
@@ -535,15 +555,19 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                 PositionWrapper current = new PositionWrapper(position);
                 String characterValue = position.getUnicode();
 
+                // PDFBOX-3774: conditionally ignore spaces from the content stream
+                if (" ".equals(characterValue) && getIgnoreContentStreamSpaceGlyphs())
+                {
+                    continue;
+                }
+
                 // Resets the average character width when we see a change in font
                 // or a change in the font size
-                if (lastPosition != null && (position.getFont() != lastPosition.getTextPosition()
-                    .getFont()
-                    || position.getFontSize() != lastPosition.getTextPosition().getFontSize()))
+                if (lastPosition != null
+                        && hasFontOrSizeChanged(position, lastPosition.getTextPosition()))
                 {
                     previousAveCharWidth = -1;
                 }
-
                 float positionX;
                 float positionY;
                 float positionWidth;
@@ -573,7 +597,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                 // space character with some margin.
                 float wordSpacing = position.getWidthOfSpace();
                 float deltaSpace;
-                if (wordSpacing == 0 || Float.isNaN(wordSpacing))
+                if (Float.compare(wordSpacing, 0) == 0 || Float.isNaN(wordSpacing))
                 {
                     deltaSpace = Float.MAX_VALUE;
                 }
@@ -607,7 +631,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                 // Compares the values obtained by the average method and the wordSpacing method
                 // and picks the smaller number.
                 float expectedStartOfNextWordX = EXPECTED_START_OF_NEXT_WORD_X_RESET_VALUE;
-                if (endOfLastTextX != END_OF_LAST_TEXT_X_RESET_VALUE)
+                if (Float.compare(endOfLastTextX, END_OF_LAST_TEXT_X_RESET_VALUE) != 0)
                 {
                     expectedStartOfNextWordX = endOfLastTextX + Math.min(deltaSpace, deltaCharWidth);
                 }
@@ -634,28 +658,28 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                         writeLine(normalize(line));
                         line.clear();
                         lastLineStartPosition = handleLineSeparation(current, lastPosition,
-                            lastLineStartPosition, maxHeightForLine);
+                                lastLineStartPosition, maxHeightForLine);
                         expectedStartOfNextWordX = EXPECTED_START_OF_NEXT_WORD_X_RESET_VALUE;
                         maxYForLine = MAX_Y_FOR_LINE_RESET_VALUE;
                         maxHeightForLine = MAX_HEIGHT_FOR_LINE_RESET_VALUE;
                         minYTopForLine = MIN_Y_TOP_FOR_LINE_RESET_VALUE;
                     }
                     // test if our TextPosition starts after a new word would be expected to start
-                    if (expectedStartOfNextWordX != EXPECTED_START_OF_NEXT_WORD_X_RESET_VALUE
-                        && expectedStartOfNextWordX < positionX
-                        // only bother adding a word separator if the last character was not a word separator
-                        && (wordSeparator.isEmpty() || //
-                        (lastPosition.getTextPosition().getUnicode() != null
-                            && !lastPosition.getTextPosition().getUnicode()
-                            .endsWith(wordSeparator))))
+                    if (Float.compare(expectedStartOfNextWordX, EXPECTED_START_OF_NEXT_WORD_X_RESET_VALUE) != 0
+                            && expectedStartOfNextWordX < positionX
+                            // only bother adding a word separator if the last character was not a word separator
+                            && (wordSeparator.isEmpty() || //
+                            (lastPosition.getTextPosition().getUnicode() != null
+                                    && !lastPosition.getTextPosition().getUnicode()
+                                    .endsWith(wordSeparator))))
                     {
                         line.add(LineItem.getWordSeparator());
                     }
                     // if there is at least the equivalent of one space
                     // between the last character and the current one,
-                    // reset the max line height as the font size may have completely changed
+                    // reset the max line height as the font size may have completely changed.
                     if (Math.abs(position.getX()
-                        - lastPosition.getTextPosition().getX()) > (wordSpacing + deltaSpace))
+                            - lastPosition.getTextPosition().getX()) > (wordSpacing + deltaSpace))
                     {
                         maxYForLine = MAX_Y_FOR_LINE_RESET_VALUE;
                         maxHeightForLine = MAX_HEIGHT_FOR_LINE_RESET_VALUE;
@@ -693,7 +717,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                 previousAveCharWidth = averageCharWidth;
             }
             // print the final line
-            if (line.size() > 0)
+            if (!line.isEmpty())
             {
                 writeLine(normalize(line));
                 writeParagraphEnd();
@@ -703,10 +727,69 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
         writePageEnd();
     }
 
+    private boolean hasFontOrSizeChanged(TextPosition current, TextPosition last)
+    {
+        if (last == null)
+        {
+            return false;
+        }
+        // compare font sizes
+        if (Float.compare(current.getFontSize(), last.getFontSize()) != 0)
+        {
+            return true;
+        }
+        // compare font instances, may not work if the resource cache is disabled
+        if (current.getFont() == last.getFont())
+        {
+            return false;
+        }
+        String currentFontName = current.getFont().getName();
+        String lastFontName = last.getFont().getName();
+        if (currentFontName != null)
+        {
+            // compare font names
+            return !currentFontName.equals(lastFontName);
+        }
+        if (lastFontName != null)
+        {
+            // currentFontName is null but lastFontName isn't -> font changes
+            return true;
+        }
+        // both fonts don't have a name -> compare hashes
+        return current.getFont().hashCode() != last.getFont().hashCode();
+    }
+
     private boolean overlap(float y1, float height1, float y2, float height2)
     {
         return within(y1, y2, .1f) || y2 <= y1 && y2 >= y1 - height1
-            || y1 <= y2 && y1 >= y2 - height2;
+                || y1 <= y2 && y1 >= y2 - height2;
+    }
+
+    /**
+     * Remove all space characters if contained within the adjacent letters
+     */
+    private void removeContainedSpaces(List<TextPosition> textList)
+    {
+        Iterator<TextPosition> iterator = textList.iterator();
+
+        if (!iterator.hasNext())
+        {
+            return;
+        }
+        TextPosition previousPosition = iterator.next();
+
+        while (iterator.hasNext())
+        {
+            TextPosition position = iterator.next();
+            if (" ".equals(position.getUnicode()) && previousPosition.completelyContains(position))
+            {
+                iterator.remove();
+            }
+            else
+            {
+                previousPosition = position;
+            }
+        }
     }
 
     /**
@@ -776,6 +859,35 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
         return second < first + variance && second > first - variance;
     }
 
+    @Override
+    public void beginMarkedContentSequence(COSName tag, COSDictionary properties)
+    {
+        PDMarkedContent markedContent = PDMarkedContent.create(tag, properties);
+        currentMarkedContents.push(markedContent);
+        actualText = markedContent.getActualText();
+        if (actualText != null)
+        {
+            actualText = actualText.replace("\u00ad", ""); // remove soft hyphens
+            firstActualTextPosition = true;
+        }
+        super.beginMarkedContentSequence(tag, properties);
+    }
+
+    @Override
+    public void endMarkedContentSequence()
+    {
+        PDMarkedContent markedContent = currentMarkedContents.peek();
+        if (markedContent != null)
+        {
+            if (markedContent.getActualText() != null)
+            {
+                actualText = null;
+            }
+            currentMarkedContents.pop();
+        }
+        super.endMarkedContentSequence();
+    }
+
     /**
      * This will process a TextPosition object and add the text to the list of characters on a page. It takes care of
      * overlapping text.
@@ -785,20 +897,27 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
     @Override
     protected void processTextPosition(TextPosition text)
     {
+        if (actualText != null)
+        {
+            if (firstActualTextPosition)
+            {
+                text.setUnicode(actualText);
+                firstActualTextPosition = false;
+            }
+            else
+            {
+                text.setUnicode("");
+            }
+        }
         boolean showCharacter = true;
-        if (suppressDuplicateOverlappingText)
+        if (suppressDuplicateOverlappingText && actualText == null)
         {
             showCharacter = false;
             String textCharacter = text.getUnicode();
             float textX = text.getX();
             float textY = text.getY();
             TreeMap<Float, TreeSet<Float>> sameTextCharacters = characterListMapping
-                .get(textCharacter);
-            if (sameTextCharacters == null)
-            {
-                sameTextCharacters = new TreeMap<Float, TreeSet<Float>>();
-                characterListMapping.put(textCharacter, sameTextCharacters);
-            }
+                    .computeIfAbsent(textCharacter, k -> new TreeMap<>());
             // RDD - Here we compute the value that represents the end of the rendered
             // text. This value is used to determine whether subsequent text rendered
             // on the same line overwrites the current text.
@@ -813,7 +932,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
             float tolerance = text.getWidth() / textCharacter.length() / 3.0f;
 
             SortedMap<Float, TreeSet<Float>> xMatches = sameTextCharacters.subMap(textX - tolerance,
-                textX + tolerance);
+                    textX + tolerance);
             for (TreeSet<Float> xMatch : xMatches.values())
             {
                 SortedSet<Float> yMatches = xMatch.subSet(textY - tolerance, textY + tolerance);
@@ -825,12 +944,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
             }
             if (!suppressCharacter)
             {
-                TreeSet<Float> ySet = sameTextCharacters.get(textX);
-                if (ySet == null)
-                {
-                    ySet = new TreeSet<Float>();
-                    sameTextCharacters.put(textX, ySet);
-                }
+                TreeSet<Float> ySet = sameTextCharacters.computeIfAbsent(textX, k -> new TreeSet<>());
                 ySet.add(textY);
                 showCharacter = true;
             }
@@ -856,17 +970,17 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                             foundArticleDivisionIndex = i * 2 + 1;
                         }
                         else if ((x < rect.getLowerLeftX() || y < rect.getUpperRightY())
-                            && notFoundButFirstLeftAndAboveArticleDivisionIndex == -1)
+                                && notFoundButFirstLeftAndAboveArticleDivisionIndex == -1)
                         {
                             notFoundButFirstLeftAndAboveArticleDivisionIndex = i * 2;
                         }
                         else if (x < rect.getLowerLeftX()
-                            && notFoundButFirstLeftArticleDivisionIndex == -1)
+                                && notFoundButFirstLeftArticleDivisionIndex == -1)
                         {
                             notFoundButFirstLeftArticleDivisionIndex = i * 2;
                         }
                         else if (y < rect.getUpperRightY()
-                            && notFoundButFirstAboveArticleDivisionIndex == -1)
+                                && notFoundButFirstAboveArticleDivisionIndex == -1)
                         {
                             notFoundButFirstAboveArticleDivisionIndex = i * 2;
                         }
@@ -957,9 +1071,15 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      * This will set the first page to be extracted by this class.
      *
      * @param startPageValue New value of 1-based startPage property.
+     *
+     * @throws IllegalArgumentException if the parameter is below 1.
      */
     public void setStartPage(int startPageValue)
     {
+        if (startPageValue <= 0)
+        {
+            throw new IllegalArgumentException("Parameter must be 1-based, but is " + startPageValue);
+        }
         startPage = startPageValue;
     }
 
@@ -979,9 +1099,15 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      * This will set the last page to be extracted by this class.
      *
      * @param endPageValue New value of 1-based endPage property.
+     *
+     * @throws IllegalArgumentException if the parameter is below 1.
      */
     public void setEndPage(int endPageValue)
     {
+        if (endPageValue <= 0)
+        {
+            throw new IllegalArgumentException("Parameter must be 1-based, but is " + endPageValue);
+        }
         endPage = endPageValue;
     }
 
@@ -1184,6 +1310,32 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
     public void setSortByPosition(boolean newSortByPosition)
     {
         sortByPosition = newSortByPosition;
+    }
+
+    /**
+     * Determines whether spaces in the content stream text rendering instructions will be ignored
+     * during text extraction.
+     *
+     * @return true is space glyphs in the content stream text rendering instructions will be
+     * ignored - default is false
+     */
+    public boolean getIgnoreContentStreamSpaceGlyphs()
+    {
+        return ignoreContentStreamSpaceGlyphs;
+    }
+
+    /**
+     * Instruct the algorithm to ignore any spaces in the text rendering instructions in the content
+     * stream, and instead rely purely on the algorithm to determine where word breaks are.
+     *
+     * This can improve text extraction results where the content stream is sorted by position and
+     * has text overlapping spaces, but could cause some word breaks to not be added to the output
+     *
+     * @param newIgnoreContentStreamSpaceGlyphs whether PDF Box should ignore context stream spaces
+     */
+    public void setIgnoreContentStreamSpaceGlyphs(boolean newIgnoreContentStreamSpaceGlyphs)
+    {
+        ignoreContentStreamSpaceGlyphs = newIgnoreContentStreamSpaceGlyphs;
     }
 
     /**
@@ -1409,8 +1561,8 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      * @throws IOException if something went wrong
      */
     private PositionWrapper handleLineSeparation(PositionWrapper current,
-        PositionWrapper lastPosition, PositionWrapper lastLineStartPosition,
-        float maxHeightForLine) throws IOException
+                                                 PositionWrapper lastPosition, PositionWrapper lastLineStartPosition,
+                                                 float maxHeightForLine) throws IOException
     {
         current.setLineStart();
         isParagraphSeparation(current, lastPosition, lastLineStartPosition, maxHeightForLine);
@@ -1461,7 +1613,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      * @param maxHeightForLine max height for text positions since lasLineStartPosition.
      */
     private void isParagraphSeparation(PositionWrapper position, PositionWrapper lastPosition,
-        PositionWrapper lastLineStartPosition, float maxHeightForLine)
+                                       PositionWrapper lastLineStartPosition, float maxHeightForLine)
     {
         boolean result = false;
         if (lastLineStartPosition == null)
@@ -1471,13 +1623,13 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
         else
         {
             float yGap = Math.abs(position.getTextPosition().getYDirAdj()
-                - lastPosition.getTextPosition().getYDirAdj());
+                    - lastPosition.getTextPosition().getYDirAdj());
             float newYVal = multiplyFloat(getDropThreshold(), maxHeightForLine);
             // do we need to flip this for rtl?
             float xGap = position.getTextPosition().getXDirAdj()
-                - lastLineStartPosition.getTextPosition().getXDirAdj();
+                    - lastLineStartPosition.getTextPosition().getXDirAdj();
             float newXVal = multiplyFloat(getIndentThreshold(),
-                position.getTextPosition().getWidthOfSpace());
+                    position.getTextPosition().getWidthOfSpace());
             float positionWidth = multiplyFloat(0.25f, position.getTextPosition().getWidth());
 
             if (yGap > newYVal)
@@ -1624,8 +1776,8 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      * numerals, etc. Not meant to be comprehensive.
      */
     private static final String[] LIST_ITEM_EXPRESSIONS = { "\\.", "\\d+\\.", "\\[\\d+\\]",
-        "\\d+\\)", "[A-Z]\\.", "[a-z]\\.", "[A-Z]\\)", "[a-z]\\)", "[IVXL]+\\.",
-        "[ivxl]+\\.", };
+            "\\d+\\)", "[A-Z]\\.", "[a-z]\\.", "[A-Z]\\)", "[a-z]\\)", "[IVXL]+\\.",
+            "[ivxl]+\\.", };
 
     private List<Pattern> listOfPatterns = null;
 
@@ -1662,7 +1814,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
     {
         if (listOfPatterns == null)
         {
-            listOfPatterns = new ArrayList<Pattern>();
+            listOfPatterns = new ArrayList<>();
             for (String expression : LIST_ITEM_EXPRESSIONS)
             {
                 Pattern p = Pattern.compile(expression);
@@ -1703,7 +1855,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      * @throws IOException if something went wrong
      */
     private void writeLine(List<WordWithTextPositions> line)
-        throws IOException
+            throws IOException
     {
         int numberOfStrings = line.size();
         for (int i = 0; i < numberOfStrings; i++)
@@ -1725,9 +1877,9 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      */
     private List<WordWithTextPositions> normalize(List<LineItem> line)
     {
-        List<WordWithTextPositions> normalized = new LinkedList<WordWithTextPositions>();
+        List<WordWithTextPositions> normalized = new LinkedList<>();
         StringBuilder lineBuilder = new StringBuilder();
-        List<TextPosition> wordPositions = new ArrayList<TextPosition>();
+        List<TextPosition> wordPositions = new ArrayList<>();
 
         for (LineItem item : line)
         {
@@ -1818,7 +1970,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
         return result.toString();
     }
 
-    private static Map<Character, Character> MIRRORING_CHAR_MAP = new HashMap<Character, Character>();
+    private static final Map<Character, Character> MIRRORING_CHAR_MAP = new HashMap<>();
 
     static
     {
@@ -1863,7 +2015,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      */
     private static void parseBidiFile(InputStream inputStream) throws IOException
     {
-        LineNumberReader rd = new LineNumberReader(new InputStreamReader(inputStream));
+        LineNumberReader rd = new LineNumberReader(new InputStreamReader(inputStream, StandardCharsets.US_ASCII));
 
         do
         {
@@ -1897,8 +2049,8 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                 // initialize the MIRRORING_CHAR_MAP
                 MIRRORING_CHAR_MAP.put(fields[0], fields[1]);
             }
-
-        } while (true);
+        }
+        while (true);
     }
 
     /**
@@ -1941,15 +2093,25 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
                 // They add an extra U+0627 character to compensate.
                 // This removes the extra character for those fonts.
                 if (c == 0xFDF2 && q > 0
-                    && (word.charAt(q - 1) == 0x0627 || word.charAt(q - 1) == 0xFE8D))
+                        && (word.charAt(q - 1) == 0x0627 || word.charAt(q - 1) == 0xFE8D))
                 {
                     builder.append("\u0644\u0644\u0647");
                 }
                 else
                 {
                     // Trim because some decompositions have an extra space, such as U+FC5E
-                    builder.append(Normalizer
-                        .normalize(word.substring(q, q + 1), Normalizer.Form.NFKC).trim());
+                    String normalized = Normalizer.normalize(
+                            word.substring(q, q + 1), Normalizer.Form.NFKC).trim();
+
+                    // Hebrew in Alphabetic Presentation Forms from FB1D to FB4F and
+                    // Arabic Presentation Forms-A from FB50 to FDFF and
+                    // Arabic Presentation Forms-B from FE70 to FEFF
+                    if (0xFB1D <= c && normalized.length() > 1)
+                    {
+                        // Reverse the order of decomposed Hebrew and Arabic letters
+                        normalized = new StringBuilder(normalized).reverse().toString();
+                    }
+                    builder.append(normalized);
                 }
                 p = q + 1;
             }
@@ -1971,19 +2133,19 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      * @return The StringBuilder that must be used when calling this method.
      */
     private StringBuilder normalizeAdd(List<WordWithTextPositions> normalized,
-        StringBuilder lineBuilder, List<TextPosition> wordPositions, LineItem item)
+                                       StringBuilder lineBuilder, List<TextPosition> wordPositions, LineItem item)
     {
         if (item.isWordSeparator())
         {
             normalized.add(
-                createWord(lineBuilder.toString(), new ArrayList<TextPosition>(wordPositions)));
+                    createWord(lineBuilder.toString(), new ArrayList<>(wordPositions)));
             lineBuilder = new StringBuilder();
             wordPositions.clear();
         }
         else
         {
             TextPosition text = item.getTextPosition();
-            lineBuilder.append(text.getUnicode());
+            lineBuilder.append(text.getVisuallyOrderedUnicode());
             wordPositions.add(text);
         }
         return lineBuilder;
@@ -1994,7 +2156,7 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      */
     private static final class LineItem
     {
-        public static LineItem WORD_SEPARATOR = new LineItem();
+        public static final LineItem WORD_SEPARATOR = new LineItem();
 
         public static LineItem getWordSeparator()
         {
@@ -2032,8 +2194,8 @@ public class PDFTextStripper extends LegacyPDFStreamEngine
      */
     private static final class WordWithTextPositions
     {
-        String text;
-        List<TextPosition> textPositions;
+        final String text;
+        final List<TextPosition> textPositions;
 
         WordWithTextPositions(String word, List<TextPosition> positions)
         {

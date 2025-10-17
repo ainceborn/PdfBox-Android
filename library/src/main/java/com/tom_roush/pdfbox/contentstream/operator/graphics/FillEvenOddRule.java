@@ -21,6 +21,7 @@ import android.graphics.Path;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
 import com.tom_roush.pdfbox.cos.COSBase;
@@ -32,10 +33,15 @@ import com.tom_roush.pdfbox.cos.COSBase;
  */
 public final class FillEvenOddRule extends GraphicsOperatorProcessor
 {
+    public FillEvenOddRule(PDFGraphicsStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> operands) throws IOException
     {
-        context.fillPath(Path.FillType.EVEN_ODD);
+        getGraphicsContext().fillPath(Path.FillType.EVEN_ODD);
     }
 
     @Override

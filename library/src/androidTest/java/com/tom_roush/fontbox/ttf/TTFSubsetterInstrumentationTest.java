@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
+import com.tom_roush.pdfbox.io.RandomAccessReadBuffer;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -60,13 +61,13 @@ public class TTFSubsetterInstrumentationTest
     {
         InputStream testFile = testContext.getAssets().open("fontbox/ttf/LiberationSans-Regular.ttf");
 
-        TrueTypeFont ttf = new TTFParser().parse(testFile);
+        TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadDataStream(testFile));
         TTFSubsetter ttfSubsetter = new TTFSubsetter(ttf);
         ttfSubsetter.add('\u00D6'); // 'Ö' doesn't work with jdk6 (PDFBOX-3757)?
         ttfSubsetter.add('\u200A');
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ttfSubsetter.writeToStream(baos);
-        TrueTypeFont subset = new TTFParser(true).parse(new ByteArrayInputStream(baos.toByteArray()));
+        TrueTypeFont subset = new TTFParser(true).parse(new RandomAccessReadBuffer((baos.toByteArray()));
 
         assertEquals(5, subset.getNumberOfGlyphs());
 

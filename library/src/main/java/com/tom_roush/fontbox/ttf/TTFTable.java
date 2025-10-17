@@ -33,21 +33,13 @@ public class TTFTable
     /**
      * Indicates if the table is initialized or not.
      */
-    protected volatile boolean initialized;
-
-    /**
-     * The font which contains this table.
-     */
-    protected final TrueTypeFont font;
+    protected boolean initialized;
 
     /**
      * Constructor.
-     *
-     * @param font The font which contains this table.
      */
-    TTFTable(TrueTypeFont font)
+    TTFTable()
     {
-        this.font = font;
     }
 
     /**
@@ -132,6 +124,18 @@ public class TTFTable
      * @throws IOException If there is an error reading the data.
      */
     void read(TrueTypeFont ttf, TTFDataStream data) throws IOException
+    {
+    }
+
+    /**
+     * This will read required headers from the stream into outHeaders.
+     *
+     * @param ttf The font that is being read.
+     * @param data The stream to read the data from.
+     * @param outHeaders The class to write the data to.
+     * @throws IOException If there is an error reading the data.
+     */
+    void readHeaders(TrueTypeFont ttf, TTFDataStream data, FontHeaders outHeaders) throws IOException
     {
     }
 }

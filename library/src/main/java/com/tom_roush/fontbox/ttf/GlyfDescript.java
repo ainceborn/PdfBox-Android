@@ -42,7 +42,7 @@ public abstract class GlyfDescript implements GlyphDescription
      */
     public static final byte Y_SHORT_VECTOR = 0x04;
     /**
-     * if set, the next byte specifies the number of additional 
+     * if set, the next byte specifies the number of additional
      * times this set of flags is to be repeated.
      */
     public static final byte REPEAT = 0x08;
@@ -72,10 +72,8 @@ public abstract class GlyfDescript implements GlyphDescription
      * Constructor.
      *
      * @param numberOfContours the number of contours
-     * @param bais the stream to be read
-     * @throws IOException is thrown if something went wrong
      */
-    GlyfDescript(short numberOfContours, TTFDataStream bais) throws IOException
+    GlyfDescript(short numberOfContours)
     {
         contourCount = numberOfContours;
     }

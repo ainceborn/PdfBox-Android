@@ -21,10 +21,12 @@ import android.util.Log;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
+import com.tom_roush.pdfbox.contentstream.operator.graphics.GraphicsOperatorProcessor;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.graphics.PDXObject;
@@ -38,8 +40,13 @@ import com.tom_roush.pdfbox.text.PDFMarkedContentExtractor;
  * @author Ben Litchfield
  * @author Mario Ivankovits
  */
-public class DrawObject extends OperatorProcessor
+public final class DrawObject extends OperatorProcessor
 {
+    public DrawObject(PDFStreamEngine context)
+    {
+       super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
@@ -53,6 +60,7 @@ public class DrawObject extends OperatorProcessor
             return;
         }
         COSName name = (COSName) base0;
+        PDFStreamEngine context = getContext();
         PDXObject xobject = context.getResources().getXObject(name);
         ((PDFMarkedContentExtractor) context).xobject(xobject);
 

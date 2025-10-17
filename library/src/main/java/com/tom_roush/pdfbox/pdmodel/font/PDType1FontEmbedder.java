@@ -109,7 +109,12 @@ class PDType1FontEmbedder
     {
         boolean isSymbolic = type1.getEncoding()
             instanceof com.tom_roush.fontbox.encoding.BuiltInEncoding;
-        BoundingBox bbox = type1.getFontBBox();
+        BoundingBox bbox;
+        try {
+            bbox = type1.getFontBBox();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         PDFontDescriptor fd = new PDFontDescriptor();
 
         fd.setFontName(type1.getName());

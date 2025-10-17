@@ -19,7 +19,12 @@ package com.tom_roush.pdfbox.pdmodel.interactive.annotation.handlers;
 
 public interface PDAppearanceHandler
 {
-   void generateAppearanceStreams();
+   default void generateAppearanceStreams()
+   {
+      generateNormalAppearance();
+      generateRolloverAppearance();
+      generateDownAppearance();
+   }
 
    void generateNormalAppearance();
 

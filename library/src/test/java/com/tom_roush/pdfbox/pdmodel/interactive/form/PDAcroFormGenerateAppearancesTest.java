@@ -74,6 +74,7 @@ public class PDAcroFormGenerateAppearancesTest {
 
       String sourceUrl = "https://issues.apache.org/jira/secure/attachment/12908175/AML1.PDF";
 
+
       PDDocument testPdf = null;
       try
       {

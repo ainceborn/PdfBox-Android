@@ -19,6 +19,7 @@ package com.tom_roush.pdfbox.contentstream.operator.text;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.util.Matrix;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
@@ -33,9 +34,15 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
  */
 public class BeginText extends OperatorProcessor
 {
+    public BeginText(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
+        PDFStreamEngine context = getContext();
         context.setTextMatrix( new Matrix());
         context.setTextLineMatrix( new Matrix() );
         context.beginText();

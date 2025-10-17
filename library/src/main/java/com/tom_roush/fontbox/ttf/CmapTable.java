@@ -56,9 +56,9 @@ public class CmapTable extends TTFTable
 
     private CmapSubtable[] cmaps;
 
-    CmapTable(TrueTypeFont font)
+    CmapTable()
     {
-        super(font);
+        super();
     }
 
     /**
@@ -107,13 +107,18 @@ public class CmapTable extends TTFTable
 
     /**
      * Returns the subtable, if any, for the given platform and encoding.
+     *
+     * @param platformId the ID of the given platform
+     * @param platformEncodingId the ID of the given encoding
+     *
+     * @return the subtable, if any, or null
      */
     public CmapSubtable getSubtable(int platformId, int platformEncodingId)
     {
         for (CmapSubtable cmap : cmaps)
         {
             if (cmap.getPlatformId() == platformId &&
-                cmap.getPlatformEncodingId() == platformEncodingId)
+                    cmap.getPlatformEncodingId() == platformEncodingId)
             {
                 return cmap;
             }
@@ -121,3 +126,4 @@ public class CmapTable extends TTFTable
         return null;
     }
 }
+

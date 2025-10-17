@@ -23,13 +23,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.tom_roush.fontbox.cmap.CMap;
 import com.tom_roush.fontbox.cmap.CMapParser;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 
 /**
  * CMap resource loader and cache.
  */
 final class CMapManager
 {
-    private static final Map<String, CMap> CMAP_CACHE = new ConcurrentHashMap<String, CMap>();
+    private static final Map<String, CMap> CMAP_CACHE = new ConcurrentHashMap<>();
 
     private CMapManager()
     {
@@ -60,16 +61,15 @@ final class CMapManager
     /**
      * Parse the given CMap.
      *
-     * @param cMapStream the CMap to be read
+     * @param randomAccessRead the source of the CMap to be read
      * @return the parsed CMap
      */
-    public static CMap parseCMap(InputStream cMapStream) throws IOException
+    public static CMap parseCMap(RandomAccessRead randomAccessRead) throws IOException
     {
         CMap targetCmap = null;
-        if (cMapStream != null)
+        if (randomAccessRead != null)
         {
-            // parse CMap using strict mode
-            targetCmap = new CMapParser(true).parse(cMapStream);
+            targetCmap = new CMapParser().parse(randomAccessRead);
         }
         return targetCmap;
     }

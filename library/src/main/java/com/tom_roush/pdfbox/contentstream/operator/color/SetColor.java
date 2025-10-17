@@ -19,6 +19,7 @@ package com.tom_roush.pdfbox.contentstream.operator.color;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
@@ -36,6 +37,11 @@ import com.tom_roush.pdfbox.pdmodel.graphics.color.PDPattern;
  */
 public abstract class SetColor extends OperatorProcessor
 {
+    protected SetColor(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
@@ -55,8 +61,6 @@ public abstract class SetColor extends OperatorProcessor
             }
         }
         COSArray array = new COSArray(arguments);
-        array.addAll(arguments);
-        //
         setColor(new PDColor(array, colorSpace));
     }
 

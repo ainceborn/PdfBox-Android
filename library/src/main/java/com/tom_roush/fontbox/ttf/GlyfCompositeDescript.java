@@ -22,6 +22,7 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +37,8 @@ import java.util.Map;
  */
 public class GlyfCompositeDescript extends GlyfDescript
 {
-    private final List<GlyfCompositeComp> components = new ArrayList<GlyfCompositeComp>();
-    private final Map<Integer,GlyphDescription> descriptions = new HashMap<Integer,GlyphDescription>();
+   private final List<GlyfCompositeComp> components = new ArrayList<>();
+    private final Map<Integer,GlyphDescription> descriptions = new HashMap<>();
     private GlyphTable glyphTable = null;
     private boolean beingResolved = false;
     private boolean resolved = false;
@@ -49,11 +50,12 @@ public class GlyfCompositeDescript extends GlyfDescript
      *
      * @param bais the stream to be read
      * @param glyphTable the Glyphtable containing all glyphs
+     * @param level current level
      * @throws IOException is thrown if something went wrong
      */
-    GlyfCompositeDescript(TTFDataStream bais, GlyphTable glyphTable) throws IOException
+    GlyfCompositeDescript(TTFDataStream bais, GlyphTable glyphTable, int level) throws IOException
     {
-        super((short) -1, bais);
+        super((short) -1);
 
         this.glyphTable = glyphTable;
 
@@ -71,7 +73,7 @@ public class GlyfCompositeDescript extends GlyfDescript
         {
             readInstructions(bais, (bais.readUnsignedShort()));
         }
-        initDescriptions();
+        initDescriptions(level);
     }
 
     /**
@@ -250,6 +252,16 @@ public class GlyfCompositeDescript extends GlyfDescript
         return components.size();
     }
 
+    /**
+     * Gets a view to the composite components.
+     *
+     * @return unmodifiable list of this composite glyph's {@linkplain GlyfCompositeComp components}
+     */
+    public List<GlyfCompositeComp> getComponents()
+    {
+        return Collections.unmodifiableList(components);
+    }
+
     private GlyfCompositeComp getCompositeComp(int i)
     {
         for (GlyfCompositeComp c : components)
@@ -276,14 +288,14 @@ public class GlyfCompositeDescript extends GlyfDescript
         return null;
     }
 
-    private void initDescriptions()
+    private void initDescriptions(int level)
     {
         for (GlyfCompositeComp component : components)
         {
             try
             {
                 int index = component.getGlyphIndex();
-                GlyphData glyph = glyphTable.getGlyph(index);
+                GlyphData glyph = glyphTable.getGlyph(index, level);
                 if (glyph != null)
                 {
                     descriptions.put(index, glyph.getDescription());

@@ -18,6 +18,7 @@ package com.tom_roush.pdfbox.contentstream.operator.text;
 
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
@@ -31,6 +32,11 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
  */
 public class SetWordSpacing extends OperatorProcessor
 {
+    public SetWordSpacing(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments)
     {
@@ -44,7 +50,7 @@ public class SetWordSpacing extends OperatorProcessor
             return;
         }
         COSNumber wordSpacing = (COSNumber) base;
-        context.getGraphicsState().getTextState().setWordSpacing( wordSpacing.floatValue() );
+        getContext().getGraphicsState().getTextState().setWordSpacing(wordSpacing.floatValue());
     }
 
     @Override

@@ -251,7 +251,7 @@ public class Loader
      */
     public static PDDocument loadPDF(File file) throws IOException
     {
-        return Loader.loadPDF(file, "", IOUtils.createMemoryOnlyStreamCache());
+        return Loader.loadPDF(file, "", IOUtils.createTempFileOnlyStreamCache());
     }
 
     public static PDDocument loadPDF(InputStream input) throws IOException

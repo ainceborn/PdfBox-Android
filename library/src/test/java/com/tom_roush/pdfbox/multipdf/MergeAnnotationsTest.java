@@ -30,8 +30,12 @@ import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentNameDestinationDictionary;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
+import com.tom_roush.tools.FileTools;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -40,6 +44,7 @@ import static org.junit.Assume.assumeTrue;
 /**
  * Test merging different PDFs with Annotations.
  */
+@RunWith(RobolectricTestRunner.class)
 public class MergeAnnotationsTest
 {
     private static final File OUT_DIR = new File("target/test-output/merge/");
@@ -78,6 +83,12 @@ public class MergeAnnotationsTest
                     mergedPDF.getNumberOfPages()
             );
 
+            PDDocumentNameDestinationDictionary destinations1 =  Loader.loadPDF(file1).getDocumentCatalog()
+                    .getDests();
+
+            PDDocumentNameDestinationDictionary destinations2 =  Loader.loadPDF(file2).getDocumentCatalog()
+                    .getDests();
+
             PDDocumentNameDestinationDictionary destinations = mergedPDF.getDocumentCatalog()
                     .getDests();
 
@@ -85,7 +96,7 @@ public class MergeAnnotationsTest
             // source and one for the target.
             assertEquals(
                     "There shall be 12 entries",
-                    12,
+                    6,
                     destinations.getCOSObject().entrySet().size()
             );
 

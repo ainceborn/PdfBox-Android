@@ -27,240 +27,106 @@ import java.util.Map;
 public final class CFFOperator
 {
 
-    private Key operatorKey = null;
-    private String operatorName = null;
-
-    private CFFOperator(Key key, String name)
+    private CFFOperator()
     {
-        setKey(key);
-        setName(name);
+    }
+
+    private static void register(int b0, String name)
+    {
+        register(b0, 0, name);
+    }
+
+    private static void register(int b0, int b1, String name)
+    {
+        keyMap.put(calculateKey(b0, b1), name);
     }
 
     /**
-     * The key of the operator.
-     * @return the key
+     * Returns the operator name corresponding to the given one byte representation.
+     *
+     * @param b0 the first byte of the operator
+     * @return the corresponding operator name
      */
-    public Key getKey()
+    public static String getOperator(int b0)
     {
-        return operatorKey;
-    }
-
-    private void setKey(Key key)
-    {
-        operatorKey = key;
+        return getOperator(b0, 0);
     }
 
     /**
-     * The name of the operator.
-     * @return the name
+     * Returns the operator name corresponding to the given two byte representation.
+     *
+     * @param b0 the first byte of the operator
+     * @param b1 the second byte of the operator
+     * @return the corresponding operator name
      */
-    public String getName()
+    public static String getOperator(int b0, int b1)
     {
-        return operatorName;
+        return keyMap.get(calculateKey(b0, b1));
     }
 
-    private void setName(String name)
+    private static int calculateKey(int b0, int b1)
     {
-        operatorName = name;
+        return (b1 << 8) + b0;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public String toString()
-    {
-        return getName();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int hashCode()
-    {
-        return getKey().hashCode();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean equals(Object object)
-    {
-        if (object instanceof CFFOperator)
-        {
-            CFFOperator that = (CFFOperator) object;
-            return getKey().equals(that.getKey());
-        }
-        return false;
-    }
-
-    private static void register(Key key, String name)
-    {
-        CFFOperator operator = new CFFOperator(key, name);
-        keyMap.put(key, operator);
-        nameMap.put(name, operator);
-    }
-
-    /**
-     * Returns the operator corresponding to the given key.
-     * @param key the given key
-     * @return the corresponding operator
-     */
-    public static CFFOperator getOperator(Key key)
-    {
-        return keyMap.get(key);
-    }
-
-    /**
-     * Returns the operator corresponding to the given name.
-     * @param name the given name
-     * @return the corresponding operator
-     */
-    public static CFFOperator getOperator(String name)
-    {
-        return nameMap.get(name);
-    }
-
-    /**
-     * This class is a holder for a key value. It consists of one or two bytes.  
-     * @author Villu Ruusmann
-     */
-    public static class Key
-    {
-        private int[] value = null;
-
-        /**
-         * Constructor.
-         * @param b0 the one byte value
-         */
-        public Key(int b0)
-        {
-            this(new int[] { b0 });
-        }
-
-        /**
-         * Constructor.
-         * @param b0 the first byte of a two byte value
-         * @param b1 the second byte of a two byte value
-         */
-        public Key(int b0, int b1)
-        {
-            this(new int[] { b0, b1 });
-        }
-
-        private Key(int[] value)
-        {
-            setValue(value);
-        }
-
-        /**
-         * Returns the value of the key.
-         * @return the value
-         */
-        public int[] getValue()
-        {
-            return value;
-        }
-
-        private void setValue(int[] value)
-        {
-            this.value = value;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public String toString()
-        {
-            return Arrays.toString(getValue());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public int hashCode()
-        {
-            return Arrays.hashCode(getValue());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public boolean equals(Object object)
-        {
-            if (object instanceof Key)
-            {
-                Key that = (Key) object;
-                return Arrays.equals(getValue(), that.getValue());
-            }
-            return false;
-        }
-    }
-
-    private static Map<CFFOperator.Key, CFFOperator> keyMap = new LinkedHashMap<CFFOperator.Key, CFFOperator>(52);
-    private static Map<String, CFFOperator> nameMap = new LinkedHashMap<String, CFFOperator>(52);
+    private static final Map<Integer, String> keyMap = new LinkedHashMap<>(52);
 
     static
     {
         // Top DICT
-        register(new Key(0), "version");
-        register(new Key(1), "Notice");
-        register(new Key(12, 0), "Copyright");
-        register(new Key(2), "FullName");
-        register(new Key(3), "FamilyName");
-        register(new Key(4), "Weight");
-        register(new Key(12, 1), "isFixedPitch");
-        register(new Key(12, 2), "ItalicAngle");
-        register(new Key(12, 3), "UnderlinePosition");
-        register(new Key(12, 4), "UnderlineThickness");
-        register(new Key(12, 5), "PaintType");
-        register(new Key(12, 6), "CharstringType");
-        register(new Key(12, 7), "FontMatrix");
-        register(new Key(13), "UniqueID");
-        register(new Key(5), "FontBBox");
-        register(new Key(12, 8), "StrokeWidth");
-        register(new Key(14), "XUID");
-        register(new Key(15), "charset");
-        register(new Key(16), "Encoding");
-        register(new Key(17), "CharStrings");
-        register(new Key(18), "Private");
-        register(new Key(12, 20), "SyntheticBase");
-        register(new Key(12, 21), "PostScript");
-        register(new Key(12, 22), "BaseFontName");
-        register(new Key(12, 23), "BaseFontBlend");
-        register(new Key(12, 30), "ROS");
-        register(new Key(12, 31), "CIDFontVersion");
-        register(new Key(12, 32), "CIDFontRevision");
-        register(new Key(12, 33), "CIDFontType");
-        register(new Key(12, 34), "CIDCount");
-        register(new Key(12, 35), "UIDBase");
-        register(new Key(12, 36), "FDArray");
-        register(new Key(12, 37), "FDSelect");
-        register(new Key(12, 38), "FontName");
+        register(0, "version");
+        register(1, "Notice");
+        register(12, 0, "Copyright");
+        register(2, "FullName");
+        register(3, "FamilyName");
+        register(4, "Weight");
+        register(12, 1, "isFixedPitch");
+        register(12, 2, "ItalicAngle");
+        register(12, 3, "UnderlinePosition");
+        register(12, 4, "UnderlineThickness");
+        register(12, 5, "PaintType");
+        register(12, 6, "CharstringType");
+        register(12, 7, "FontMatrix");
+        register(13, "UniqueID");
+        register(5, "FontBBox");
+        register(12, 8, "StrokeWidth");
+        register(14, "XUID");
+        register(15, "charset");
+        register(16, "Encoding");
+        register(17, "CharStrings");
+        register(18, "Private");
+        register(12, 20, "SyntheticBase");
+        register(12, 21, "PostScript");
+        register(12, 22, "BaseFontName");
+        register(12, 23, "BaseFontBlend");
+        register(12, 30, "ROS");
+        register(12, 31, "CIDFontVersion");
+        register(12, 32, "CIDFontRevision");
+        register(12, 33, "CIDFontType");
+        register(12, 34, "CIDCount");
+        register(12, 35, "UIDBase");
+        register(12, 36, "FDArray");
+        register(12, 37, "FDSelect");
+        register(12, 38, "FontName");
 
         // Private DICT
-        register(new Key(6), "BlueValues");
-        register(new Key(7), "OtherBlues");
-        register(new Key(8), "FamilyBlues");
-        register(new Key(9), "FamilyOtherBlues");
-        register(new Key(12, 9), "BlueScale");
-        register(new Key(12, 10), "BlueShift");
-        register(new Key(12, 11), "BlueFuzz");
-        register(new Key(10), "StdHW");
-        register(new Key(11), "StdVW");
-        register(new Key(12, 12), "StemSnapH");
-        register(new Key(12, 13), "StemSnapV");
-        register(new Key(12, 14), "ForceBold");
-        register(new Key(12, 15), "LanguageGroup");
-        register(new Key(12, 16), "ExpansionFactor");
-        register(new Key(12, 17), "initialRandomSeed");
-        register(new Key(19), "Subrs");
-        register(new Key(20), "defaultWidthX");
-        register(new Key(21), "nominalWidthX");
+        register(6, "BlueValues");
+        register(7, "OtherBlues");
+        register(8, "FamilyBlues");
+        register(9, "FamilyOtherBlues");
+        register(12, 9, "BlueScale");
+        register(12, 10, "BlueShift");
+        register(12, 11, "BlueFuzz");
+        register(10, "StdHW");
+        register(11, "StdVW");
+        register(12, 12, "StemSnapH");
+        register(12, 13, "StemSnapV");
+        register(12, 14, "ForceBold");
+        register(12, 15, "LanguageGroup");
+        register(12, 16, "ExpansionFactor");
+        register(12, 17, "initialRandomSeed");
+        register(19, "Subrs");
+        register(20, "defaultWidthX");
+        register(21, "nominalWidthX");
     }
 }

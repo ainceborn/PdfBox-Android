@@ -16,6 +16,8 @@
  */
 package com.tom_roush.fontbox.ttf;
 
+import com.tom_roush.pdfbox.io.RandomAccessReadBuffer;
+
 import java.io.IOException;
 
 /**
@@ -40,6 +42,7 @@ public class GlyphTable extends TTFTable
     private int cached = 0;
 
     private HorizontalMetricsTable hmt = null;
+    private MaximumProfileTable maxp = null;
 
     /**
      * Don't even bother to cache huge fonts.
@@ -51,9 +54,8 @@ public class GlyphTable extends TTFTable
      */
     private static final int MAX_CACHED_GLYPHS = 100;
 
-    GlyphTable(TrueTypeFont font)
+    GlyphTable()
     {
-        super(font);
     }
 
     /**
@@ -76,74 +78,21 @@ public class GlyphTable extends TTFTable
         }
 
         // we don't actually read the complete table here because it can contain tens of thousands of glyphs
-        this.data = data;
+        // cache the relevant part of the font data so that the data stream can be closed if it is no longer needed
+        byte[] dataBytes = data.read((int) getLength());
+        try (RandomAccessReadBuffer read = new RandomAccessReadBuffer(dataBytes))
+        {
+            this.data = new RandomAccessReadDataStream(read);
+        }
 
         // PDFBOX-5460: read hmtx table early to avoid deadlock if getGlyph() locks "data"
         // and then locks TrueTypeFont to read this table, while another thread
         // locks TrueTypeFont and then tries to lock "data"
-        hmt = font.getHorizontalMetrics();
+        hmt = ttf.getHorizontalMetrics();
+
+        maxp = ttf.getMaximumProfile();
 
         initialized = true;
-    }
-
-    /**
-     * Returns all glyphs. This method can be very slow.
-     *
-     * @throws IOException If there is an error reading the data.
-     * @deprecated use {@link #getGlyph(int)} instead. This will be removed in 3.0. If you need this
-     * method, please create an issue in JIRA.
-     */
-    @Deprecated
-    public GlyphData[] getGlyphs() throws IOException
-    {
-        // PDFBOX-4219: synchronize on data because it is accessed by several threads
-        // when PDFBox is accessing a standard 14 font for the first time
-        synchronized (data)
-        {
-            // the glyph offsets
-            long[] offsets = loca.getOffsets();
-
-            // the end of the glyph table
-            // should not be 0, but sometimes is, see PDFBOX-2044
-            // structure of this table: see
-            // https://developer.apple.com/fonts/TTRefMan/RM06/Chap6loca.html
-            long endOfGlyphs = offsets[numGlyphs];
-            long offset = getOffset();
-            if (glyphs == null)
-            {
-                glyphs = new GlyphData[numGlyphs];
-            }
-
-            for (int gid = 0; gid < numGlyphs; gid++)
-            {
-                // end of glyphs reached?
-                if (endOfGlyphs != 0 && endOfGlyphs == offsets[gid])
-                {
-                    break;
-                }
-                // the current glyph isn't defined
-                // if the next offset is equal or smaller to the current offset
-                if (offsets[gid + 1] <= offsets[gid])
-                {
-                    continue;
-                }
-                if (glyphs[gid] != null)
-                {
-                    // already cached
-                    continue;
-                }
-
-                data.seek(offset + offsets[gid]);
-
-                if (glyphs[gid] == null)
-                {
-                    ++cached;
-                }
-                glyphs[gid] = getGlyphData(gid);
-            }
-            initialized = true;
-            return glyphs;
-        }
     }
 
     /**
@@ -158,9 +107,17 @@ public class GlyphTable extends TTFTable
      * Returns the data for the glyph with the given GID.
      *
      * @param gid GID
+     *
+     * @return data of the glyph with the given GID or null
+     *
      * @throws IOException if the font cannot be read
      */
     public GlyphData getGlyph(int gid) throws IOException
+    {
+        return getGlyph(gid, 0);
+    }
+
+    GlyphData getGlyph(int gid, int level) throws IOException
     {
         if (gid < 0 || gid >= numGlyphs)
         {
@@ -181,11 +138,12 @@ public class GlyphTable extends TTFTable
             // read a single glyph
             long[] offsets = loca.getOffsets();
 
-            if (offsets[gid] == offsets[gid + 1])
+            if (offsets[gid] == offsets[gid + 1] || offsets[gid] == data.getOriginalDataSize())
             {
                 // no outline
                 // PDFBOX-5135: can't return null, must return an empty glyph because
                 // sometimes this is used in a composite glyph.
+                // PDFBOX-5917: offset points to end of the stream
                 glyph = new GlyphData();
                 glyph.initEmptyData();
             }
@@ -194,9 +152,9 @@ public class GlyphTable extends TTFTable
                 // save
                 long currentPosition = data.getCurrentPosition();
 
-                data.seek(getOffset() + offsets[gid]);
+                data.seek(offsets[gid]);
 
-                glyph = getGlyphData(gid);
+                glyph = getGlyphData(gid, level);
 
                 // restore
                 data.seek(currentPosition);
@@ -212,11 +170,15 @@ public class GlyphTable extends TTFTable
         }
     }
 
-    private GlyphData getGlyphData(int gid) throws IOException
+    private GlyphData getGlyphData(int gid, int level) throws IOException
     {
+        if (level > maxp.getMaxComponentDepth())
+        {
+            throw new IOException("composite glyph maximum level reached");
+        }
         GlyphData glyph = new GlyphData();
         int leftSideBearing = hmt == null ? 0 : hmt.getLeftSideBearing(gid);
-        glyph.initData(this, data, leftSideBearing);
+        glyph.initData(this, data, leftSideBearing, level);
         // resolve composite glyph
         if (glyph.getDescription().isComposite())
         {

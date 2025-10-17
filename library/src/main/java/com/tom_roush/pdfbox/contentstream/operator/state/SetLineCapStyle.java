@@ -21,6 +21,7 @@ import android.graphics.Paint;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -34,12 +35,21 @@ import com.tom_roush.pdfbox.cos.COSNumber;
  */
 public class SetLineCapStyle extends OperatorProcessor
 {
+    public SetLineCapStyle(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
         if (arguments.isEmpty())
         {
             throw new MissingOperandException(operator, arguments);
+        }
+        if (!checkArrayTypesClass(arguments, COSNumber.class))
+        {
+            return;
         }
         Paint.Cap lineCapStyle;
         switch (((COSNumber)arguments.get( 0 )).intValue())
@@ -56,7 +66,7 @@ public class SetLineCapStyle extends OperatorProcessor
             default:
                 lineCapStyle = null;
         }
-        context.getGraphicsState().setLineCap( lineCapStyle );
+        getContext().getGraphicsState().setLineCap(lineCapStyle);
     }
 
     @Override

@@ -15,6 +15,9 @@
  */
 package com.tom_roush.fontbox.ttf;
 
+import com.tom_roush.pdfbox.io.RandomAccessReadBuffer;
+import com.tom_roush.pdfbox.io.RandomAccessReadBufferedFile;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,7 +49,7 @@ public class TestTTFParser
         //Set the default to something not UTC and see if a UTC timeZone is returned
         TimeZone.setDefault(TimeZone.getTimeZone("America/Los Angeles"));
         TTFParser parser = new TTFParser();
-        TrueTypeFont ttf = parser.parse(testFile);
+        TrueTypeFont ttf = parser.parse(new RandomAccessReadBufferedFile(testFile));
         Calendar created = ttf.getHeader().getCreated();
         Assert.assertEquals(created.getTimeZone(), utc);
 
@@ -69,7 +72,7 @@ public class TestTTFParser
         Assert.assertNotNull(input);
 
         TTFParser parser = new TTFParser();
-        TrueTypeFont font = parser.parse(input);
+        TrueTypeFont font = parser.parse(new RandomAccessReadBuffer(input));
 
         CmapTable cmapTable = font.getCmap();
         Assert.assertNotNull(cmapTable);

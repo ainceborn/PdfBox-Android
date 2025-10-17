@@ -18,6 +18,7 @@ package com.tom_roush.pdfbox.pdmodel.interactive.annotation.handlers;
 import android.util.Log;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -54,8 +55,9 @@ import static com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationLi
 
 public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
 {
+
     private static final Pattern COLOR_PATTERN =
-        Pattern.compile(".*color\\:\\s*\\#([0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]).*");
+            Pattern.compile(".*color\\:\\s*\\#([0-9a-fA-F]{6}).*");
 
     private float fontSize = 10;
     private COSName fontName = COSName.HELV;
@@ -89,12 +91,8 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
         }
         AnnotationBorder ab = AnnotationBorder.getAnnotationBorder(annotation, annotation.getBorderStyle());
 
-        PDAppearanceContentStream cs = null;
-
-        try
+        try (PDAppearanceContentStream cs = getNormalAppearanceAsContentStream(true))
         {
-            cs = getNormalAppearanceAsContentStream(true);
-
             // The fill color is the /C entry, there is no /IC entry defined
             boolean hasBackground = cs.setNonStrokingColorOnDemand(annotation.getColor());
             setOpacity(cs, annotation.getConstantOpacity());
@@ -160,9 +158,9 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
 
             // paint the styles here and after line(s) draw, to avoid line crossing a filled shape
             if (PDAnnotationFreeText.IT_FREE_TEXT_CALLOUT.equals(annotation.getIntent())
-                // check only needed to avoid q cm Q if LE_NONE
-                && !LE_NONE.equals(annotation.getLineEndingStyle())
-                && pathsArray.length >= 4)
+                    // check only needed to avoid q cm Q if LE_NONE
+                    && !LE_NONE.equals(annotation.getLineEndingStyle())
+                    && pathsArray.length >= 4)
             {
                 float x2 = pathsArray[2];
                 float y2 = pathsArray[3];
@@ -198,7 +196,7 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
 
                 //TODO this segment was copied from square handler. Refactor?
                 CloudyBorder cloudyBorder = new CloudyBorder(cs,
-                    borderEffect.getIntensity(), ab.width, getRectangle());
+                        borderEffect.getIntensity(), ab.width, getRectangle());
                 cloudyBorder.createCloudyRectangle(annotation.getRectDifference());
                 annotation.setRectangle(cloudyBorder.getRectangle());
                 annotation.setRectDifference(cloudyBorder.getRectDifference());
@@ -221,7 +219,7 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
                 // note that borderBox is not modified
                 PDRectangle paddedRectangle = getPaddedRectangle(borderBox, ab.width / 2);
                 cs.addRect(paddedRectangle.getLowerLeftX(), paddedRectangle.getLowerLeftY(),
-                    paddedRectangle.getWidth(), paddedRectangle.getHeight());
+                        paddedRectangle.getWidth(), paddedRectangle.getHeight());
             }
             cs.drawShape(ab.width, hasStroke, hasBackground);
 
@@ -234,11 +232,11 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
             float width = rotation == 90 || rotation == 270 ? borderBox.getHeight() : borderBox.getWidth();
             // strategy to write formatted text is somewhat inspired by
             // AppearanceGeneratorHelper.insertGeneratedAppearance()
-            PDFont font = PDType1Font.HELVETICA;
+            PDFont font = null;
             float clipY;
             float clipWidth = width - ab.width * 4;
             float clipHeight = rotation == 90 || rotation == 270 ?
-                borderBox.getWidth() - ab.width * 4 : borderBox.getHeight() - ab.width * 4;
+                    borderBox.getWidth() - ab.width * 4 : borderBox.getHeight() - ab.width * 4;
             extractFontDetails(annotation);
             if (document != null)
             {
@@ -258,7 +256,10 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
                     }
                 }
             }
-
+            if (font == null)
+            {
+                font = getDefaultFont();
+            }
             // value used by Adobe, no idea where it comes from, actual font bbox max y is 0.931
             // gathered by creating an annotation with width 0.
             float yDelta = 0.7896f;
@@ -300,14 +301,14 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
                 appearanceStyle.setFont(font);
                 appearanceStyle.setFontSize(fontSize);
                 PlainTextFormatter formatter = new PlainTextFormatter.Builder(cs)
-                    .style(appearanceStyle)
-                    .text(new PlainText(annotation.getContents()))
-                    .width(width - ab.width * 4)
-                    .wrapLines(true)
-                    .initialOffset(xOffset, yOffset)
-                    // Adobe ignores the /Q
-                    //.textAlign(annotation.getQ())
-                    .build();
+                        .style(appearanceStyle)
+                        .text(new PlainText(annotation.getContents()))
+                        .width(width - ab.width * 4)
+                        .wrapLines(true)
+                        .initialOffset(xOffset, yOffset)
+                        // Adobe ignores the /Q
+                        //.textAlign(annotation.getQ())
+                        .build();
                 try
                 {
                     formatter.format();
@@ -361,10 +362,6 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
         {
             Log.e("PdfBox-Android", ex.getMessage(), ex);
         }
-        finally
-        {
-            IOUtils.closeQuietly(cs);
-        }
     }
 
     // get the last non stroking color from the /DA entry
@@ -385,7 +382,7 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
         try
         {
             // not sure if charset is correct, but we only need numbers and simple characters
-            PDFStreamParser parser = new PDFStreamParser(defaultAppearance.getBytes(Charsets.US_ASCII));
+            PDFStreamParser parser = new PDFStreamParser(defaultAppearance.getBytes(StandardCharsets.US_ASCII));
             COSArray arguments = new COSArray();
             COSArray colors = null;
             Operator graphicOp = null;
@@ -396,8 +393,8 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
                     Operator op = (Operator) token;
                     String name = op.getName();
                     if (OperatorName.NON_STROKING_GRAY.equals(name) ||
-                        OperatorName.NON_STROKING_RGB.equals(name) ||
-                        OperatorName.NON_STROKING_CMYK.equals(name))
+                            OperatorName.NON_STROKING_RGB.equals(name) ||
+                            OperatorName.NON_STROKING_CMYK.equals(name))
                     {
                         graphicOp = op;
                         colors = arguments;
@@ -411,18 +408,19 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
             }
             if (graphicOp != null)
             {
-                String graphicOpName =  graphicOp.getName();
-                if (OperatorName.NON_STROKING_GRAY.equals(graphicOpName))
+                switch (graphicOp.getName())
                 {
-                    strokingColor = new PDColor(colors, PDDeviceGray.INSTANCE);
-                }
-                else if (OperatorName.NON_STROKING_RGB.equals(graphicOpName))
-                {
-                    strokingColor = new PDColor(colors, PDDeviceRGB.INSTANCE);
-                }
-                else if (OperatorName.NON_STROKING_CMYK.equals(graphicOpName))
-                {
-                    strokingColor = new PDColor(colors, PDDeviceCMYK.INSTANCE);
+                    case OperatorName.NON_STROKING_GRAY:
+                        strokingColor = new PDColor(colors, PDDeviceGray.INSTANCE);
+                        break;
+                    case OperatorName.NON_STROKING_RGB:
+                        strokingColor = new PDColor(colors, PDDeviceRGB.INSTANCE);
+                        break;
+                    case OperatorName.NON_STROKING_CMYK:
+                        strokingColor = new PDColor(colors, PDDeviceCMYK.INSTANCE);
+                        break;
+                    default:
+                        break;
                 }
             }
         }
@@ -454,7 +452,7 @@ public class PDFreeTextAppearanceHandler extends PDAbstractAppearanceHandler
         try
         {
             // not sure if charset is correct, but we only need numbers and simple characters
-            PDFStreamParser parser = new PDFStreamParser(defaultAppearance.getBytes(Charsets.US_ASCII));
+            PDFStreamParser parser = new PDFStreamParser(defaultAppearance.getBytes(StandardCharsets.US_ASCII));
             COSArray arguments = new COSArray();
             COSArray fontArguments = new COSArray();
             for (Object token = parser.parseNextToken(); token != null; token = parser.parseNextToken())

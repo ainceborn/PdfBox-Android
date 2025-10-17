@@ -93,7 +93,7 @@ public class MainActivity extends Activity {
         document.addPage(page);
 
         // Create a new font object selecting one of the PDF base fonts
-        PDFont font = PDType1Font.HELVETICA;
+        PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
         // Or a custom font
 //        try
 //        {
@@ -271,7 +271,7 @@ public class MainActivity extends Activity {
         BouncyCastleProvider provider = new BouncyCastleProvider();
         Security.addProvider(provider);
 
-        PDFont font = PDType1Font.HELVETICA;
+        PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
         PDDocument document = new PDDocument();
         PDPage page = new PDPage();
 

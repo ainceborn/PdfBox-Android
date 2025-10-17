@@ -35,9 +35,8 @@ public class IndexToLocationTable extends TTFTable
 
     private long[] offsets;
 
-    IndexToLocationTable(TrueTypeFont font)
+    IndexToLocationTable()
     {
-        super(font);
     }
 
     /**
@@ -47,6 +46,7 @@ public class IndexToLocationTable extends TTFTable
      * @param data The stream to read the data from.
      * @throws IOException If there is an error reading the data.
      */
+    @Override
     void read(TrueTypeFont ttf, TTFDataStream data) throws IOException
     {
         HeaderTable head = ttf.getHeader();
@@ -60,7 +60,7 @@ public class IndexToLocationTable extends TTFTable
         {
             if( head.getIndexToLocFormat() == SHORT_OFFSETS )
             {
-                offsets[i] = data.readUnsignedShort() * 2;
+                offsets[i] = data.readUnsignedShort() * 2L;
             }
             else if(  head.getIndexToLocFormat() == LONG_OFFSETS )
             {
@@ -68,8 +68,13 @@ public class IndexToLocationTable extends TTFTable
             }
             else
             {
-                throw new IOException( "Error:TTF.loca unknown offset format.");
+                throw new IOException( "Error:TTF.loca unknown offset format: " + head.getIndexToLocFormat());
             }
+        }
+        if (numGlyphs == 1 && offsets[0] == 0 && offsets[1] == 0)
+        {
+            // PDFBOX-5794 empty glyph
+            throw new IOException("The font has no glyphs");
         }
         initialized = true;
     }

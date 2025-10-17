@@ -16,6 +16,7 @@
  */
 package com.tom_roush.pdfbox.cos;
 
+import android.os.Build;
 import android.util.Log;
 
 import java.io.Closeable;
@@ -364,7 +365,12 @@ public class COSStream extends COSDictionary implements Closeable
     {
         try (InputStream input = createInputStream())
         {
-            byte[] array = input.readAllBytes();
+            byte[] array = null;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                array = input.readAllBytes();
+            } else {
+                array = IOUtils.readBytesCompat(input);
+            }
             COSString string = new COSString(array);
             return string.getString();
         }

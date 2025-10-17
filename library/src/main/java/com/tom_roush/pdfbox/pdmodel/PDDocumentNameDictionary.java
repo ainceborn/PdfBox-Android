@@ -108,7 +108,7 @@ public class PDDocumentNameDictionary implements COSObjectable
      */
     public void setDests( PDDestinationNameTreeNode dests )
     {
-        nameDictionary.setItem( COSName.DESTS, dests );
+        nameDictionary.setItem( COSName.DESTS, dests);
         //The dests can either be in the document catalog or in the
         //names dictionary, PDFBox will just maintain the one in the
         //names dictionary for now unless there is a reason to do

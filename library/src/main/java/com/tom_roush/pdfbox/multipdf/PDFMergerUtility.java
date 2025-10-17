@@ -582,8 +582,7 @@ public class PDFMergerUtility
             PDDocumentNameDestinationDictionary destDests = destCatalog.getDests();
             if (destDests == null)
             {
-                destCatalog.getCOSObject().setItem(COSName.DESTS,
-                        cloner.cloneForNewDocument(srcDests.getCOSObject()));
+                destCatalog.getCOSObject().setItem(COSName.DESTS, cloner.cloneForNewDocument(srcDests.getCOSObject()));
             }
             else
             {

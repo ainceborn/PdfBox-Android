@@ -46,6 +46,7 @@ import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.android.TestResourceGenerator;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.io.IOUtils;
+import com.tom_roush.pdfbox.io.RandomAccessReadBufferedFile;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
@@ -128,11 +129,11 @@ public class PDFontTest
         IOUtils.copy(testContext.getAssets().open("com/tom_roush/pdfbox/resources/ttf/LiberationSans-Regular.ttf"), os);
         os.close();
 
-        TrueTypeFont ttf1 = new TTFParser().parse(fontFile);
+        TrueTypeFont ttf1 = new TTFParser().parse(new RandomAccessReadBufferedFile(fontFile));
         testPDFBox3826checkFonts(testPDFBox3826createDoc(ttf1), fontFile);
         ttf1.close();
 
-        TrueTypeFont ttf2 = new TTFParser().parse(new FileInputStream(fontFile));
+        TrueTypeFont ttf2 = new TTFParser().parse(new RandomAccessReadBufferedFile(fontFile));
         testPDFBox3826checkFonts(testPDFBox3826createDoc(ttf2), fontFile);
         ttf2.close();
     }
@@ -198,16 +199,16 @@ public class PDFontTest
     {
         try
         {
-            PDType1Font.HELVETICA_BOLD.encode("\u0080");
+            new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD).encode("\u0080");
             Assert.fail("should have thrown IllegalArgumentException");
         }
         catch (IllegalArgumentException ex)
         {
         }
-        PDType1Font.HELVETICA_BOLD.encode("€");
+        new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD).encode("€");
         try
         {
-            PDType1Font.HELVETICA_BOLD.encode("\u0080");
+            new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD).encode("\u0080");
             Assert.fail("should have thrown IllegalArgumentException");
         }
         catch (IllegalArgumentException ex)
@@ -406,7 +407,7 @@ public class PDFontTest
         PDDocument doc = new PDDocument();
         PDPage page = new PDPage();
         doc.addPage(page);
-        PDFont font1 = PDType1Font.HELVETICA;
+        PDFont font1 = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
         PDFont font2 = PDType0Font.load(doc, testContext.getAssets().open(
             "com/tom_roush/pdfbox/resources/ttf/LiberationSans-Regular.ttf"));
 
@@ -445,7 +446,7 @@ public class PDFontTest
         File fontFile = TestResourceGenerator.downloadTestResource(IN_DIR, "PDFBOX-5484.ttf", "https://issues.apache.org/jira/secure/attachment/13047577/PDFBOX-5484.ttf");
         assumeTrue(fontFile.exists());
 
-        TrueTypeFont ttf = new TTFParser().parse(fontFile);
+        TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBufferedFile(fontFile));
         PDDocument doc = new PDDocument();
         PDTrueTypeFont tr = PDTrueTypeFont.load(doc, ttf, WinAnsiEncoding.INSTANCE);
         Path path1 = tr.getPath("oslash");

@@ -219,9 +219,9 @@ public class OS2WindowsMetricsTable extends TTFTable
     private int usBreakChar;
     private int usMaxContext;
 
-    OS2WindowsMetricsTable(TrueTypeFont font)
+    OS2WindowsMetricsTable()
     {
-        super(font);
+        super();
     }
 
     /**
@@ -738,6 +738,8 @@ public class OS2WindowsMetricsTable extends TTFTable
 
     /**
      * Returns the sxHeight.
+     *
+     * @return the sxHeight value
      */
     public int getHeight()
     {
@@ -746,6 +748,8 @@ public class OS2WindowsMetricsTable extends TTFTable
 
     /**
      * Returns the sCapHeight.
+     *
+     * @return the sCapHeight value
      */
     public int getCapHeight()
     {
@@ -754,6 +758,8 @@ public class OS2WindowsMetricsTable extends TTFTable
 
     /**
      * Returns the usDefaultChar.
+     *
+     * @return the usDefaultChar value
      */
     public int getDefaultChar()
     {
@@ -762,6 +768,8 @@ public class OS2WindowsMetricsTable extends TTFTable
 
     /**
      * Returns the usBreakChar.
+     *
+     * @return the usBreakChar value
      */
     public int getBreakChar()
     {
@@ -770,6 +778,8 @@ public class OS2WindowsMetricsTable extends TTFTable
 
     /**
      * Returns the usMaxContext.
+     *
+     * @return the usMaxContent value
      */
     public int getMaxContext()
     {

@@ -35,13 +35,18 @@ import com.tom_roush.fontbox.type1.Type1CharStringReader;
  */
 public class CFFType1Font extends CFFFont implements EncodedFont
 {
-    private final Map<String, Object> privateDict = new LinkedHashMap<String, Object>();
+    private final Map<String, Object> privateDict = new LinkedHashMap<>();
     private CFFEncoding encoding;
 
     private final Map<Integer, Type2CharString> charStringCache =
-        new ConcurrentHashMap<Integer, Type2CharString>();
+            new ConcurrentHashMap<>();
 
     private final PrivateType1CharStringReader reader = new PrivateType1CharStringReader();
+    private Type2CharStringParser charStringParser = null;
+
+    private int defaultWidthX = Integer.MIN_VALUE;
+    private int nominalWidthX = Integer.MIN_VALUE;
+    private byte[][] localSubrIndex;
 
     /**
      * Private implementation of Type1CharStringReader, because only CFFType1Font can
@@ -71,21 +76,15 @@ public class CFFType1Font extends CFFFont implements EncodedFont
     @Override
     public boolean hasGlyph(String name)
     {
-        int sid = charset.getSID(name);
-        int gid = charset.getGIDForSID(sid);
-        return gid != 0;
-    }
-
-    @Override
-    public List<Number> getFontMatrix()
-    {
-        return (List<Number>)topDict.get("FontMatrix");
+        return nameToGID(name) != 0;
     }
 
     /**
      * Returns the Type 1 charstring for the given PostScript glyph name.
      *
      * @param name PostScript glyph name
+     * @return Type1 charstring of the given PostScript glyph name
+     *
      * @throws IOException if the charstring could not be read
      */
     public Type1CharString getType1CharString(String name) throws IOException
@@ -106,8 +105,8 @@ public class CFFType1Font extends CFFFont implements EncodedFont
     public int nameToGID(String name)
     {
         // some fonts have glyphs beyond their encoding, so we look up by charset SID
-        int sid = charset.getSID(name);
-        return charset.getGIDForSID(sid);
+        int sid = getCharset().getSID(name);
+        return getCharset().getGIDForSID(sid);
     }
 
     /**
@@ -139,13 +138,21 @@ public class CFFType1Font extends CFFFont implements EncodedFont
                 // .notdef
                 bytes = charStrings[0];
             }
-            Type2CharStringParser parser = new Type2CharStringParser(fontName, name);
-            List<Object> type2seq = parser.parse(bytes, globalSubrIndex, getLocalSubrIndex());
-            type2 = new Type2CharString(reader, fontName, name, gid, type2seq, getDefaultWidthX(),
-                getNominalWidthX());
+            List<Object> type2seq = getParser().parse(bytes, globalSubrIndex, getLocalSubrIndex());
+            type2 = new Type2CharString(reader, getName(), name, gid, type2seq, getDefaultWidthX(),
+                    getNominalWidthX());
             charStringCache.put(gid, type2);
         }
         return type2;
+    }
+
+    private Type2CharStringParser getParser()
+    {
+        if (charStringParser == null)
+        {
+            charStringParser = new Type2CharStringParser(getName());
+        }
+        return charStringParser;
     }
 
     /**
@@ -164,7 +171,6 @@ public class CFFType1Font extends CFFFont implements EncodedFont
      * @param name the given key
      * @param value the given value
      */
-    // todo: can't we just accept a Map?
     void addToPrivateDict(String name, Object value)
     {
         if (value != null)
@@ -196,7 +202,11 @@ public class CFFType1Font extends CFFFont implements EncodedFont
 
     private byte[][] getLocalSubrIndex()
     {
-        return (byte[][])privateDict.get("Subrs");
+        if (localSubrIndex == null)
+        {
+            localSubrIndex = (byte[][]) privateDict.get("Subrs");
+        }
+        return localSubrIndex;
     }
 
     // helper for looking up keys/values
@@ -212,21 +222,21 @@ public class CFFType1Font extends CFFFont implements EncodedFont
 
     private int getDefaultWidthX()
     {
-        Number num = (Number)getProperty("defaultWidthX");
-        if (num == null)
+        if (defaultWidthX == Integer.MIN_VALUE)
         {
-            return 1000;
+            Number num = (Number) getProperty("defaultWidthX");
+            defaultWidthX = num != null ? num.intValue() : 1000;
         }
-        return num.intValue();
+        return defaultWidthX;
     }
 
     private int getNominalWidthX()
     {
-        Number num = (Number)getProperty("nominalWidthX");
-        if (num == null)
+        if (nominalWidthX == Integer.MIN_VALUE)
         {
-            return 0;
+            Number num = (Number) getProperty("nominalWidthX");
+            nominalWidthX = num != null ? num.intValue() : 0;
         }
-        return num.intValue();
+        return nominalWidthX;
     }
 }

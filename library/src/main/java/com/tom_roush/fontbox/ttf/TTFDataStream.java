@@ -21,10 +21,12 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
 import java.util.TimeZone;
 
 import com.tom_roush.fontbox.util.Charsets;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 
 /**
  * An interface into a data stream.
@@ -33,6 +35,8 @@ import com.tom_roush.fontbox.util.Charsets;
  */
 abstract class TTFDataStream implements Closeable
 {
+    private static final TimeZone TIMEZONE_UTC = TimeZone.getTimeZone("UTC"); // clone before using
+
     TTFDataStream()
     {
     }
@@ -59,21 +63,7 @@ abstract class TTFDataStream implements Closeable
      */
     public String readString(int length) throws IOException
     {
-        return readString(length, Charsets.ISO_8859_1);
-    }
-
-    /**
-     * Read a fixed length string.
-     *
-     * @param length The length of the string to read in bytes.
-     * @param charset The expected character set of the string.
-     * @return A string of the desired length.
-     * @throws IOException If there is an error reading the data.
-     */
-    public String readString(int length, String charset) throws IOException
-    {
-        byte[] buffer = read(length);
-        return new String(buffer, charset);
+        return readString(length, StandardCharsets.ISO_8859_1);
     }
 
     /**
@@ -86,9 +76,9 @@ abstract class TTFDataStream implements Closeable
      */
     public String readString(int length, Charset charset) throws IOException
     {
-        byte[] buffer = read(length);
-        return new String(buffer, charset);
+        return new String(read(length), charset);
     }
+
     /**
      * Read an unsigned byte.
      *
@@ -118,9 +108,9 @@ abstract class TTFDataStream implements Closeable
     }
 
     /**
-     * Read a unsigned byte. Similar to {@link #read()}, but throws an exception if EOF is unexpectedly reached.
+     * Read an unsigned byte. Similar to {@link #read()}, but throws an exception if EOF is unexpectedly reached.
      *
-     * @return A unsigned byte.
+     * @return An unsigned byte.
      * @throws IOException If there is an error reading the data.
      */
     public int readUnsignedByte() throws IOException
@@ -147,7 +137,8 @@ abstract class TTFDataStream implements Closeable
         long byte4 = read();
         if (byte4 < 0)
         {
-            throw new EOFException();
+            throw new EOFException("EOF at " + getCurrentPosition() +
+                    ", b1: " + byte1 + ", b2: " + byte2 + ", b3: " + byte3 + ", b4: " + byte4);
         }
         return (byte1 << 24) + (byte2 << 16) + (byte3 << 8) + byte4;
     }
@@ -158,7 +149,16 @@ abstract class TTFDataStream implements Closeable
      * @return An unsigned short.
      * @throws IOException If there is an error reading the data.
      */
-    public abstract int readUnsignedShort() throws IOException;
+    public int readUnsignedShort() throws IOException
+    {
+        int b1 = read();
+        int b2 = read();
+        if ((b1 | b2) < 0)
+        {
+            throw new EOFException("EOF at " + getCurrentPosition() + ", b1: " + b1 + ", b2: " + b2);
+        }
+        return (b1 << 8) + b2;
+    }
 
     /**
      * Read an unsigned byte array.
@@ -195,23 +195,26 @@ abstract class TTFDataStream implements Closeable
     }
 
     /**
-     * Read an signed short.
+     * Read a signed short.
      *
-     * @return An signed short.
+     * @return A signed short.
      * @throws IOException If there is an error reading the data.
      */
-    public abstract short readSignedShort() throws IOException;
+    public short readSignedShort() throws IOException
+    {
+        return (short) readUnsignedShort();
+    }
 
     /**
      * Read an eight byte international date.
      *
-     * @return An signed short.
+     * @return A signed short.
      * @throws IOException If there is an error reading the data.
      */
     public Calendar readInternationalDate() throws IOException
     {
         long secondsSince1904 = readLong();
-        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        Calendar cal = Calendar.getInstance((TimeZone) TIMEZONE_UTC.clone());
         cal.set(1904, 0, 1, 0, 0, 0);
         cal.set(Calendar.MILLISECOND, 0);
         long millisFor1904 = cal.getTimeInMillis();
@@ -221,12 +224,12 @@ abstract class TTFDataStream implements Closeable
     }
 
     /**
-     * Reads a tag, an arrau of four uint8s used to identify a script, language system, feature,
+     * Reads a tag, an array of four uint8s used to identify a script, language system, feature,
      * or baseline.
      */
     public String readTag() throws IOException
     {
-        return new String(read(4), Charsets.US_ASCII);
+        return new String(read(4), StandardCharsets.US_ASCII);
     }
 
     /**
@@ -251,7 +254,7 @@ abstract class TTFDataStream implements Closeable
         int totalAmountRead = 0;
         // read at most numberOfBytes bytes from the stream.
         while (totalAmountRead < numberOfBytes
-            && (amountRead = read(data, totalAmountRead, numberOfBytes - totalAmountRead)) != -1)
+                && (amountRead = read(data, totalAmountRead, numberOfBytes - totalAmountRead)) != -1)
         {
             totalAmountRead += amountRead;
         }
@@ -277,6 +280,18 @@ abstract class TTFDataStream implements Closeable
      * @throws IOException If there is an error reading from the stream.
      */
     public abstract int read(byte[] b, int off, int len) throws IOException;
+
+    /**
+     * Creates a view from current position to {@code pos + length}.
+     * It can be faster than {@code read(length)} if you only need a few bytes.
+     * {@code SubView.close()} should never close {@code TTFDataStream.this}, only itself.
+     *
+     * @return A view or null (caller can use {@link #read} instead). Please close() the result
+     */
+    public RandomAccessRead createSubView(long length)
+    {
+        return null;
+    }
 
     /**
      * Get the current position in the stream.

@@ -20,6 +20,7 @@ import android.graphics.Path;
 import android.util.Log;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -30,10 +31,12 @@ import com.tom_roush.fontbox.ttf.CmapLookup;
 import com.tom_roush.fontbox.ttf.GlyphData;
 import com.tom_roush.fontbox.ttf.OTFParser;
 import com.tom_roush.fontbox.ttf.OpenTypeFont;
+import com.tom_roush.fontbox.ttf.TTFParser;
 import com.tom_roush.fontbox.ttf.TrueTypeFont;
 import com.tom_roush.fontbox.util.BoundingBox;
 import com.tom_roush.harmony.awt.geom.AffineTransform;
 import com.tom_roush.pdfbox.cos.COSDictionary;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.common.PDStream;
 import com.tom_roush.pdfbox.util.Matrix;
@@ -45,6 +48,7 @@ import com.tom_roush.pdfbox.util.Matrix;
  */
 public class PDCIDFontType2 extends PDCIDFont
 {
+
     private final TrueTypeFont ttf;
     private final OpenTypeFont otf;
     private final int[] cid2gid;
@@ -53,14 +57,14 @@ public class PDCIDFontType2 extends PDCIDFont
     private final CmapLookup cmap; // may be null
     private Matrix fontMatrix;
     private BoundingBox fontBBox;
-    private final Set<Integer> noMapping = new HashSet<Integer>();
+    private final Set<Integer> noMapping = new HashSet<>();
 
     /**
      * Constructor.
      *
      * @param fontDictionary The font dictionary according to the PDF specification.
      * @param parent The parent font.
-     * @throws IOException
+     * @throws IOException if the font could not be read
      */
     public PDCIDFontType2(COSDictionary fontDictionary, PDType0Font parent) throws IOException
     {
@@ -73,7 +77,7 @@ public class PDCIDFontType2 extends PDCIDFont
      * @param fontDictionary The font dictionary according to the PDF specification.
      * @param parent The parent font.
      * @param trueTypeFont The true type font used to create the parent font
-     * @throws IOException
+     * @throws IOException if the font could not be read
      */
     public PDCIDFontType2(COSDictionary fontDictionary, PDType0Font parent, TrueTypeFont trueTypeFont) throws IOException
     {
@@ -83,8 +87,9 @@ public class PDCIDFontType2 extends PDCIDFont
         if (trueTypeFont != null)
         {
             ttf = trueTypeFont;
-            otf = ttf instanceof OpenTypeFont && ((OpenTypeFont) ttf).isSupportedOTF()
-                    ? (OpenTypeFont) ttf : null;
+            otf = trueTypeFont instanceof OpenTypeFont
+                    && ((OpenTypeFont) trueTypeFont).isSupportedOTF() ? (OpenTypeFont) trueTypeFont
+                    : null;
             isEmbedded = true;
             isDamaged = false;
         }
@@ -112,22 +117,24 @@ public class PDCIDFontType2 extends PDCIDFont
                 try
                 {
                     // embedded OTF or TTF
-                    OTFParser otfParser = new OTFParser(true);
-                    OpenTypeFont otf = otfParser.parse(stream.createInputStream());
-                    ttfFont = otf;
-
-                    if (otf.isPostScript())
-                    {
-                        // PDFBOX-3344 contains PostScript outlines instead of TrueType
-                        fontIsDamaged = true;
-                        Log.w("PdfBox-Android", "Found CFF/OTF but expected embedded TTF font " + fd.getFontName());
-                    }
+                    RandomAccessRead view = stream.getCOSObject().createView();
+                    TTFParser ttfParser = getParser(view, true);
+                    ttfFont = ttfParser.parse(view);
+                    ttfFont.close();
                 }
                 catch (IOException e)
                 {
                     fontIsDamaged = true;
                     Log.w("PdfBox-Android", "Could not read embedded OTF for font " + getBaseFont(), e);
                 }
+                if (ttfFont instanceof OpenTypeFont && !((OpenTypeFont) ttfFont).isSupportedOTF())
+                {
+                    // the OpenType font contains CFF2 outlines which are not supported yet
+                    ttfFont = null;
+                    fontIsDamaged = true;
+                    Log.w("PdfBox-Android", "Found an OpenType font using CFF2 outlines which are not supported " + fd.getFontName());
+                }
+
             }
             isEmbedded = ttfFont != null;
             isDamaged = fontIsDamaged;
@@ -136,10 +143,9 @@ public class PDCIDFontType2 extends PDCIDFont
             {
                 ttfFont = findFontOrSubstitute();
             }
+            otf = ttfFont instanceof OpenTypeFont && ((OpenTypeFont) ttfFont).isSupportedOTF()
+                    ? (OpenTypeFont) ttfFont : null;
             ttf = ttfFont;
-            otf = ttf instanceof OpenTypeFont
-                    && ((OpenTypeFont) ttf).isSupportedOTF() ? (OpenTypeFont) ttf
-                    : null;
         }
         cmap = ttf.getUnicodeCmapLookup(false);
         cid2gid = readCIDToGIDMap();
@@ -150,15 +156,20 @@ public class PDCIDFontType2 extends PDCIDFont
         TrueTypeFont ttfFont;
 
         CIDFontMapping mapping = FontMappers.instance()
-            .getCIDFont(getBaseFont(), getFontDescriptor(),
-                getCIDSystemInfo());
+                .getCIDFont(getBaseFont(), getFontDescriptor(),
+                        getCIDSystemInfo());
         if (mapping.isCIDFont())
         {
             ttfFont = mapping.getFont();
         }
         else
         {
-            ttfFont = (TrueTypeFont)mapping.getTrueTypeFont();
+            ttfFont = (TrueTypeFont) mapping.getTrueTypeFont();
+            if (ttfFont == null)
+            {
+                // shouldn't happen?!
+                throw new IOException("mapping.getTrueTypeFont() returns null, please report");
+            }
         }
         if (mapping.isFallback())
         {
@@ -194,13 +205,13 @@ public class PDCIDFontType2 extends PDCIDFont
         {
             PDRectangle bbox = getFontDescriptor().getFontBoundingBox();
             if (bbox != null &&
-                (Float.compare(bbox.getLowerLeftX(), 0) != 0 ||
-                    Float.compare(bbox.getLowerLeftY(), 0) != 0 ||
-                    Float.compare(bbox.getUpperRightX(), 0) != 0 ||
-                    Float.compare(bbox.getUpperRightY(), 0) != 0))
+                    (Float.compare(bbox.getLowerLeftX(), 0) != 0 ||
+                            Float.compare(bbox.getLowerLeftY(), 0) != 0 ||
+                            Float.compare(bbox.getUpperRightX(), 0) != 0 ||
+                            Float.compare(bbox.getUpperRightY(), 0) != 0))
             {
                 return new BoundingBox(bbox.getLowerLeftX(), bbox.getLowerLeftY(),
-                    bbox.getUpperRightX(), bbox.getUpperRightY());
+                        bbox.getUpperRightX(), bbox.getUpperRightY());
             }
         }
         return ttf.getFontBBox();
@@ -229,7 +240,7 @@ public class PDCIDFontType2 extends PDCIDFont
      *
      * @param code character code
      * @return GID
-     * @throws IOException
+     * @throws IOException if the mapping could not be read
      */
     @Override
     public int codeToGID(int code) throws IOException
@@ -241,7 +252,8 @@ public class PDCIDFontType2 extends PDCIDFont
             // font's 'cmap' table. The means by which this is accomplished are implementation-
             // dependent.
             // omit the CID2GID mapping if the embedded font is replaced by an external font
-            if (cid2gid != null && !isDamaged)
+            String name = getName();
+            if (cid2gid != null && !isDamaged && name != null && name.equals(ttf.getName()))
             {
                 // Acrobat allows non-embedded GIDs - todo: can we find a test PDF for this?
                 Log.w("PdfBox-Android", "Using non-embedded GIDs in font " + getName());
@@ -301,16 +313,13 @@ public class PDCIDFontType2 extends PDCIDFont
             }
             else
             {
-                // "Identity" is the default CIDToGIDMap
-                if (cid < ttf.getNumberOfGlyphs())
+                // "Identity" is the default for CFF-based OpenTypeFonts
+                if (otf != null && otf.isPostScript())
                 {
                     return cid;
                 }
-                else
-                {
-                    // out of range CIDs map to GID 0
-                    return 0;
-                }
+                // "Identity" is the default for TrueTypeFonts if the CID is within the range
+                return cid < ttf.getNumberOfGlyphs() ? cid : 0;
             }
         }
     }
@@ -320,7 +329,7 @@ public class PDCIDFontType2 extends PDCIDFont
     {
         // todo: really we want the BBox, (for text extraction:)
         return (ttf.getHorizontalHeader().getAscender() + -ttf.getHorizontalHeader().getDescender())
-            / ttf.getUnitsPerEm(); // todo: shouldn't this be the yMax/yMin?
+                / (float) ttf.getUnitsPerEm(); // todo: shouldn't this be the yMax/yMin?
     }
 
     @Override
@@ -377,17 +386,23 @@ public class PDCIDFontType2 extends PDCIDFont
         else
         {
             // a non-embedded font always has a cmap (otherwise it we wouldn't load it)
-            cid = cmap.getGlyphId(unicode);
+            cid = cmap.getGlyphId(unicode); // lgtm[java/dereferenced-value-may-be-null]
         }
 
         if (cid == 0)
         {
             throw new IllegalArgumentException(
-                String.format("No glyph for U+%04X (%c) in font %s", unicode, (char) unicode, getName()));
+                    String.format("No glyph for U+%04X (%c) in font %s", unicode, (char) unicode, getName()));
         }
 
+        return encodeGlyphId(cid);
+    }
+
+    @Override
+    public byte[] encodeGlyphId(int glyphId)
+    {
         // CID is always 2-bytes (16-bit) for TrueType
-        return new byte[] { (byte)(cid >> 8 & 0xff), (byte)(cid & 0xff) };
+        return new byte[] { (byte)(glyphId >> 8 & 0xff), (byte)(glyphId & 0xff) };
     }
 
     @Override
@@ -403,8 +418,9 @@ public class PDCIDFontType2 extends PDCIDFont
     }
 
     /**
-     * Returns the embedded or substituted TrueType font. May be an OpenType font if the font is
-     * not embedded.
+     * Returns the embedded or substituted TrueType font. May be an OpenType font if the font is not embedded.
+     *
+     * @return the embedded or substituted TrueType font
      */
     public TrueTypeFont getTrueTypeFont()
     {
@@ -414,34 +430,23 @@ public class PDCIDFontType2 extends PDCIDFont
     @Override
     public Path getPath(int code) throws IOException
     {
-        if (ttf instanceof OpenTypeFont && ((OpenTypeFont)ttf).isPostScript())
+        if (otf != null && otf.isPostScript())
         {
-            // we're not supposed to have CFF fonts inside PDCIDFontType2, but if we do,
-            // then we treat their CIDs as GIDs, see PDFBOX-3344
-            int cid = codeToGID(code);
-            Type2CharString charstring = ((OpenTypeFont)ttf).getCFF().getFont().getType2CharString(cid);
-            return charstring.getPath();
+            Path path = getPathFromOutlines(code);
+            return path == null ? new Path() : path;
         }
-        else
+        int gid = codeToGID(code);
+        GlyphData glyph = ttf.getGlyph().getGlyph(gid);
+        if (glyph != null)
         {
-            int gid = codeToGID(code);
-            GlyphData glyph = ttf.getGlyph().getGlyph(gid);
-            if (glyph != null)
-            {
-                return glyph.getPath();
-            }
-            return new Path();
+            return glyph.getPath();
         }
+        return new Path();
     }
 
     @Override
-    public boolean hasGlyph(int code) throws IOException
+    public Path getNormalizedPath(int code) throws IOException
     {
-        return codeToGID(code) != 0;
-    }
-
-    @Override
-    public Path getNormalizedPath(int code) throws IOException {
         Path path = null;
         if (otf != null && otf.isPostScript())
         {
@@ -482,4 +487,34 @@ public class PDCIDFontType2 extends PDCIDFont
         Type2CharString type2CharString = cffFont.getType2CharString(gid);
         return type2CharString != null ? type2CharString.getPath() : null;
     }
+
+    @Override
+    public boolean hasGlyph(int code) throws IOException
+    {
+        return codeToGID(code) != 0;
+    }
+
+    private TTFParser getParser(RandomAccessRead randomAccessRead, boolean isEmbedded)
+            throws IOException
+    {
+        long startPos = randomAccessRead.getPosition();
+        byte[] tagBytes = new byte[4];
+        int remainingBytes = tagBytes.length;
+        int amountRead;
+        while ((amountRead = randomAccessRead.read(tagBytes, tagBytes.length - remainingBytes,
+                remainingBytes)) > 0)
+        {
+            remainingBytes -= amountRead;
+        }
+        randomAccessRead.seek(startPos);
+        if ("OTTO".equals(new String(tagBytes, StandardCharsets.US_ASCII)))
+        {
+            return new OTFParser(isEmbedded);
+        }
+        else
+        {
+            return new TTFParser(isEmbedded);
+        }
+    }
+
 }

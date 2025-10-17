@@ -18,6 +18,8 @@ package com.tom_roush.pdfbox.contentstream.operator.state;
 
 import java.util.List;
 import java.io.IOException;
+
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 
 import com.tom_roush.pdfbox.cos.COSBase;
@@ -34,6 +36,11 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
  */
 public class Concatenate extends OperatorProcessor
 {
+    public Concatenate(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
@@ -55,9 +62,9 @@ public class Concatenate extends OperatorProcessor
         COSNumber f = (COSNumber) arguments.get(5);
 
         Matrix matrix = new Matrix(a.floatValue(), b.floatValue(), c.floatValue(),
-            d.floatValue(), e.floatValue(), f.floatValue());
+                d.floatValue(), e.floatValue(), f.floatValue());
 
-        context.getGraphicsState().getCurrentTransformationMatrix().concatenate(matrix);
+        getContext().getGraphicsState().getCurrentTransformationMatrix().concatenate(matrix);
     }
 
     @Override

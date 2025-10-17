@@ -22,6 +22,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -35,6 +36,11 @@ import com.tom_roush.pdfbox.cos.COSNumber;
  */
 public class CurveTo extends GraphicsOperatorProcessor
 {
+    public CurveTo(PDFGraphicsStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> operands) throws IOException
     {
@@ -53,6 +59,7 @@ public class CurveTo extends GraphicsOperatorProcessor
         COSNumber x3 = (COSNumber)operands.get(4);
         COSNumber y3 = (COSNumber)operands.get(5);
 
+        PDFGraphicsStreamEngine context = getGraphicsContext();
         PointF point1 = context.transformedPoint(x1.floatValue(), y1.floatValue());
         PointF point2 = context.transformedPoint(x2.floatValue(), y2.floatValue());
         PointF point3 = context.transformedPoint(x3.floatValue(), y3.floatValue());
@@ -65,8 +72,8 @@ public class CurveTo extends GraphicsOperatorProcessor
         else
         {
             context.curveTo(point1.x, point1.y,
-                point2.x, point2.y,
-                point3.x, point3.y);
+                    point2.x, point2.y,
+                    point3.x, point3.y);
         }
     }
 

@@ -32,6 +32,7 @@ import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 
@@ -302,8 +303,8 @@ public class PDAcroFormTest
         assertNotNull(helv);
         assertNotNull(zadb);
         // make sure that font wasn't overwritten
-        assertNotEquals(PDType1Font.HELVETICA, helv);
-        assertNotEquals(PDType1Font.ZAPF_DINGBATS, zadb);
+        assertNotEquals(new PDType1Font(Standard14Fonts.FontName.HELVETICA), helv);
+        assertNotEquals(new PDType1Font(Standard14Fonts.FontName.ZAPF_DINGBATS), zadb);
         doc.close();
     }
 

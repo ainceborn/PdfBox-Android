@@ -46,9 +46,9 @@ public class VerticalOriginTable extends TTFTable
     private int defaultVertOriginY;
     private Map<Integer, Integer> origins;
 
-    VerticalOriginTable(TrueTypeFont font)
+    VerticalOriginTable()
     {
-        super(font);
+        super();
     }
 
     /**
@@ -64,7 +64,7 @@ public class VerticalOriginTable extends TTFTable
         version = data.read32Fixed();
         defaultVertOriginY = data.readSignedShort();
         int numVertOriginYMetrics = data.readUnsignedShort();
-        origins = new ConcurrentHashMap<Integer, Integer>(numVertOriginYMetrics);
+        origins = new ConcurrentHashMap<>(numVertOriginYMetrics);
         for (int i = 0; i < numVertOriginYMetrics; ++i)
         {
             int g = data.readUnsignedShort();
@@ -91,13 +91,6 @@ public class VerticalOriginTable extends TTFTable
      */
     public int getOriginY(int gid)
     {
-        if (origins.containsKey(gid))
-        {
-            return origins.get(gid);
-        }
-        else
-        {
-            return defaultVertOriginY;
-        }
+        return origins.getOrDefault(gid, defaultVertOriginY);
     }
 }

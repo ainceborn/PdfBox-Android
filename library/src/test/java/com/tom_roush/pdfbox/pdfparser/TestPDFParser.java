@@ -40,18 +40,21 @@ import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDDoc
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem;
 import com.tom_roush.pdfbox.rendering.PDFRenderer;
 import com.tom_roush.pdfbox.util.DateConverter;
+import com.tom_roush.tools.FileTools;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
+@RunWith(RobolectricTestRunner.class)
 public class TestPDFParser
 {
-    private static final File TARGETPDFDIR = new File("target/pdfs");
 
     @Test
     public void testPDFParserMissingCatalog() throws URISyntaxException
@@ -59,12 +62,11 @@ public class TestPDFParser
         // PDFBOX-3060
         try
         {
-            Loader.loadPDF(new File(TestPDFParser.class.getResource("MissingCatalog.pdf").toURI()))
-                    .close();
+            Loader.loadPDF(new File(TestPDFParser.class. getResource("/pdfbox/com/tom_roush/pdfbox/pdfparser/MissingCatalog.pdf").toURI())).close();
         }
         catch (Exception exception)
         {
-            fail("Unexpected Exception");
+            fail("Unexpected Exception: " + exception.getLocalizedMessage());
         }
     }
 
@@ -78,8 +80,8 @@ public class TestPDFParser
     @Test
     public void testPDFBox3208() throws IOException
     {
-        try (PDDocument doc = Loader
-                .loadPDF(new File(TARGETPDFDIR, "PDFBOX-3208-L33MUTT2SVCWGCS6UIYL5TH3PNPXHIS6.pdf")))
+        var pdfFile = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12784025/PDFBOX-3208-L33MUTT2SVCWGCS6UIYL5TH3PNPXHIS6.pdf", "PDFBOX-3208-L33MUTT2SVCWGCS6UIYL5TH3PNPXHIS6.pdf");
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             PDDocumentInformation di = doc.getDocumentInformation();
             assertEquals("Liquent Enterprise Services", di.getAuthor());
@@ -102,7 +104,11 @@ public class TestPDFParser
     @Test
     public void testPDFBox3940() throws IOException
     {
-        try (PDDocument doc = Loader.loadPDF(new File(TARGETPDFDIR, "PDFBOX-3940-079977.pdf")))
+        var url = "https://issues.apache.org/jira/secure/attachment/12888957/079977.pdf";
+        var fileName = "PDFBOX-3940-079977.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             PDDocumentInformation di = doc.getDocumentInformation();
             assertEquals("Unknown", di.getAuthor());
@@ -121,11 +127,10 @@ public class TestPDFParser
     @Test
     public void testPDFBox3783()
     {
+        var pdfFile = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12867102/PDFBOX-3783-72GLBIGUC6LB46ELZFBARRJTLN4RBSQM.pdf", "PDFBOX-3783-72GLBIGUC6LB46ELZFBARRJTLN4RBSQM.pdf");
         try
         {
-            Loader.loadPDF(
-                            new File(TARGETPDFDIR, "PDFBOX-3783-72GLBIGUC6LB46ELZFBARRJTLN4RBSQM.pdf"))
-                    .close();
+            Loader.loadPDF(pdfFile).close();
         }
         catch (Exception exception)
         {
@@ -143,7 +148,9 @@ public class TestPDFParser
     @Test
     public void testPDFBox3785() throws IOException
     {
-        try (PDDocument doc = Loader.loadPDF(new File(TARGETPDFDIR, "PDFBOX-3785-202097.pdf")))
+        var pdfFile = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12867113/202097.pdf", "PDFBOX-3785-202097.pdf");
+
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             assertEquals(11, doc.getNumberOfPages());
         }
@@ -155,9 +162,12 @@ public class TestPDFParser
     @Test
     public void testPDFBox3947()
     {
+        var url = "https://issues.apache.org/jira/secure/attachment/12890031/670064.pdf";
+        var fileName = "PDFBOX-3947-670064.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
         try
         {
-            Loader.loadPDF(new File(TARGETPDFDIR, "PDFBOX-3947-670064.pdf")).close();
+            Loader.loadPDF(pdfFile).close();
         }
         catch (Exception exception)
         {
@@ -171,11 +181,12 @@ public class TestPDFParser
     @Test
     public void testPDFBox3948()
     {
+        var url = "https://issues.apache.org/jira/secure/attachment/12890034/EUWO6SQS5TM4VGOMRD3FLXZHU35V2CP2.pdf";
+        var fileName = "PDFBOX-3948-EUWO6SQS5TM4VGOMRD3FLXZHU35V2CP2.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
         try
         {
-            Loader.loadPDF(
-                            new File(TARGETPDFDIR, "PDFBOX-3948-EUWO6SQS5TM4VGOMRD3FLXZHU35V2CP2.pdf"))
-                    .close();
+            Loader.loadPDF(pdfFile).close();
         }
         catch (Exception exception)
         {
@@ -189,11 +200,12 @@ public class TestPDFParser
     @Test
     public void testPDFBox3949()
     {
+        var url = "https://issues.apache.org/jira/secure/attachment/12890037/MKFYUGZWS3OPXLLVU2Z4LWCTVA5WNOGF.pdf";
+        var fileName = "PDFBOX-3949-MKFYUGZWS3OPXLLVU2Z4LWCTVA5WNOGF.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
         try
         {
-            Loader.loadPDF(
-                            new File(TARGETPDFDIR, "PDFBOX-3949-MKFYUGZWS3OPXLLVU2Z4LWCTVA5WNOGF.pdf"))
-                    .close();
+            Loader.loadPDF(pdfFile).close();
         }
         catch (Exception exception)
         {
@@ -209,8 +221,11 @@ public class TestPDFParser
     @Test
     public void testPDFBox3950() throws IOException
     {
-        try (PDDocument doc = Loader
-                .loadPDF(new File(TARGETPDFDIR, "PDFBOX-3950-23EGDHXSBBYQLKYOKGZUOVYVNE675PRD.pdf")))
+        var url = "https://issues.apache.org/jira/secure/attachment/12890042/23EGDHXSBBYQLKYOKGZUOVYVNE675PRD.pdf";
+        var fileName = "PDFBOX-3950-23EGDHXSBBYQLKYOKGZUOVYVNE675PRD.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             assertEquals(4, doc.getNumberOfPages());
             PDFRenderer renderer = new PDFRenderer(doc);
@@ -240,8 +255,11 @@ public class TestPDFParser
     @Test
     public void testPDFBox3951() throws IOException
     {
-        try (PDDocument doc = Loader
-                .loadPDF(new File(TARGETPDFDIR, "PDFBOX-3951-FIHUZWDDL2VGPOE34N6YHWSIGSH5LVGZ.pdf")))
+        var url = "https://issues.apache.org/jira/secure/attachment/12890047/FIHUZWDDL2VGPOE34N6YHWSIGSH5LVGZ.pdf";
+        var fileName = "PDFBOX-3951-FIHUZWDDL2VGPOE34N6YHWSIGSH5LVGZ.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             assertEquals(143, doc.getNumberOfPages());
         }
@@ -255,8 +273,11 @@ public class TestPDFParser
     @Test
     public void testPDFBox3964() throws IOException
     {
-        try (PDDocument doc = Loader
-                .loadPDF(new File(TARGETPDFDIR, "PDFBOX-3964-c687766d68ac766be3f02aaec5e0d713_2.pdf")))
+        var url = "https://issues.apache.org/jira/secure/attachment/12892097/c687766d68ac766be3f02aaec5e0d713_2.pdf";
+        var fileName = "PDFBOX-3964-c687766d68ac766be3f02aaec5e0d713_2.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             assertEquals(10, doc.getNumberOfPages());
         }
@@ -271,8 +292,11 @@ public class TestPDFParser
     @Test
     public void testPDFBox3977() throws IOException
     {
-        try (PDDocument doc = Loader
-                .loadPDF(new File(TARGETPDFDIR, "PDFBOX-3977-63NGFQRI44HQNPIPEJH5W2TBM6DJZWMI.pdf")))
+        var url = "https://issues.apache.org/jira/secure/attachment/12893582/63NGFQRI44HQNPIPEJH5W2TBM6DJZWMI.pdf";
+        var fileName = "PDFBOX-3977-63NGFQRI44HQNPIPEJH5W2TBM6DJZWMI.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             PDDocumentInformation di = doc.getDocumentInformation();
             assertEquals("QuarkXPress(tm) 6.52", di.getCreator());
@@ -289,9 +313,13 @@ public class TestPDFParser
     @Test
     public void testParseGenko()
     {
+        var url = "https://issues.apache.org/jira/secure/attachment/12867433/genko_oc_shiryo1.pdf";
+        var fileName = "genko_oc_shiryo1.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
         try
         {
-            Loader.loadPDF(new File(TARGETPDFDIR, "genko_oc_shiryo1.pdf")).close();
+            Loader.loadPDF(pdfFile).close();
         }
         catch (Exception exception)
         {
@@ -306,9 +334,13 @@ public class TestPDFParser
     @Test
     public void testPDFBox4338()
     {
+        var url = "https://issues.apache.org/jira/secure/attachment/12943502/ArrayIndexOutOfBoundsException%20COSParser";
+        var fileName = "PDFBOX-4338.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
         try
         {
-            Loader.loadPDF(new File(TARGETPDFDIR, "PDFBOX-4338.pdf")).close();
+            Loader.loadPDF(pdfFile).close();
         }
         catch (Exception exception)
         {
@@ -323,9 +355,13 @@ public class TestPDFParser
     @Test
     public void testPDFBox4339()
     {
+        var url = "https://issues.apache.org/jira/secure/attachment/12943503/NullPointerException%20COSParser";
+        var fileName = "PDFBOX-4339.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
         try
         {
-            Loader.loadPDF(new File(TARGETPDFDIR, "PDFBOX-4339.pdf")).close();
+            Loader.loadPDF(pdfFile).close();
         }
         catch (Exception exception)
         {
@@ -342,7 +378,11 @@ public class TestPDFParser
     @Test
     public void testPDFBox4153() throws IOException
     {
-        try (PDDocument doc = Loader.loadPDF(new File(TARGETPDFDIR, "PDFBOX-4153-WXMDXCYRWFDCMOSFQJ5OAJIAFXYRZ5OA.pdf")))
+        var url = "https://issues.apache.org/jira/secure/attachment/12914331/WXMDXCYRWFDCMOSFQJ5OAJIAFXYRZ5OA.pdf";
+        var fileName = "PDFBOX-4153-WXMDXCYRWFDCMOSFQJ5OAJIAFXYRZ5OA.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             PDDocumentOutline documentOutline = doc.getDocumentCatalog().getDocumentOutline();
             PDOutlineItem firstChild = documentOutline.getFirstChild();
@@ -358,7 +398,11 @@ public class TestPDFParser
     @Test
     public void testPDFBox4490() throws IOException
     {
-        try (PDDocument doc = Loader.loadPDF(new File(TARGETPDFDIR, "PDFBOX-4490.pdf")))
+        var url = "https://issues.apache.org/jira/secure/attachment/12962991/NeS1078.pdf";
+        var fileName = "PDFBOX-4490.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             assertEquals(3, doc.getNumberOfPages());
         }
@@ -372,7 +416,11 @@ public class TestPDFParser
     @Test
     public void testPDFBox5025() throws IOException
     {
-        try (PDDocument doc = Loader.loadPDF(new File(TARGETPDFDIR, "PDFBOX-5025.pdf")))
+        var url = "https://issues.apache.org/jira/secure/attachment/13015946/issue3323.pdf";
+        var fileName = "PDFBOX-5025.pdf";
+        var pdfFile = FileTools.getInternetFile(url, fileName);
+
+        try (PDDocument doc = Loader.loadPDF(pdfFile))
         {
             assertEquals(1, doc.getNumberOfPages());
             PDFont font = doc.getPage(0).getResources().getFont(COSName.getPDFName("F1"));

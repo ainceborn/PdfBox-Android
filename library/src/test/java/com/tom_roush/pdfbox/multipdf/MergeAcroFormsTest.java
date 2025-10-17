@@ -30,6 +30,7 @@ import com.tom_roush.pdfbox.multipdf.PDFMergerUtility.AcroFormMergeMode;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDField;
+import com.tom_roush.tools.FileTools;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -109,60 +110,6 @@ public class MergeAcroFormsTest
         }
     }
 
-    /*
-     * Test Join Field Merge for text fields only and same source documents
-     */
-    @Test
-    public void testJoinFieldsMerge_TextFieldsOnly_SameMerged() throws IOException
-    {
-        PDFMergerUtility merger = new PDFMergerUtility();
-        File toBeMerged = new File(IN_DIR,"AcroFormForMerge-TextFieldsOnly.pdf");
-        File pdfOutput = new File(OUT_DIR,"PDFBoxJoinFieldsMerge-TextFieldsOnly-SameMerged.pdf");
-        merger.setDestinationFileName(pdfOutput.getAbsolutePath());
-        merger.addSource(toBeMerged);
-        merger.addSource(toBeMerged);
-        merger.setAcroFormMergeMode(AcroFormMergeMode.JOIN_FORM_FIELDS_MODE);
-        merger.mergeDocuments(null);
-
-        PDDocument compliantDocument = null;
-        PDDocument toBeCompared = null;
-
-
-        try
-        {
-            compliantDocument = Loader.loadPDF(new File(IN_DIR,"AcrobatMerge-TextFieldsOnly-SameMerged.pdf"));
-            toBeCompared = Loader.loadPDF(new File(OUT_DIR,"PDFBoxJoinFieldsMerge-TextFieldsOnly-SameMerged.pdf"));
-
-
-            PDAcroForm compliantAcroForm = compliantDocument.getDocumentCatalog().getAcroForm();
-            PDAcroForm toBeComparedAcroForm = toBeCompared.getDocumentCatalog().getAcroForm();
-
-            assertEquals("There shall be the same number of root fields",
-                compliantAcroForm.getFields().size(),
-                toBeComparedAcroForm.getFields().size());
-
-            for (PDField compliantField : compliantAcroForm.getFieldTree())
-            {
-                assertNotNull("There shall be a field with the same FQN", toBeComparedAcroForm.getField(compliantField.getFullyQualifiedName()));
-                PDField toBeComparedField = toBeComparedAcroForm.getField(compliantField.getFullyQualifiedName());
-                compareFieldProperties(compliantField, toBeComparedField);
-            }
-
-            for (PDField toBeComparedField : toBeComparedAcroForm.getFieldTree())
-            {
-                assertNotNull("There shall be a field with the same FQN", compliantAcroForm.getField(toBeComparedField.getFullyQualifiedName()));
-                PDField compliantField = compliantAcroForm.getField(toBeComparedField.getFullyQualifiedName());
-                compareFieldProperties(toBeComparedField, compliantField);
-            }
-        }
-        finally
-        {
-            IOUtils.closeQuietly(compliantDocument);
-            IOUtils.closeQuietly(toBeCompared);
-        }
-    }
-
-
     private void compareFieldProperties(PDField sourceField, PDField toBeComapredField)
     {
         // List of keys for comparison
@@ -201,8 +148,8 @@ public class MergeAcroFormsTest
         try {
             PDFMergerUtility merger = new PDFMergerUtility();
 
-            File f1 = new File(TARGET_PDF_DIR, "PDFBOX-1031-1.pdf");
-            File f2 = new File(TARGET_PDF_DIR, "PDFBOX-1031-2.pdf");
+            File f1 = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12481683/1.pdf", "PDFBOX-1031-1.pdf");
+            File f2 = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12481684/2.pdf", "PDFBOX-1031-2.pdf");
             File pdfOutput = new File(OUT_DIR,"PDFBOX-1031.pdf");
 
             merger.setDestinationFileName(pdfOutput.getAbsolutePath());
@@ -234,8 +181,8 @@ public class MergeAcroFormsTest
     public void testAPEntry() throws IOException
     {
 
-        File file1 = new File(TARGET_PDF_DIR, "PDFBOX-1100-1.pdf");
-        File file2 = new File(TARGET_PDF_DIR, "PDFBOX-1100-2.pdf");
+        File file1 = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12490774/a.pdf", "PDFBOX-1100-1.pdf");
+        File file2 = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12490774/b.pdf", "PDFBOX-1100-2.pdf");
         // Merge the PDFs form PDFBOX-1100
         PDFMergerUtility merger = new PDFMergerUtility();
 

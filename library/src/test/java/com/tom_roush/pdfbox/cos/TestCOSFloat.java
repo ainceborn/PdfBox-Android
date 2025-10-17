@@ -14,27 +14,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+//fix all code issue to let it work with android junit4
 package com.tom_roush.pdfbox.cos;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.Random;
 
 import com.tom_roush.pdfbox.pdfwriter.COSWriter;
 
+import org.junit.Test;
+import org.junit.Before;
 import org.junit.Assert;
-
-import junit.framework.Test;
-import junit.framework.TestSuite;
-
 /**
  * Tests {@link COSFloat}.
  */
 public class TestCOSFloat extends TestCOSNumber
 {
-    @Override
+    @Before
     public void setUp()
     {
         try
@@ -90,7 +89,7 @@ public class TestCOSFloat extends TestCOSNumber
                 }
                 catch (AssertionError a)
                 {
-                    fail("num = " + num + ", seed = " + seed);
+                    fail("num = " + num + ", seed = " + seed + ", message: " + a.getMessage());
                 }
             }
         }
@@ -104,27 +103,28 @@ public class TestCOSFloat extends TestCOSNumber
      * These are tested over a range of arbitrary values to ensure Consistency,
      * Reflexivity, Symmetry, Transitivity and non-nullity.
      */
+    @Test
     public void testEquals()
     {
         new BaseTester()
         {
             @Override
+            @SuppressWarnings({"java:S5863"}) // don't flag tests for reflexivity
             void runTest(float num)
             {
-                @SuppressWarnings({"java:S5863"}) // don't flag tests for reflexivity
 
                 COSFloat test1 = new COSFloat(num);
                 COSFloat test2 = new COSFloat(num);
                 COSFloat test3 = new COSFloat(num);
                 // Reflexive (x == x)
-                Assert.assertEquals(test1, test1);
+                assertEquals(test1, test1);
                 // Symmetric is preserved ( x==y then y==x)
-                Assert.assertEquals(test2, test3);
-                Assert.assertEquals(test1, test2);
+                assertEquals(test2, test3);
+                assertEquals(test3, test2);
                 // Transitive (if x==y && y==z then x==z)
-                Assert.assertEquals(test1, test2);
-                Assert.assertEquals(test2, test3);
-                Assert.assertEquals(test1, test3);
+                assertEquals(test1, test2);
+                assertEquals(test2, test3);
+                assertEquals(test1, test3);
 
                 float nf = Float.intBitsToFloat(Float.floatToIntBits(num) + 1);
                 COSFloat test4 = new COSFloat(nf);
@@ -141,7 +141,7 @@ public class TestCOSFloat extends TestCOSNumber
         {
             COSFloat test1 = new COSFloat(num);
             COSFloat test2 = new COSFloat(num);
-            Assert.assertEquals(test1.hashCode(), test2.hashCode());
+            assertEquals(test1.hashCode(), test2.hashCode());
 
             float nf = Float.intBitsToFloat(Float.floatToIntBits(num) + 1);
             COSFloat test3 = new COSFloat(nf);
@@ -153,6 +153,7 @@ public class TestCOSFloat extends TestCOSNumber
      * Tests hashCode() - ensures that the Object.hashCode() contract is obeyed
      * over a range of arbitrary values.
      */
+    @Test
     public void testHashCode()
     {
         new HashCodeTester().runTests();
@@ -171,6 +172,7 @@ public class TestCOSFloat extends TestCOSNumber
     }
 
     @Override
+    @Test
     public void testFloatValue()
     {
         new FloatValueTester().runTests();
@@ -183,16 +185,15 @@ public class TestCOSFloat extends TestCOSNumber
         void runTest(float num)
         {
             COSFloat testFloat = new COSFloat(num);
-            // compare the string representation instead of the numeric values 
+            // compare the string representation instead of the numeric values
             // as the cast from float to double adds some more fraction digits
-            Assert.assertEquals(Float.toString(num),testFloat.floatValue());
+            Assert.assertEquals(Float.toString(num), Float.toString(testFloat.floatValue()));
         }
 
     }
 
     @Override
-    public void testDoubleValue()
-    {
+    public void testDoubleValue() {
         new DoubleValueTester().runTests();
     }
 
@@ -203,72 +204,13 @@ public class TestCOSFloat extends TestCOSNumber
         void runTest(float num)
         {
             COSFloat testFloat = new COSFloat(num);
-            Assert.assertEquals((int) num, testFloat.intValue());
+            assertEquals((int) num, testFloat.intValue());
         }
 
     }
 
-    public void testVerySmallValues() throws IOException
-    {
-        double smallValue = Float.MIN_VALUE / 10d;
-
-        assertEquals("Test must be performed with a value smaller than Float.MIN_VALUE.", -1,
-            Double.compare(smallValue, Float.MIN_VALUE));
-
-        // 1.4012984643248171E-46
-        String asString = String.valueOf(smallValue);
-        COSFloat cosFloat = new COSFloat(asString);
-        assertEquals(0.0f, cosFloat.floatValue());
-
-        // 0.00000000000000000000000000000000000000000000014012984643248171
-        asString = new BigDecimal(asString).toPlainString();
-        cosFloat = new COSFloat(asString);
-        assertEquals(0.0f, cosFloat.floatValue());
-
-        smallValue *= -1;
-
-        // -1.4012984643248171E-46
-        asString = String.valueOf(smallValue);
-        cosFloat = new COSFloat(asString);
-        assertEquals(0.0f, cosFloat.floatValue());
-
-        // -0.00000000000000000000000000000000000000000000014012984643248171
-        asString = new BigDecimal(asString).toPlainString();
-        cosFloat = new COSFloat(asString);
-        assertEquals(0.0f, cosFloat.floatValue());
-    }
-
-    public void testVeryLargeValues() throws IOException
-    {
-        double largeValue = Float.MAX_VALUE * 10d;
-
-        assertEquals("Test must be performed with a value larger than Float.MAX_VALUE.", 1,
-            Double.compare(largeValue, Float.MIN_VALUE));
-
-        // 1.4012984643248171E-46
-        String asString = String.valueOf(largeValue);
-        COSFloat cosFloat = new COSFloat(asString);
-        assertEquals(Float.MAX_VALUE, cosFloat.floatValue());
-
-        // 0.00000000000000000000000000000000000000000000014012984643248171
-        asString = new BigDecimal(asString).toPlainString();
-        cosFloat = new COSFloat(asString);
-        assertEquals(Float.MAX_VALUE, cosFloat.floatValue());
-
-        largeValue *= -1;
-
-        // -1.4012984643248171E-46
-        asString = String.valueOf(largeValue);
-        cosFloat = new COSFloat(asString);
-        assertEquals(-Float.MAX_VALUE, cosFloat.floatValue());
-
-        // -0.00000000000000000000000000000000000000000000014012984643248171
-        asString = new BigDecimal(asString).toPlainString();
-        cosFloat = new COSFloat(asString);
-        assertEquals(-Float.MAX_VALUE, cosFloat.floatValue());
-    }
-
     @Override
+    @Test
     public void testIntValue()
     {
         new IntValueTester().runTests();
@@ -281,12 +223,13 @@ public class TestCOSFloat extends TestCOSNumber
         void runTest(float num)
         {
             COSFloat testFloat = new COSFloat(num);
-            Assert.assertEquals((long) num, testFloat.longValue());
+            assertEquals((long) num, testFloat.longValue());
         }
 
     }
 
     @Override
+    @Test
     public void testLongValue()
     {
         new LongValueTester().runTests();
@@ -294,8 +237,8 @@ public class TestCOSFloat extends TestCOSNumber
 
     class AcceptTester extends BaseTester
     {
-        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-        COSWriter visitor = new COSWriter(outStream);
+        final ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+        final COSWriter visitor = new COSWriter(outStream);
 
         @Override
         void runTest(float num)
@@ -304,8 +247,8 @@ public class TestCOSFloat extends TestCOSNumber
             {
                 COSFloat cosFloat = new COSFloat(num);
                 cosFloat.accept(visitor);
-                Assert.assertEquals(floatToString(cosFloat.floatValue()), outStream.toString("ISO-8859-1"));
-                testByteArrays(floatToString(num).getBytes("ISO-8859-1"), outStream.toByteArray());
+                assertEquals(floatToString(cosFloat.floatValue()), outStream.toString("ISO-8859-1"));
+                testByteArrays(floatToString(num).getBytes(StandardCharsets.ISO_8859_1), outStream.toByteArray());
                 outStream.reset();
             }
             catch (IOException e)
@@ -317,6 +260,7 @@ public class TestCOSFloat extends TestCOSNumber
     }
 
     @Override
+    @Test
     public void testAccept()
     {
         new AcceptTester().runTests();
@@ -324,7 +268,7 @@ public class TestCOSFloat extends TestCOSNumber
 
     class WritePDFTester extends BaseTester
     {
-        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+        final ByteArrayOutputStream outStream = new ByteArrayOutputStream();
 
         WritePDFTester()
         {
@@ -338,9 +282,17 @@ public class TestCOSFloat extends TestCOSNumber
             {
                 COSFloat cosFloat = new COSFloat(num);
                 cosFloat.writePDF(outStream);
-                Assert.assertEquals(floatToString(cosFloat.floatValue()), outStream.toString("ISO-8859-1"));
-                Assert.assertEquals(floatToString(num), outStream.toString("ISO-8859-1"));
-                testByteArrays(floatToString(num).getBytes("ISO-8859-1"), outStream.toByteArray());
+
+                String expected = floatToString(cosFloat.floatValue());
+                assertEquals(expected, outStream.toString("ISO-8859-1"));
+                assertEquals("COSFloat{" + expected + "}", cosFloat.toString());
+
+                expected = floatToString(num);
+                assertEquals(expected, outStream.toString("ISO-8859-1"));
+                assertEquals("COSFloat{" + expected + "}", cosFloat.toString());
+                testByteArrays(expected.getBytes(StandardCharsets.ISO_8859_1),
+                        outStream.toByteArray());
+
                 outStream.reset();
             }
             catch (IOException e)
@@ -355,6 +307,7 @@ public class TestCOSFloat extends TestCOSNumber
      * Tests writePDF() - this method takes an {@link java.io.OutputStream} and writes
      * this object to it.
      */
+    @Test
     public void testWritePDF()
     {
         WritePDFTester writePDFTester = new WritePDFTester();
@@ -364,16 +317,125 @@ public class TestCOSFloat extends TestCOSNumber
         writePDFTester.runTest(0.000000000000000000000000000000001f);
     }
 
+    @Test
     public void testDoubleNegative() throws IOException
     {
         // PDFBOX-4289
         COSFloat cosFloat = new COSFloat("--16.33");
-        assertEquals(-16.33f, cosFloat.floatValue());
+        Assert.assertEquals(-16.33f, cosFloat.floatValue(), 0.0f);
+    }
+
+    @Test
+    public void testVerySmallValues() throws IOException
+    {
+        double smallValue = Float.MIN_VALUE / 10d;
+
+        Assert.assertEquals(-1, Double.compare(smallValue, Float.MIN_VALUE));
+
+        // 1.4012984643248171E-46
+        String asString = String.valueOf(smallValue);
+        COSFloat cosFloat = new COSFloat(asString);
+        Assert.assertEquals(0.0f, cosFloat.floatValue(), 0.0f);
+
+        // 0.00000000000000000000000000000000000000000000014012984643248171
+        asString = new BigDecimal(asString).toPlainString();
+        cosFloat = new COSFloat(asString);
+        Assert.assertEquals(0.0f, cosFloat.floatValue(), 0.0f);
+
+        smallValue *= -1;
+
+        // -1.4012984643248171E-46
+        asString = String.valueOf(smallValue);
+        cosFloat = new COSFloat(asString);
+        Assert.assertEquals(0.0f, cosFloat.floatValue(), 0.0f);
+
+        // -0.00000000000000000000000000000000000000000000014012984643248171
+        asString = new BigDecimal(asString).toPlainString();
+        cosFloat = new COSFloat(asString);
+        Assert.assertEquals(0.0f, cosFloat.floatValue(), 0.0f);
+    }
+
+    @Test
+    public void testVeryLargeValues() throws IOException
+    {
+        double largeValue = Float.MAX_VALUE * 10d;
+
+        Assert.assertEquals(1, Double.compare(largeValue, Float.MAX_VALUE));
+
+        // 1.4012984643248171E-46
+        String asString = String.valueOf(largeValue);
+        COSFloat cosFloat = new COSFloat(asString);
+        Assert.assertEquals(Float.MAX_VALUE, cosFloat.floatValue(), 0.0f);
+
+        // 0.00000000000000000000000000000000000000000000014012984643248171
+        asString = new BigDecimal(asString).toPlainString();
+        cosFloat = new COSFloat(asString);
+        Assert.assertEquals(Float.MAX_VALUE, cosFloat.floatValue(), 0.0f);
+
+        largeValue *= -1;
+
+        // -1.4012984643248171E-46
+        asString = String.valueOf(largeValue);
+        cosFloat = new COSFloat(asString);
+        Assert.assertEquals(-Float.MAX_VALUE, cosFloat.floatValue(), 0.0f);
+
+        // -0.00000000000000000000000000000000000000000000014012984643248171
+        asString = new BigDecimal(asString).toPlainString();
+        cosFloat = new COSFloat(asString);
+        Assert.assertEquals(-Float.MAX_VALUE, cosFloat.floatValue(), 0.0f);
+    }
+
+    @Test
+    public void testMisplacedNegative() throws IOException
+    {
+        // PDFBOX-2990, PDFBOX-3369 have 0.00000-33917698
+        // PDFBOX-3500 has 0.-262
+
+        COSFloat cosFloat = new COSFloat("0.00000-33917698");
+        Assert.assertEquals(new COSFloat("-0.0000033917698"), cosFloat);
+
+        cosFloat = new COSFloat("0.-262");
+        Assert.assertEquals(new COSFloat("-0.262"), cosFloat);
+
+        cosFloat = new COSFloat("-0.-262");
+        Assert.assertEquals(new COSFloat("-0.262"), cosFloat);
+
+        cosFloat = new COSFloat("-12.-1");
+        Assert.assertEquals(new COSFloat("-12.1"), cosFloat);
+    }
+
+    @Test
+    public void testDuplicateMisplacedNegative()
+    {
+        try {
+            new COSFloat("0.-26-2");
+            Assert.fail();
+        } catch (IOException ignored) {}
+
+        try {
+            new COSFloat("---0.262");
+            Assert.fail();
+        } catch (IOException ignored) {}
+
+        try {
+            new COSFloat("--0.2-62");
+            Assert.fail();
+        } catch (IOException ignored) {}
+    }
+
+    @Test
+    public void testStubOperatorMinMaxValues()
+    {
+        float largeValue = 32768f;
+        float largeNegativeValue = -32768f;
+
+        Assert.assertEquals(largeValue, new COSFloat(largeValue).floatValue(), 0.0f);
+        Assert.assertEquals(largeNegativeValue, new COSFloat(largeNegativeValue).floatValue(), 0.0f);
     }
 
     private String floatToString(float value)
     {
-        // use a BigDecimal as intermediate state to avoid 
+        // use a BigDecimal as intermediate state to avoid
         // a floating point string representation of the float value
         return removeTrailingNull(new BigDecimal(String.valueOf(value)).toPlainString());
     }
@@ -391,13 +453,4 @@ public class TestCOSFloat extends TestCOSNumber
         return value;
     }
 
-    /**
-     * This will get the suite of test that this class holds.
-     *
-     * @return All of the tests that this class holds.
-     */
-    public static Test suite()
-    {
-        return new TestSuite(TestCOSFloat.class);
-    }
 }

@@ -16,6 +16,7 @@
  */
 package com.tom_roush.pdfbox.cos;
 
+import android.os.Build;
 import android.util.Log;
 
 import java.io.IOException;
@@ -1377,7 +1378,12 @@ public class COSDictionary extends COSBase implements COSUpdateInfo
             {
                 try (InputStream stream = ((COSStream) base).createRawInputStream())
                 {
-                    byte[] b = stream.readAllBytes();
+                    byte[] b;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        b = stream.readAllBytes();
+                    } else  {
+                        b = IOUtils.readBytesCompat(stream);
+                    }
                     sb.append("COSStream{").append(Arrays.hashCode(b)).append("}");
                 }
             }

@@ -15,6 +15,8 @@
  */
 package com.tom_roush.pdfbox.pdmodel.common;
 
+import static org.junit.Assert.assertTrue;
+
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -41,7 +43,9 @@ public class PDStreamTest
         PDDocument doc = new PDDocument();
         InputStream is = new ByteArrayInputStream(new byte[] { 12, 34, 56, 78 });
         PDStream pdStream = new PDStream(doc, is, (COSArray) null);
-        Assert.assertNull(pdStream.getFilters());
+
+        assertTrue(pdStream.getFilters().isEmpty());
+
         List<String> stopFilters = new ArrayList<String>();
         stopFilters.add(COSName.DCT_DECODE.toString());
         stopFilters.add(COSName.DCT_DECODE_ABBREVIATION.toString());

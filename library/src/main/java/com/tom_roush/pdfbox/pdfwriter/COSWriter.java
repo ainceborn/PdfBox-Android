@@ -16,6 +16,7 @@
  */
 package com.tom_roush.pdfbox.pdfwriter;
 
+import android.os.Build;
 import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
@@ -60,6 +61,7 @@ import  com.tom_roush.pdfbox.cos.COSString;
 import  com.tom_roush.pdfbox.cos.COSUpdateInfo;
 import  com.tom_roush.pdfbox.cos.ICOSVisitor;
 
+import com.tom_roush.pdfbox.io.IOUtils;
 import  com.tom_roush.pdfbox.io.RandomAccessInputStream;
 import  com.tom_roush.pdfbox.io.RandomAccessRead;
 import  com.tom_roush.pdfbox.pdfparser.PDFXRefStream;
@@ -857,7 +859,11 @@ public class COSWriter implements ICOSVisitor
         // write existing PDF
         try (InputStream input = new RandomAccessInputStream(incrementalInput))
         {
-            input.transferTo(incrementalOutput);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                input.transferTo(incrementalOutput);
+            } else {
+                IOUtils.copy(input, incrementalOutput);
+            }
             // write the actual incremental update
             incrementalOutput.write(((ByteArrayOutputStream) output).toByteArray());
         }
@@ -981,7 +987,11 @@ public class COSWriter implements ICOSVisitor
 
         // write the data to the incremental output stream
         InputStream input = new RandomAccessInputStream(incrementalInput);
-        input.transferTo(incrementalOutput);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            input.transferTo(incrementalOutput);
+        } else {
+            IOUtils.copy(input, incrementalOutput);
+        }
         incrementalOutput.write(incrementPart);
 
         // prevent further use
@@ -1414,7 +1424,11 @@ public class COSWriter implements ICOSVisitor
             if (obj.hasData())
             {
                 input = obj.createRawInputStream();
-                input.transferTo(getStandardOutput());
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    input.transferTo(getStandardOutput());
+                } else {
+                    IOUtils.copy(input, getStandardOutput());
+                }
             }
             getStandardOutput().writeCRLF();
             getStandardOutput().write(ENDSTREAM);

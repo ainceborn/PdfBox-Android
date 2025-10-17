@@ -30,6 +30,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.Writer;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -37,16 +38,22 @@ import java.util.List;
 import com.tom_roush.fontbox.util.BoundingBox;
 import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
+import com.tom_roush.pdfbox.pdmodel.PDPage;
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
 import com.tom_roush.pdfbox.pdmodel.TestPDPageTree;
+import com.tom_roush.pdfbox.pdmodel.fdf.FDFAnnotationTest;
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
 import com.tom_roush.pdfbox.pdmodel.font.PDFontDescriptor;
+import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
 import com.tom_roush.pdfbox.pdmodel.font.PDType3Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageDestination;
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDDocumentOutline;
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import difflib.ChangeDelta;
@@ -57,6 +64,7 @@ import difflib.Patch;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -109,29 +117,27 @@ import static org.junit.Assert.fail;
 public class TestTextStripper
 {
 
+    /**
+     * Logger instance.
+     */
+
     private boolean bFail = false;
-    private PDFTextStripper stripper = null;
+    private static PDFTextStripper stripper;
     private static final String ENCODING = "UTF-8";
 
     /**
-     * Test suite setup.
+     * Test class initialization.
+     *
+     * @throws IOException If there is an error initializing the test.
      */
-    @Before
-    public void setUp()
+    @BeforeClass
+    public static void init() throws IOException
     {
-        try
-        {
-            stripper = new PDFTextStripper();
-            stripper.setLineSeparator("\n");
-        }
-        catch (IOException e)
-        {
-            e.printStackTrace();
-        }
+        stripper = new PDFTextStripper();
+        stripper.setLineSeparator("\n");
         // If you want to test a single file using DEBUG logging, from an IDE,
         // you can do something like this:
-        //
-        // System.setProperty("com.tom_roush.pdfbox.util.TextStripper.file", "FVS318Ref.pdf");
+        // System.setProperty("org.apache.pdfbox.util.TextStripper.file", "FVS318Ref.pdf");
     }
 
     /**
@@ -164,8 +170,8 @@ public class TestTextStripper
                 {
                     equals = false;
                     System.out.println("Lines differ at index"
-                        + " expected:" + expectedIndex + "-" + (int)expectedArray[expectedIndex]
-                        + " actual:" + actualIndex + "-" + (int)actualArray[actualIndex] );
+                            + " expected:" + expectedIndex + "-" + (int)expectedArray[expectedIndex]
+                            + " actual:" + actualIndex + "-" + (int)actualArray[actualIndex] );
                     break;
                 }
                 expectedIndex = skipWhitespace( expectedArray, expectedIndex );
@@ -194,8 +200,8 @@ public class TestTextStripper
         }
         else
         {
-            equals = (expected == null && actual != null && actual.trim().isEmpty())
-                || (actual == null && expected != null && expected.trim().isEmpty());
+            equals = (expected == null && actual != null && actual.isBlank())
+                    || (actual == null && expected != null && expected.isBlank());
         }
         return equals;
     }
@@ -226,10 +232,10 @@ public class TestTextStripper
      * @param outDir The directory to store the output in
      * @param bLogResult Whether to log the extracted text
      * @param bSort Whether or not the extracted text is sorted
-     * @throws Exception when there is an exception
+     * @throws IOException when there is an exception
      */
-    public void doTestFile(File inFile, File outDir, boolean bLogResult, boolean bSort)
-        throws Exception
+    private void doTestFile(File inFile, File outDir, boolean bLogResult, boolean bSort)
+            throws IOException
     {
         if(bSort)
         {
@@ -240,16 +246,9 @@ public class TestTextStripper
             System.out.println("Preparing to parse " + inFile.getName() + " for standard test");
         }
 
-        if (!outDir.exists())
-        {
-            if (!outDir.mkdirs())
-            {
-                throw (new Exception("Error creating " + outDir.getAbsolutePath() + " directory"));
-            }
-        }
+        Files.createDirectories(outDir.toPath());
 
-        PDDocument document = Loader.loadPDF(inFile);
-        try
+        try (PDDocument document = Loader.loadPDF(inFile))
         {
             File outFile;
             File diffFile;
@@ -271,29 +270,19 @@ public class TestTextStripper
             // delete possible leftover
             diffFile.delete();
 
-            OutputStream os = new FileOutputStream(outFile);
-            try
+            try (OutputStream os = new FileOutputStream(outFile))
             {
                 os.write (0xEF);
                 os.write (0xBB);
                 os.write (0xBF);
 
-                Writer writer = new BufferedWriter(new OutputStreamWriter(os, ENCODING));
-                try
+                try (Writer writer = new BufferedWriter(new OutputStreamWriter(os, ENCODING)))
                 {
-                    //Allows for sorted tests 
+                    //Allows for sorted tests
                     stripper.setSortByPosition(bSort);
                     stripper.writeText(document, writer);
-                }
-                finally
-                {
                     // close the written file before reading it again
-                    writer.close();
                 }
-            }
-            finally
-            {
-                os.close();
             }
 
             if (bLogResult)
@@ -309,59 +298,52 @@ public class TestTextStripper
                     " did not exist");
                 return;
             }
-
             compareResult(expectedFile, outFile, inFile, bSort, diffFile);
-        }
-        finally
-        {
-            document.close();
         }
     }
 
     private void compareResult(File expectedFile, File outFile, File inFile, boolean bSort, File diffFile)
-        throws IOException
+            throws IOException
     {
         boolean localFail = false;
 
-        LineNumberReader expectedReader =
-            new LineNumberReader(new InputStreamReader(new FileInputStream(expectedFile), ENCODING));
-        LineNumberReader actualReader =
-            new LineNumberReader(new InputStreamReader(new FileInputStream(outFile), ENCODING));
-
-        while (true)
+        try (LineNumberReader expectedReader =
+                     new LineNumberReader(new InputStreamReader(new FileInputStream(expectedFile), ENCODING));
+             LineNumberReader actualReader =
+                     new LineNumberReader(new InputStreamReader(new FileInputStream(outFile), ENCODING)))
         {
-            String expectedLine = expectedReader.readLine();
-            while( expectedLine != null && expectedLine.trim().length() == 0 )
+            while (true)
             {
-                expectedLine = expectedReader.readLine();
-            }
-            String actualLine = actualReader.readLine();
-            while( actualLine != null && actualLine.trim().length() == 0 )
-            {
-                actualLine = actualReader.readLine();
-            }
-            if (!stringsEqual(expectedLine, actualLine))
-            {
-                this.bFail = true;
-                localFail = true;
-                System.out.println("FAILURE: Line mismatch for file " + inFile.getName() +
-                    " (sort = "+bSort+")" +
-                    " at expected line: " + expectedReader.getLineNumber() +
-                    " at actual line: " + actualReader.getLineNumber() +
-                    "\nexpected line was: \"" + expectedLine + "\"" +
-                    "\nactual line was:   \"" + actualLine + "\"" + "\n");
+                String expectedLine = expectedReader.readLine();
+                while (expectedLine != null && expectedLine.isBlank())
+                {
+                    expectedLine = expectedReader.readLine();
+                }
+                String actualLine = actualReader.readLine();
+                while (actualLine != null && actualLine.isBlank())
+                {
+                    actualLine = actualReader.readLine();
+                }
+                if (!stringsEqual(expectedLine, actualLine))
+                {
+                    this.bFail = true;
+                    localFail = true;
+                    System.out.println("FAILURE: Line mismatch for file " + inFile.getName() +
+                            " (sort = "+bSort+")" +
+                            " at expected line: " + expectedReader.getLineNumber() +
+                            " at actual line: " + actualReader.getLineNumber() +
+                            "\nexpected line was: \"" + expectedLine + "\"" +
+                            "\nactual line was:   \"" + actualLine + "\"" + "\n");
+                    //lets report all lines, even though this might produce some verbose logging
+                    //break;
+                }
 
-                //lets report all lines, even though this might produce some verbose logging
-                //break;
-            }
-
-            if (expectedLine == null || actualLine == null)
-            {
-                break;
+                if (expectedLine == null || actualLine == null)
+                {
+                    break;
+                }
             }
         }
-        expectedReader.close();
-        actualReader.close();
         if (!localFail)
         {
             outFile.delete();
@@ -373,53 +355,55 @@ public class TestTextStripper
             List<String> revised = fileToLines(outFile);
 
             // Compute diff. Get the Patch object. Patch is the container for computed deltas.
-            Patch patch = DiffUtils.diff(original, revised);
+            Patch<String> patch = DiffUtils.diff(original, revised);
 
-            PrintStream diffPS = new PrintStream(diffFile, ENCODING);
-            for (Object delta : patch.getDeltas())
+            try (PrintStream diffPS = new PrintStream(diffFile, ENCODING))
             {
-                if (delta instanceof ChangeDelta)
+                patch.getDeltas().forEach(delta ->
                 {
-                    ChangeDelta<String> cdelta = (ChangeDelta<String>) delta;
-                    diffPS.println("Org: " + cdelta.getOriginal());
-                    diffPS.println("New: " + cdelta.getRevised());
-                    diffPS.println();
-                }
-                else if (delta instanceof DeleteDelta)
-                {
-                    DeleteDelta<String> ddelta = (DeleteDelta<String>) delta;
-                    diffPS.println("Org: " + ddelta.getOriginal());
-                    diffPS.println("New: " + ddelta.getRevised());
-                    diffPS.println();
-                }
-                else if (delta instanceof InsertDelta)
-                {
-                    InsertDelta<String> idelta = (InsertDelta<String>) delta;
-                    diffPS.println("Org: " + idelta.getOriginal());
-                    diffPS.println("New: " + idelta.getRevised());
-                    diffPS.println();
-                }
-                else
-                {
-                    diffPS.println(delta);
-                }
+                    if (delta instanceof ChangeDelta)
+                    {
+                        ChangeDelta<String> cdelta = (ChangeDelta<String>) delta;
+                        diffPS.println("Org: " + cdelta.getOriginal());
+                        diffPS.println("New: " + cdelta.getRevised());
+                        diffPS.println();
+                    }
+                    else if (delta instanceof DeleteDelta)
+                    {
+                        DeleteDelta<String> ddelta = (DeleteDelta<String>) delta;
+                        diffPS.println("Org: " + ddelta.getOriginal());
+                        diffPS.println("New: " + ddelta.getRevised());
+                        diffPS.println();
+                    }
+                    else if (delta instanceof InsertDelta)
+                    {
+                        InsertDelta<String> idelta = (InsertDelta<String>) delta;
+                        diffPS.println("Org: " + idelta.getOriginal());
+                        diffPS.println("New: " + idelta.getRevised());
+                        diffPS.println();
+                    }
+                    else
+                    {
+                        diffPS.println(delta);
+                    }
+                });
             }
-            diffPS.close();
         }
     }
 
     // Helper method for get the file content
     private static List<String> fileToLines(File file) throws IOException
     {
-        List<String> lines = new LinkedList<String>();
+        List<String> lines = new LinkedList<>();
         String line;
 
-        BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(file), ENCODING));
-        while ((line = in.readLine()) != null)
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(file), ENCODING)))
         {
-            lines.add(line);
+            while ((line = in.readLine()) != null)
+            {
+                lines.add(line);
+            }
         }
-        in.close();
 
         return lines;
     }
@@ -451,7 +435,9 @@ public class TestTextStripper
     @Test
     public void testStripByOutlineItems() throws IOException, URISyntaxException
     {
-        PDDocument doc = Loader.loadPDF(new File(TestPDPageTree.class.getResource("/pdfbox/com/tom_roush/pdfbox/pdmodel/with_outline.pdf").toURI()));
+        File f = new File(this.getClass().getResource("/pdfbox/com/tom_roush/pdfbox/pdmodel/with_outline.pdf").toURI());
+        PDDocument doc = Loader
+                .loadPDF(f);
         PDDocumentOutline outline = doc.getDocumentCatalog().getDocumentOutline();
         Iterable<PDOutlineItem> children = outline.children();
         Iterator<PDOutlineItem> it = children.iterator();
@@ -469,21 +455,21 @@ public class TestTextStripper
         assertFalse(textFull.isEmpty());
 
         String expectedTextFull =
-            "First level 1\n"
-                + "First level 2\n"
-                + "Fist level 3\n"
-                + "Some content\n"
-                + "Some other content\n"
-                + "Second at level 1\n"
-                + "Second level 2\n"
-                + "Content\n"
-                + "Third level 1\n"
-                + "Third level 2\n"
-                + "Third level 3\n"
-                + "Content\n"
-                + "Fourth level 1\n"
-                + "Content\n"
-                + "Content\n";
+                "First level 1\n"
+                        + "First level 2\n"
+                        + "Fist level 3\n"
+                        + "Some content\n"
+                        + "Some other content\n"
+                        + "Second at level 1\n"
+                        + "Second level 2\n"
+                        + "Content\n"
+                        + "Third level 1\n"
+                        + "Third level 2\n"
+                        + "Third level 3\n"
+                        + "Content\n"
+                        + "Fourth level 1\n"
+                        + "Content\n"
+                        + "Content\n";
         assertEquals(expectedTextFull, textFull.replaceAll("\r", ""));
 
         // this should grab 0-based pages 2 and 3, i.e. 1-based pages 3 and 4
@@ -492,16 +478,16 @@ public class TestTextStripper
         stripper.setEndBookmark(oi3);
         String textoi23 = stripper.getText(doc);
         assertFalse(textoi23.isEmpty());
-        Assert.assertNotEquals(textoi23, textFull);
+        assertNotEquals(textoi23, textFull);
 
         String expectedTextoi23 =
-            "Second at level 1\n"
-                + "Second level 2\n"
-                + "Content\n"
-                + "Third level 1\n"
-                + "Third level 2\n"
-                + "Third level 3\n"
-                + "Content\n";
+                "Second at level 1\n"
+                        + "Second level 2\n"
+                        + "Content\n"
+                        + "Third level 1\n"
+                        + "Third level 2\n"
+                        + "Third level 3\n"
+                        + "Content\n";
         assertEquals(expectedTextoi23, textoi23.replaceAll("\r", ""));
 
         // this should grab 0-based pages 2 and 3, i.e. 1-based pages 3 and 4
@@ -512,7 +498,7 @@ public class TestTextStripper
         stripper.setEndPage(4);
         String textp34 = stripper.getText(doc);
         assertFalse(textp34.isEmpty());
-        Assert.assertNotEquals(textoi23, textFull);
+        assertNotEquals(textoi23, textFull);
         assertEquals(textoi23, textp34);
 
         // this should grab 0-based page 2, i.e. 1-based page 3
@@ -521,13 +507,13 @@ public class TestTextStripper
         stripper.setEndBookmark(oi2);
         String textoi2 = stripper.getText(doc);
         assertFalse(textoi2.isEmpty());
-        Assert.assertNotEquals(textoi2, textoi23);
-        Assert.assertNotEquals(textoi23, textFull);
+        assertNotEquals(textoi2, textoi23);
+        assertNotEquals(textoi23, textFull);
 
         String expectedTextoi2 =
-            "Second at level 1\n"
-                + "Second level 2\n"
-                + "Content\n";
+                "Second at level 1\n"
+                        + "Second level 2\n"
+                        + "Content\n";
         assertEquals(expectedTextoi2, textoi2.replaceAll("\r", ""));
 
 
@@ -539,8 +525,8 @@ public class TestTextStripper
         stripper.setEndPage(3);
         String textp3 = stripper.getText(doc);
         assertFalse(textp3.isEmpty());
-        Assert.assertNotEquals(textp3, textp34);
-        Assert.assertNotEquals(textoi23, textFull);
+        assertNotEquals(textp3, textp34);
+        assertNotEquals(textoi23, textFull);
         assertEquals(textoi2, textp3);
 
         // Test with orphan bookmark
@@ -556,16 +542,9 @@ public class TestTextStripper
      * @param inDir Input directory search for PDF files in.
      * @param outDir Output directory where the temp files will be created.
      */
-    private void doTestDir(File inDir, File outDir) throws Exception
+    private void doTestDir(File inDir, File outDir) throws IOException
     {
-        File[] testFiles = inDir.listFiles(new FilenameFilter()
-        {
-            @Override
-            public boolean accept(File dir, String name)
-            {
-                return (name.endsWith(".pdf"));
-            }
-        });
+        File[] testFiles = inDir.listFiles((File dir, String name) -> name.endsWith(".pdf"));
         for (File testFile : testFiles)
         {
             //Test without sorting
@@ -578,10 +557,10 @@ public class TestTextStripper
     /**
      * Test to validate text extraction of file set.
      *
-     * @throws Exception when there is an exception
+     * @throws IOException when there is an exception
      */
     @Test
-    public void testExtract() throws Exception
+    public void testExtract() throws IOException
     {
         String filename = System.getProperty("com.tom_roush.pdfbox.util.TextStripper.file");
         File inDir = new File("src/test/resources/pdfbox/input");
@@ -589,7 +568,7 @@ public class TestTextStripper
         File inDirExt = new File("target/test-input-ext");
         File outDirExt = new File("target/test-output-ext");
 
-        if ((filename == null) || (filename.length() == 0))
+        if (filename == null || filename.isEmpty())
         {
             doTestDir(inDir, outDir);
             if (inDirExt.exists())
@@ -621,23 +600,17 @@ public class TestTextStripper
         PDDocument tabulaDocument = Loader.loadPDF(pdfFile);
         PDFTextStripper tabulaStripper = new PDFTabulaTextStripper();
 
-        OutputStream os = new FileOutputStream(outFile);
-
-        os.write(0xEF);
-        os.write(0xBB);
-        os.write(0xBF);
-
-        Writer writer = new BufferedWriter(new OutputStreamWriter(os, ENCODING));
-        try
+        try (OutputStream os = new FileOutputStream(outFile))
         {
-            tabulaStripper.writeText(tabulaDocument, writer);
-        }
-        finally
-        {
-            writer.close();
-        }
+            os.write(0xEF);
+            os.write(0xBB);
+            os.write(0xBF);
 
-        os.close();
+            try (Writer writer = new BufferedWriter(new OutputStreamWriter(os, ENCODING)))
+            {
+                tabulaStripper.writeText(tabulaDocument, writer);
+            }
+        }
 
         compareResult(expectedOutFile, outFile, pdfFile, false, diffFile);
 
@@ -670,7 +643,7 @@ public class TestTextStripper
             {
                 float capHeight = fontDescriptor.getCapHeight();
                 if (Float.compare(capHeight, 0) != 0
-                    && (capHeight < glyphHeight || Float.compare(glyphHeight, 0) == 0))
+                        && (capHeight < glyphHeight || Float.compare(glyphHeight, 0) == 0))
                 {
                     glyphHeight = capHeight;
                 }
@@ -679,7 +652,7 @@ public class TestTextStripper
                 float ascent = fontDescriptor.getAscent();
                 float descent = fontDescriptor.getDescent();
                 if (ascent > 0 && descent < 0
-                    && ((ascent - descent) / 2 < glyphHeight || Float.compare(glyphHeight, 0) == 0))
+                        && ((ascent - descent) / 2 < glyphHeight || Float.compare(glyphHeight, 0) == 0))
                 {
                     glyphHeight = (ascent - descent) / 2;
                 }
@@ -697,6 +670,53 @@ public class TestTextStripper
             }
 
             return height;
+        }
+    }
+
+    /**
+     * PDFBOX-3774: test the IgnoreContentStreamSpaceGlyphs option.
+     *
+     * @throws IOException
+     */
+    @Test
+    public void testIgnoreContentStreamSpaceGlyphs() throws IOException
+    {
+        try (PDDocument doc = new PDDocument())
+        {
+            PDPage page = new PDPage();
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page))
+            {
+                float fontHeight = 8;
+                float x = 50;
+                float y = page.getMediaBox().getHeight() - 50;
+                PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+                cs.beginText();
+                cs.setFont(font, fontHeight);
+                cs.newLineAtOffset(x, y);
+                cs.showText("(                                      )");
+                cs.endText();
+
+                int indent = 6;
+                float overlapX = x + indent * font.getAverageFontWidth() / 1000f * fontHeight;
+                PDFont overlapFont = new PDType1Font(Standard14Fonts.FontName.TIMES_ROMAN);
+                cs.beginText();
+                cs.setFont(overlapFont, fontHeight * 2f);
+                cs.newLineAtOffset(overlapX, y);
+                cs.showText("overlap");
+                cs.endText();
+            }
+            doc.addPage(page);
+
+            PDFTextStripper localStripper = new PDFTextStripper();
+            localStripper.setLineSeparator("\n");
+            localStripper.setPageEnd("\n");
+            localStripper.setStartPage(1);
+            localStripper.setEndPage(1);
+            localStripper.setSortByPosition(true);
+
+            localStripper.setIgnoreContentStreamSpaceGlyphs(true);
+            String text = localStripper.getText(doc);
+            assertEquals("( overlap )\n", text);
         }
     }
 }

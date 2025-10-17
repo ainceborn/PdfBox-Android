@@ -16,302 +16,275 @@
  */
 package com.tom_roush.fontbox.cff;
 
+import android.os.Build;
+
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * This class represents a CharStringCommand.
  *
  * @author Villu Ruusmann
  */
-public class CharStringCommand
+public enum CharStringCommand
 {
+    HSTEM(Type1KeyWord.HSTEM, Type2KeyWord.HSTEM, 1),
+    VSTEM(Type1KeyWord.VSTEM, Type2KeyWord.VSTEM, 3),
+    VMOVETO(Type1KeyWord.VMOVETO, Type2KeyWord.VMOVETO,4),
+    RLINETO(Type1KeyWord.RLINETO, Type2KeyWord.RLINETO,5),
+    HLINETO(Type1KeyWord.HLINETO, Type2KeyWord.HLINETO,6),
+    VLINETO(Type1KeyWord.VLINETO, Type2KeyWord.VLINETO,7),
+    RRCURVETO(Type1KeyWord.RRCURVETO, Type2KeyWord.RRCURVETO,8),
+    CLOSEPATH(Type1KeyWord.CLOSEPATH, null,9),
+    CALLSUBR(Type1KeyWord.CALLSUBR, Type2KeyWord.CALLSUBR,10),
+    RET(Type1KeyWord.RET, Type2KeyWord.RET,11),
+    ESCAPE(Type1KeyWord.ESCAPE, Type2KeyWord.ESCAPE,12),
+    HSBW(Type1KeyWord.HSBW, null,13),
+    ENDCHAR(Type1KeyWord.ENDCHAR, Type2KeyWord.ENDCHAR,14),
+    HSTEMHM(null, Type2KeyWord.HSTEMHM,18),
+    HINTMASK(null, Type2KeyWord.HINTMASK,19),
+    CNTRMASK(null, Type2KeyWord.CNTRMASK,20),
+    RMOVETO(Type1KeyWord.RMOVETO, Type2KeyWord.RMOVETO,21),
+    HMOVETO(Type1KeyWord.HMOVETO, Type2KeyWord.HMOVETO,22),
+    VSTEMHM(null, Type2KeyWord.VSTEMHM,23),
+    RCURVELINE(null, Type2KeyWord.RCURVELINE,24),
+    RLINECURVE(null, Type2KeyWord.RLINECURVE,25),
+    VVCURVETO(null, Type2KeyWord.VVCURVETO,26),
+    HHCURVETO(null, Type2KeyWord.HHCURVETO,27),
+    SHORTINT(null, Type2KeyWord.SHORTINT,28),
+    CALLGSUBR(null, Type2KeyWord.CALLGSUBR,29),
+    VHCURVETO(Type1KeyWord.VHCURVETO, Type2KeyWord.VHCURVETO,30),
+    HVCURVETO(Type1KeyWord.HVCURVETO, Type2KeyWord.HVCURVETO,31),
+    DOTSECTION(Type1KeyWord.DOTSECTION, null,192),
+    VSTEM3(Type1KeyWord.VSTEM3, null,193),
+    HSTEM3(Type1KeyWord.HSTEM3, null,194),
+    AND(null, Type2KeyWord.AND,195),
+    OR(null, Type2KeyWord.OR,196),
+    NOT(null, Type2KeyWord.NOT,197),
+    SEAC(Type1KeyWord.SEAC, null,198),
+    SBW(Type1KeyWord.SBW, null,199),
+    ABS(null, Type2KeyWord.ABS,201),
+    ADD(null, Type2KeyWord.ADD,202),
+    SUB(null, Type2KeyWord.SUB,203),
+    DIV(Type1KeyWord.DIV, Type2KeyWord.DIV,204),
+    NEG(null, Type2KeyWord.NEG,206),
+    EQ(null, Type2KeyWord.EQ,207),
+    CALLOTHERSUBR(Type1KeyWord.CALLOTHERSUBR, null,208),
+    POP(Type1KeyWord.POP, null,209),
+    DROP(null, Type2KeyWord.DROP,210),
+    PUT(null, Type2KeyWord.PUT,212),
+    GET(null, Type2KeyWord.GET,213),
+    IFELSE(null, Type2KeyWord.IFELSE,214),
+    RANDOM(null, Type2KeyWord.RANDOM,215),
+    MUL(null, Type2KeyWord.MUL,216),
+    SQRT(null, Type2KeyWord.SQRT,218),
+    DUP(null, Type2KeyWord.DUP,219),
+    EXCH(null, Type2KeyWord.EXCH,220),
+    INDEX(null, Type2KeyWord.INDEX,221),
+    ROLL(null, Type2KeyWord.ROLL,222),
+    SETCURRENTPOINT(Type1KeyWord.SETCURRENTPOINT, null,225),
+    HFLEX(null, Type2KeyWord.HFLEX,226),
+    FLEX(null, Type2KeyWord.FLEX,227),
+    HFLEX1(null, Type2KeyWord.HFLEX1,228),
+    FLEX1(null, Type2KeyWord.FLEX1,229),
+    UNKNOWN(null, null, 99);
 
-    private Key commandKey = null;
+    private static final CharStringCommand[] COMMANDS_BY_VALUE;
 
-    /**
-     * Constructor with one value.
-     *
-     * @param b0 value
-     */
-    public CharStringCommand(int b0)
+    static
     {
-        setKey(new Key(b0));
+        int max = 0;
+        CharStringCommand[] values = CharStringCommand.values();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            max = Arrays.stream(values).mapToInt(CharStringCommand::getValue).max().orElseThrow();
+        } else {
+            max = Integer.MIN_VALUE;
+            for (CharStringCommand cmd :values) {
+                max = Math.max(max, cmd.getValue());
+            }
+        }
+        COMMANDS_BY_VALUE = new CharStringCommand[max + 1];
+        Arrays.stream(values).forEach(c -> COMMANDS_BY_VALUE[c.getValue()] = c);
+    }
+
+    private final Type1KeyWord type1KeyWord;
+    private final Type2KeyWord type2KeyWord;
+    private final int value;
+    private final String stringValue;
+
+    CharStringCommand(Type1KeyWord type1KeyWord, Type2KeyWord type2KeyWord, int value)
+    {
+        this.type1KeyWord = type1KeyWord;
+        this.type2KeyWord = type2KeyWord;
+        this.value = value;
+        this.stringValue = value == 99 ? "unknown command|" : name() + "|";
+    }
+
+    public int getValue()
+    {
+        return value;
     }
 
     /**
-     * Constructor with two values.
+     * Get an instance of the CharStringCommand represented by the given value.
+     *
+     * @param b0 value
+     * @return CharStringCommand represented by the given value
+     */
+    public static CharStringCommand getInstance(int b0)
+    {
+        CharStringCommand c = null;
+        if (b0 >= 0 && b0 < COMMANDS_BY_VALUE.length)
+        {
+            c = COMMANDS_BY_VALUE[b0];
+        }
+        return c != null ? c : UNKNOWN;
+    }
+
+    /**
+     * Get an instance of the CharStringCommand represented by the given two values.
      *
      * @param b0 value1
      * @param b1 value2
+     *
+     * @return CharStringCommand represented by the given two values
      */
-    public CharStringCommand(int b0, int b1)
+    public static CharStringCommand getInstance(int b0, int b1)
     {
-        setKey(new Key(b0, b1));
+        return getInstance((b0 << 4) + b1);
     }
 
     /**
-     * Constructor with an array as values.
+     * Get an instance of the CharStringCommand represented by the given array.
      *
      * @param values array of values
+     *
+     * @return CharStringCommand represented by the given values
      */
-    public CharStringCommand(int[] values)
+    public static CharStringCommand getInstance(int[] values)
     {
-        setKey(new Key(values));
+        switch (values.length)
+        {
+            case 1:
+                return getInstance(values[0]);
+            case 2:
+                return getInstance(values[0], values[1]);
+            default:
+                return UNKNOWN;
+        }
     }
 
     /**
-     * The key of the CharStringCommand.
-     * @return the key
+     * Return the underlying type1 key word.
+     *
+     * @return the type1 key word
      */
-    public Key getKey()
+    public Type1KeyWord getType1KeyWord()
     {
-        return commandKey;
-    }
-
-    private void setKey(Key key)
-    {
-        commandKey = key;
+        return type1KeyWord;
     }
 
     /**
-     * {@inheritDoc}
+     * Return the underlying type2 key word.
+     *
+     * @return the type2 key word
      */
+    public Type2KeyWord getType2KeyWord()
+    {
+        return type2KeyWord;
+    }
+
     @Override
     public String toString()
     {
-        String str = TYPE2_VOCABULARY.get(getKey());
-        if (str == null)
-        {
-            str = TYPE1_VOCABULARY.get(getKey());
-        }
-        if (str == null)
-        {
-            return getKey().toString() + '|';
-        }
-        return str + '|';
+        return stringValue;
     }
 
     /**
-     * {@inheritDoc}
+     * Enum of all valid type1 key words
      */
-    @Override
-    public int hashCode()
+    public enum Type1KeyWord
     {
-        return getKey().hashCode();
+        HSTEM,
+        VSTEM,
+        VMOVETO,
+        RLINETO,
+        HLINETO,
+        VLINETO,
+        RRCURVETO,
+        CLOSEPATH,
+        CALLSUBR,
+        RET,
+        ESCAPE,
+        HSBW,
+        ENDCHAR,
+        RMOVETO,
+        HMOVETO,
+        VHCURVETO,
+        HVCURVETO,
+        DOTSECTION,
+        VSTEM3,
+        HSTEM3,
+        SEAC,
+        SBW,
+        DIV,
+        CALLOTHERSUBR,
+        POP,
+        SETCURRENTPOINT;
     }
 
     /**
-     * {@inheritDoc}
+     * Enum of all valid type2 key words
      */
-    @Override
-    public boolean equals(Object object)
+    public enum Type2KeyWord
     {
-        if (object instanceof CharStringCommand)
-        {
-            CharStringCommand that = (CharStringCommand) object;
-            return getKey().equals(that.getKey());
-        }
-        return false;
-    }
-
-    /**
-     * A static class to hold one or more int values as key. 
-     */
-    public static class Key
-    {
-
-        private int[] keyValues = null;
-
-        /**
-         * Constructor with one value.
-         *
-         * @param b0 value
-         */
-        public Key(int b0)
-        {
-            setValue(new int[] { b0 });
-        }
-
-        /**
-         * Constructor with two values.
-         *
-         * @param b0 value1
-         * @param b1 value2
-         */
-        public Key(int b0, int b1)
-        {
-            setValue(new int[] { b0, b1 });
-        }
-
-        /**
-         * Constructor with an array as values.
-         *
-         * @param values array of values
-         */
-        public Key(int[] values)
-        {
-            setValue(values);
-        }
-
-        /**
-         * Array the with the values.
-         *
-         * @return array with the values
-         */
-        public int[] getValue()
-        {
-            return keyValues;
-        }
-
-        private void setValue(int[] value)
-        {
-            keyValues = value;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public String toString()
-        {
-            return Arrays.toString(getValue());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public int hashCode()
-        {
-            if (keyValues[0] == 12 && keyValues.length > 1)
-            {
-                return keyValues[0] ^ keyValues[1];
-            }
-            return keyValues[0];
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public boolean equals(Object object)
-        {
-            if (object instanceof Key)
-            {
-                Key that = (Key) object;
-                if (keyValues[0] == 12 && that.keyValues[0] == 12)
-                {
-                    if (keyValues.length > 1 && that.keyValues.length > 1)
-                    {
-                        return keyValues[1] == that.keyValues[1];
-                    }
-                    return keyValues.length == that.keyValues.length;
-                }
-                return keyValues[0] == that.keyValues[0];
-            }
-            return false;
-        }
-    }
-
-    /**
-     * A map with the Type1 vocabulary.
-     */
-    public static final Map<Key, String> TYPE1_VOCABULARY;
-
-    static
-    {
-        Map<Key, String> map = new LinkedHashMap<Key, String>(26);
-        map.put(new Key(1), "hstem");
-        map.put(new Key(3), "vstem");
-        map.put(new Key(4), "vmoveto");
-        map.put(new Key(5), "rlineto");
-        map.put(new Key(6), "hlineto");
-        map.put(new Key(7), "vlineto");
-        map.put(new Key(8), "rrcurveto");
-        map.put(new Key(9), "closepath");
-        map.put(new Key(10), "callsubr");
-        map.put(new Key(11), "return");
-        map.put(new Key(12), "escape");
-        map.put(new Key(12, 0), "dotsection");
-        map.put(new Key(12, 1), "vstem3");
-        map.put(new Key(12, 2), "hstem3");
-        map.put(new Key(12, 6), "seac");
-        map.put(new Key(12, 7), "sbw");
-        map.put(new Key(12, 12), "div");
-        map.put(new Key(12, 16), "callothersubr");
-        map.put(new Key(12, 17), "pop");
-        map.put(new Key(12, 33), "setcurrentpoint");
-        map.put(new Key(13), "hsbw");
-        map.put(new Key(14), "endchar");
-        map.put(new Key(21), "rmoveto");
-        map.put(new Key(22), "hmoveto");
-        map.put(new Key(30), "vhcurveto");
-        map.put(new Key(31), "hvcurveto");
-
-        TYPE1_VOCABULARY = Collections.unmodifiableMap(map);
-    }
-
-    /**
-     * A map with the Type2 vocabulary.
-     */
-    public static final Map<Key, String> TYPE2_VOCABULARY;
-
-    static
-    {
-        Map<Key, String> map = new LinkedHashMap<Key, String>(48);
-        map.put(new Key(1), "hstem");
-        map.put(new Key(3), "vstem");
-        map.put(new Key(4), "vmoveto");
-        map.put(new Key(5), "rlineto");
-        map.put(new Key(6), "hlineto");
-        map.put(new Key(7), "vlineto");
-        map.put(new Key(8), "rrcurveto");
-        map.put(new Key(10), "callsubr");
-        map.put(new Key(11), "return");
-        map.put(new Key(12), "escape");
-        map.put(new Key(12, 3), "and");
-        map.put(new Key(12, 4), "or");
-        map.put(new Key(12, 5), "not");
-        map.put(new Key(12, 9), "abs");
-        map.put(new Key(12, 10), "add");
-        map.put(new Key(12, 11), "sub");
-        map.put(new Key(12, 12), "div");
-        map.put(new Key(12, 14), "neg");
-        map.put(new Key(12, 15), "eq");
-        map.put(new Key(12, 18), "drop");
-        map.put(new Key(12, 20), "put");
-        map.put(new Key(12, 21), "get");
-        map.put(new Key(12, 22), "ifelse");
-        map.put(new Key(12, 23), "random");
-        map.put(new Key(12, 24), "mul");
-        map.put(new Key(12, 26), "sqrt");
-        map.put(new Key(12, 27), "dup");
-        map.put(new Key(12, 28), "exch");
-        map.put(new Key(12, 29), "index");
-        map.put(new Key(12, 30), "roll");
-        map.put(new Key(12, 34), "hflex");
-        map.put(new Key(12, 35), "flex");
-        map.put(new Key(12, 36), "hflex1");
-        map.put(new Key(12, 37), "flex1");
-        map.put(new Key(14), "endchar");
-        map.put(new Key(18), "hstemhm");
-        map.put(new Key(19), "hintmask");
-        map.put(new Key(20), "cntrmask");
-        map.put(new Key(21), "rmoveto");
-        map.put(new Key(22), "hmoveto");
-        map.put(new Key(23), "vstemhm");
-        map.put(new Key(24), "rcurveline");
-        map.put(new Key(25), "rlinecurve");
-        map.put(new Key(26), "vvcurveto");
-        map.put(new Key(27), "hhcurveto");
-        map.put(new Key(28), "shortint");
-        map.put(new Key(29), "callgsubr");
-        map.put(new Key(30), "vhcurveto");
-        map.put(new Key(31), "hvcurveto");
-
-        TYPE2_VOCABULARY = Collections.unmodifiableMap(map);
+        HSTEM,
+        VSTEM,
+        VMOVETO,
+        RLINETO,
+        HLINETO,
+        VLINETO,
+        RRCURVETO,
+        CALLSUBR,
+        RET,
+        ESCAPE,
+        ENDCHAR,
+        HSTEMHM,
+        HINTMASK,
+        CNTRMASK,
+        RMOVETO,
+        HMOVETO,
+        VSTEMHM,
+        RCURVELINE,
+        RLINECURVE,
+        VVCURVETO,
+        HHCURVETO,
+        SHORTINT,
+        CALLGSUBR,
+        VHCURVETO,
+        HVCURVETO,
+        AND,
+        OR,
+        NOT,
+        ABS,
+        ADD,
+        SUB,
+        DIV,
+        NEG,
+        EQ,
+        DROP,
+        PUT,
+        GET,
+        IFELSE,
+        RANDOM,
+        MUL,
+        SQRT,
+        DUP,
+        EXCH,
+        INDEX,
+        ROLL,
+        HFLEX,
+        FLEX,
+        HFLEX1,
+        FLEX1;
     }
 }

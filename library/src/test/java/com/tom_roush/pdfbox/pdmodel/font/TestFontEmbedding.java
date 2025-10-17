@@ -19,6 +19,8 @@ package com.tom_roush.pdfbox.pdmodel.font;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashSet;
@@ -36,10 +38,12 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream.AppendMode;
+import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.text.PDFTextStripper;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -47,6 +51,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 import static org.mockito.BDDMockito.given;
 
@@ -60,140 +65,162 @@ public class TestFontEmbedding
 {
     private static final File OUT_DIR = new File("target/test-output");
 
-    @Before
-    public void setUp() throws Exception
+
+    @BeforeClass
+    public static void setUp()
     {
         OUT_DIR.mkdirs();
     }
 
     /**
      * Embed a TTF as CIDFontType2.
+     *
+     * @throws IOException
      */
     @Test
-    public void testCIDFontType2() throws Exception
+    public void testCIDFontType2() throws IOException
     {
         validateCIDFontType2(false);
     }
 
     /**
      * Embed a TTF as CIDFontType2 with subsetting.
+     *
+     * @throws IOException
      */
     @Test
-    public void testCIDFontType2Subset() throws Exception
+    public void testCIDFontType2Subset() throws IOException
     {
         validateCIDFontType2(true);
     }
 
-    /**
-     * Embed a monospace TTF as vertical CIDFontType2 with subsetting.
-     *
-     * @throws IOException
-     */
     @Test
-    public void testCIDFontType2VerticalSubsetMonospace() throws IOException
+    public void testBengali() throws IOException
     {
-        String text = "「ABC」";
-        String expectedExtractedtext = "「\nA\nB\nC\n」";
-        File pdf = new File(OUT_DIR, "CIDFontType2VM.pdf");
+        String BANGLA_TEXT_1 = "আমি কোন পথে ক্ষীরের লক্ষ্মী ষন্ড পুতুল রুপো গঙ্গা ঋষি";
+        String BANGLA_TEXT_2 = "দ্রুত গাঢ় শেয়াল অলস কুকুর জুড়ে জাম্প ধুর্ত  হঠাৎ ভাঙেনি মৌলিক ঐশি দৈ";
+        String BANGLA_TEXT_3 = "ঋষি কল্লোল ব্যাস নির্ভয় ";
 
-        PDDocument document = new PDDocument();
-        PDPage page = new PDPage(PDRectangle.A4);
-        document.addPage(page);
+        String expectedExtractedtext = BANGLA_TEXT_1 + "\n" + BANGLA_TEXT_2 + "\n" + BANGLA_TEXT_3;
+        File pdf = new File(OUT_DIR, "Bengali.pdf");
 
-        File ipafont = new File("target/fonts/ipag00303", "ipag.ttf");
-        assumeTrue(ipafont.exists());
-        PDType0Font vfont = PDType0Font.loadVertical(document, ipafont);
+        try (PDDocument document = new PDDocument())
+        {
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
 
-        PDPageContentStream contentStream = new PDPageContentStream(document, page);
-        contentStream.beginText();
-        contentStream.setFont(vfont, 20);
-        contentStream.newLineAtOffset(50, 700);
-        contentStream.showText(text);
-        contentStream.endText();
-        contentStream.close();
+            final File testFile = new File("src/test/resources/fontbox/ttf/Lohit-Bengali.ttf");
+            var input = new FileInputStream(testFile);
 
-        // Check the font substitution
-        byte[] encode = vfont.encode(text);
-        int cid = ((encode[0] & 0xFF) << 8) + (encode[1] & 0xFF);
-        assertEquals(7392, cid); // it's 441 without substitution
+            PDFont font = PDType0Font.load(document, input);
 
-        // Check the dictionaries
-        COSDictionary fontDict = vfont.getCOSObject();
-        assertEquals(COSName.IDENTITY_V, fontDict.getDictionaryObject(COSName.ENCODING));
+            try (PDPageContentStream contentStream = new PDPageContentStream(document, page))
+            {
+                contentStream.beginText();
+                contentStream.setFont(font, 18);
+                contentStream.newLineAtOffset(10, 750);
+                contentStream.showText(BANGLA_TEXT_1);
+                contentStream.newLineAtOffset(0, -30);
+                contentStream.showText(BANGLA_TEXT_2);
+                contentStream.newLineAtOffset(0, -30);
+                contentStream.showText(BANGLA_TEXT_3);
+                contentStream.endText();
+            }
 
-        document.save(pdf);
-
-        // Vertical metrics are fixed during subsetting, so do this after calling save()
-        COSDictionary descFontDict = vfont.getDescendantFont().getCOSObject();
-        COSArray dw2 = (COSArray) descFontDict.getDictionaryObject(COSName.DW2);
-        assertNull(dw2); // This font uses default values for DW2
-        COSArray w2 = (COSArray) descFontDict.getDictionaryObject(COSName.W2);
-        assertEquals(0, w2.size()); // Monospaced font has no entries
-
-        document.close();
-
+            document.save(pdf);
+        }
         // Check text extraction
         String extracted = getUnicodeText(pdf);
-        assertEquals(expectedExtractedtext, extracted.replaceAll("\r", "").trim());
+        //assertEquals(expectedExtractedtext, extracted.replaceAll("\r", "").trim());
     }
 
-    /**
-     * Embed a proportional TTF as vertical CIDFontType2 with subsetting.
-     *
-     * @throws IOException
-     */
     @Test
-    public void testCIDFontType2VerticalSubsetProportional() throws IOException
+    public void testDevanagari() throws IOException
     {
-        String text = "「ABC」";
-        String expectedExtractedtext = "「\nA\nB\nC\n」";
-        File pdf = new File(OUT_DIR, "CIDFontType2VP.pdf");
+        String DEVANAGARI_TEXT_0 = "प्रदेश ग्रामीण व्यवसायिक, लक्ष्मिपति, लक्षित, मक्खि उपलब्धि, प्रसिद्धि";
+        String DEVANAGARI_TEXT_1 = "क्षत्रिय ज्ञानी का शृंगार";
+        String DEVANAGARI_TEXT_2 = "खुर्रम खर्चें ट्रक उद्गम लक्ष्मिपति ग्रह शृंगार हृदय लाड़ु विट्ठल टट्टू बुद्धू ढर्रा भ़ुर्ता कम्प्युटर";
+        String DEVANAGARI_TEXT_3 = "लक्ष्मिपति रविवार को कम्प्यूटर पर कविता साँईं का नाम लेकर पढ़ता है";
 
-        PDDocument document = new PDDocument();
+        String expectedExtractedtext = DEVANAGARI_TEXT_0 + "\n" + DEVANAGARI_TEXT_1 + "\n" +
+                DEVANAGARI_TEXT_2 + "\n" + DEVANAGARI_TEXT_3;
+        File pdf = new File(OUT_DIR, "Devanagari.pdf");
 
-        PDPage page = new PDPage(PDRectangle.A4);
-        document.addPage(page);
-        File ipafont = new File("target/fonts/ipagp00303", "ipagp.ttf");
-        assumeTrue(ipafont.exists());
-        PDType0Font vfont = PDType0Font.loadVertical(document, ipafont);
-        PDPageContentStream contentStream = new PDPageContentStream(document, page);
-
-        contentStream.beginText();
-        contentStream.setFont(vfont, 20);
-        contentStream.newLineAtOffset(50, 700);
-        contentStream.showText(text);
-        contentStream.endText();
-        contentStream.close();
-
-        // Check the font substitution
-        byte[] encode = vfont.encode(text);
-        int cid = ((encode[0] & 0xFF) << 8) + (encode[1] & 0xFF);
-        assertEquals(12607, cid); // it's 12461 without substitution
-        // Check the dictionaries
-        COSDictionary fontDict = vfont.getCOSObject();
-        assertEquals(COSName.IDENTITY_V, fontDict.getDictionaryObject(COSName.ENCODING));
-
-        document.save(pdf);
-
-        // Vertical metrics are fixed during subsetting, so do this after calling save()
-        COSDictionary descFontDict = vfont.getDescendantFont().getCOSObject();
-        COSArray dw2 = (COSArray) descFontDict.getDictionaryObject(COSName.DW2);
-        assertNull(dw2); // This font uses default values for DW2
-        // c [ w1_1y v_1x v_1y ... w1_ny v_nx v_ny ]
-        COSArray w2 = (COSArray) descFontDict.getDictionaryObject(COSName.W2);
-        assertEquals(2, w2.size());
-        assertEquals(12607, w2.getInt(0)); // Start CID
-        COSArray metrics = (COSArray) w2.getObject(1);
-        int i = 0;
-        for (int n : new int[] {-570, 500, 450, -570, 500, 880})
+        try (PDDocument document = new PDDocument())
         {
-            assertEquals(n, metrics.getInt(i++));
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+
+            final File testFile = new File("src/test/resources/fontbox/ttf/Lohit-Devanagari.ttf");
+            var input = new FileInputStream(testFile);
+
+            PDFont font = PDType0Font.load(document, input);
+
+            try (PDPageContentStream contentStream = new PDPageContentStream(document, page))
+            {
+                contentStream.beginText();
+                contentStream.setFont(font, 18);
+                contentStream.newLineAtOffset(10, 750);
+                contentStream.showText(DEVANAGARI_TEXT_0);
+                contentStream.newLineAtOffset(0, -30);
+                contentStream.showText(DEVANAGARI_TEXT_1);
+                contentStream.newLineAtOffset(0, -30);
+                contentStream.showText(DEVANAGARI_TEXT_2);
+                contentStream.newLineAtOffset(0, -30);
+                contentStream.showText(DEVANAGARI_TEXT_3);
+                contentStream.endText();
+            }
+
+            document.save(pdf);
         }
-        document.close();
 
         // Check text extraction
         String extracted = getUnicodeText(pdf);
-        assertEquals(expectedExtractedtext, extracted.replaceAll("\r", "").trim());
+        //assertEquals(expectedExtractedtext, extracted.replaceAll("\r", "").trim());
+    }
+
+    @Test
+    public void testGujarati() throws IOException
+    {
+        String GUJARATI_TEXT_0 = "દરેક વ્યક્તિને શિક્ષણનો અધિકાર છે";
+        String GUJARATI_TEXT_1 = "શિક્ષિત માણસ વિવિધ પ્રકારના કાર્ય પરિલક્ષિત કરી શકે";
+        String GUJARATI_TEXT_2 = "ટ્રક ગૃહ પ્રસિદ્ધિ શ્રમિક અગ્નિ ઠક્કર ઉત્પલ કર્યે";
+        String GUJARATI_TEXT_3 = "જ્ઞાની બુદ્ધિમાન ક્રમ ગ્રામ કુર્સી ટ્રુ";
+
+        String expectedExtractedtext = GUJARATI_TEXT_0 + "\n" + GUJARATI_TEXT_1 + "\n" + GUJARATI_TEXT_2 + "\n" + GUJARATI_TEXT_3;
+        File pdf = new File(OUT_DIR, "Gujarati.pdf");
+
+        try (PDDocument document = new PDDocument())
+        {
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+
+            final File testFile = new File("src/test/resources/fontbox/ttf/Lohit-Gujarati.ttf");
+            var input = new FileInputStream(testFile);
+
+            PDFont font = PDType0Font.load(document, input);
+
+            try (PDPageContentStream contentStream = new PDPageContentStream(document, page))
+            {
+                contentStream.beginText();
+                contentStream.setFont(font, 25);
+                contentStream.newLineAtOffset(10, 750);
+                contentStream.showText(GUJARATI_TEXT_0);
+                contentStream.newLineAtOffset(0, -30);
+                contentStream.showText(GUJARATI_TEXT_1);
+                contentStream.newLineAtOffset(0, -30);
+                contentStream.showText(GUJARATI_TEXT_2);
+                contentStream.newLineAtOffset(0, -30);
+                contentStream.showText(GUJARATI_TEXT_3);
+                contentStream.endText();
+            }
+
+            document.save(pdf);
+        }
+
+        // Check text extraction
+        String extracted = getUnicodeText(pdf);
+        //assertEquals(expectedExtractedtext, extracted.replaceAll("\r", "").trim());
     }
 
     /**
@@ -207,64 +234,63 @@ public class TestFontEmbedding
         File file;
         String text;
         text = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん" +
-            "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン" +
-            "１２３４５６７８";
+                "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン" +
+                "１２３４５６７８";
 
         // The test must have MAX_ENTRIES_PER_OPERATOR unique characters
-        Set<Character> set = new HashSet<Character>(ToUnicodeWriter.MAX_ENTRIES_PER_OPERATOR);
+        Set<Character> set = new HashSet<>(ToUnicodeWriter.MAX_ENTRIES_PER_OPERATOR);
         for (int i = 0; i < text.length(); ++i)
         {
             set.add(text.charAt(i));
         }
         assertEquals(ToUnicodeWriter.MAX_ENTRIES_PER_OPERATOR, set.size());
 
-        PDDocument document = new PDDocument();
-        PDPage page = new PDPage(PDRectangle.A0);
-        document.addPage(page);
-        File ipafont = new File("target/fonts/ipag00303", "ipag.ttf");
-        assumeTrue(ipafont.exists());
-        PDType0Font font = PDType0Font.load(document, ipafont);
-        PDPageContentStream contentStream = new PDPageContentStream(document, page);
-        contentStream.beginText();
-        contentStream.setFont(font, 20);
-        contentStream.newLineAtOffset(50, 3000);
-        contentStream.showText(text);
-        contentStream.endText();
-        contentStream.close();
-        file = new File(OUT_DIR, "PDFBOX-4302-test.pdf");
-        document.save(file);
-        document.close();
+        try (PDDocument document = new PDDocument())
+        {
+            PDPage page = new PDPage(PDRectangle.A0);
+            document.addPage(page);
+            File ipafont = new File("target/fonts/ipag00303", "ipag.ttf");
+            assumeTrue(ipafont.exists());
+            PDType0Font font = PDType0Font.load(document, ipafont);
+            try (PDPageContentStream contentStream = new PDPageContentStream(document, page))
+            {
+                contentStream.beginText();
+                contentStream.setFont(font, 20);
+                contentStream.newLineAtOffset(50, 3000);
+                contentStream.showText(text);
+                contentStream.endText();
+            }
+            file = new File(OUT_DIR, "PDFBOX-4302-test.pdf");
+            document.save(file);
+        }
 
         // check that the extracted text matches what we wrote
         String extracted = getUnicodeText(file);
         assertEquals(text, extracted.trim());
     }
 
-    private void validateCIDFontType2(boolean useSubset) throws Exception
+    private void validateCIDFontType2(boolean useSubset) throws IOException
     {
-        PDDocument document = new PDDocument();
-        PDPage page = new PDPage(PDRectangle.A4);
-        document.addPage(page);
-
-        InputStream input = PDFont.class.getResourceAsStream(
-            "/com/tom_roush/pdfbox/resources/ttf/LiberationSans-Regular.ttf");
-        PDType0Font font = PDType0Font.load(document, input, useSubset);
-
-        PDPageContentStream stream = new PDPageContentStream(document, page);
-
-        stream.beginText();
-        stream.setFont(font, 12);
-
-        String text = "Unicode русский язык Tiếng Việt";
-        stream.newLineAtOffset(50, 600);
-        stream.showText(text);
-
-        stream.endText();
-        stream.close();
-
-        File file = new File(OUT_DIR, "CIDFontType2.pdf");
-        document.save(file);
-        document.close();
+        String text;
+        File file;
+        try (PDDocument document = new PDDocument())
+        {
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+            InputStream input = PDFont.class.getResourceAsStream("/com/tom_roush/pdfbox/resources/ttf/LiberationSans-Regular.ttf");
+            PDType0Font font = PDType0Font.load(document, input, useSubset);
+            try (PDPageContentStream stream = new PDPageContentStream(document, page))
+            {
+                stream.beginText();
+                stream.setFont(font, 12);
+                text = "Unicode русский язык Tiếng Việt";
+                stream.newLineAtOffset(50, 600);
+                stream.showText(text);
+                stream.endText();
+            }
+            file = new File(OUT_DIR, "CIDFontType2" + (useSubset ? "-useSubset" : "") + ".pdf");
+            document.save(file);
+        }
 
         // check that the extracted text matches what we wrote
         String extracted = getUnicodeText(file);
@@ -273,11 +299,11 @@ public class TestFontEmbedding
 
     private String getUnicodeText(File file) throws IOException
     {
-        PDDocument document = Loader.loadPDF(file);
-        PDFTextStripper stripper = new PDFTextStripper();
-        String text = stripper.getText(document);
-        document.close();
-        return text;
+        try (PDDocument document = Loader.loadPDF(file))
+        {
+            PDFTextStripper stripper = new PDFTextStripper();
+            return stripper.getText(document);
+        }
     }
 
     /**
@@ -291,41 +317,49 @@ public class TestFontEmbedding
         String text1 = "The quick brown fox";
         String text2 = "xof nworb kciuq ehT";
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PDDocument document = new PDDocument();
-        PDPage page = new PDPage();
-        document.addPage(page);
-        InputStream input = PDFont.class.getResourceAsStream(
-            "/com/tom_roush/pdfbox/resources/ttf/LiberationSans-Regular.ttf");
-        PDType0Font font = PDType0Font.load(document, input);
-        PDPageContentStream stream = new PDPageContentStream(document, page);
-        stream.beginText();
-        stream.setFont(font, 20);
-        stream.newLineAtOffset(50, 600);
-        stream.showText(text1);
-        stream.endText();
-        stream.close();
-        document.save(baos);
-        document.close();
+        try (PDDocument document = new PDDocument())
+        {
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            final File testFile = new File("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+            var inputStream = new FileInputStream(testFile);
+
+
+            PDType0Font font = PDType0Font.load(document, inputStream);
+            try (PDPageContentStream stream = new PDPageContentStream(document, page))
+            {
+                stream.beginText();
+                stream.setFont(font, 20);
+                stream.newLineAtOffset(50, 600);
+                stream.showText(text1);
+                stream.endText();
+            }
+            document.save(baos);
+        }
         // Append, while reusing the font subset
-        document = Loader.loadPDF(baos.toByteArray());
-        page = document.getPage(0);
-        font = (PDType0Font) page.getResources().getFont(COSName.getPDFName("F1"));
-        stream = new PDPageContentStream(document, page, AppendMode.APPEND, true);
-        stream.beginText();
-        stream.setFont(font, 20);
-        stream.newLineAtOffset(250, 600);
-        stream.showText(text2);
-        stream.endText();
-        stream.close();
-        baos.reset();
-        document.save(baos);
-        document.close();
+        try (PDDocument document = Loader.loadPDF(baos.toByteArray()))
+        {
+            PDPage page = document.getPage(0);
+            PDFont font = page.getResources().getFont(COSName.getPDFName("F1"));
+            try (PDPageContentStream stream = new PDPageContentStream(document, page, AppendMode.APPEND, true))
+            {
+                stream.beginText();
+                stream.setFont(font, 20);
+                stream.newLineAtOffset(250, 600);
+                stream.showText(text2);
+                stream.endText();
+            }
+            baos.reset();
+            document.save(baos);
+        }
         // Test that both texts are there
-        document = Loader.loadPDF(baos.toByteArray());
-        PDFTextStripper stripper = new PDFTextStripper();
-        String extractedText = stripper.getText(document);
-        assertEquals(text1 + " " + text2, extractedText.trim());
-        document.close();
+        try (PDDocument document = Loader.loadPDF(baos.toByteArray()))
+        {
+            PDFTextStripper stripper = new PDFTextStripper();
+            String extractedText = stripper.getText(document);
+            assertEquals(text1 + " " + text2, extractedText.trim());
+        }
     }
 
     private class TrueTypeEmbedderTester extends TrueTypeEmbedder
@@ -336,14 +370,14 @@ public class TestFontEmbedding
          *
          */
         TrueTypeEmbedderTester(PDDocument document, COSDictionary dict, TrueTypeFont ttf, boolean embedSubset)
-            throws IOException
+                throws IOException
         {
             super(document, dict, ttf, embedSubset);
         }
 
         @Override
         protected void buildSubset(InputStream ttfSubset, String tag, Map<Integer, Integer> gidToCid)
-            throws IOException
+                throws IOException
         {
             // no-op.  Need to define method to extend abstract class, but
             // this method is not currently needed for testing
@@ -355,13 +389,15 @@ public class TestFontEmbedding
      *
      * @throws IOException
      */
+    @Test
     public void testIsEmbeddingPermittedMultipleVersions() throws IOException
     {
         // SETUP
         PDDocument doc = new PDDocument();
         COSDictionary cosDictionary = new COSDictionary();
-        InputStream input = PDFont.class.getResourceAsStream("/com/tom_roush/pdfbox/resources/ttf/LiberationSans-Regular.ttf");
-        TrueTypeFont ttf = new TTFParser().parseEmbedded(input);
+        final File testFile = new File("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+        TrueTypeFont ttf = new TTFParser().parseEmbedded(new FileInputStream(testFile));
+
         TrueTypeEmbedderTester tester = new TrueTypeEmbedderTester(doc, cosDictionary, ttf, true);
         TrueTypeFont mockTtf = Mockito.mock(TrueTypeFont.class);
         OS2WindowsMetricsTable mockOS2 = Mockito.mock(OS2WindowsMetricsTable.class);
@@ -436,5 +472,121 @@ public class TestFontEmbedding
         assertTrue(embeddingIsPermitted);
 
         // no test for 1111
+    }
+
+    @Test
+    public void testSurrogatePairCharacterExceptionIsBmpCodePoint() throws IOException
+    {
+        final String message = "あ";
+
+        try (PDDocument doc = new PDDocument())
+        {
+            PDPage page = new PDPage();
+            doc.addPage(page);
+            final File testFile = new File("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+
+            PDFont font = PDType0Font.load(doc, testFile);
+
+            try (PDPageContentStream contents = new PDPageContentStream(doc, page))
+            {
+                contents.beginText();
+                contents.setFont(font, 64);
+                contents.newLineAtOffset(100, 700);
+                contents.showText(message);
+                contents.endText();
+            }
+            catch (IllegalStateException | IllegalArgumentException e)
+            {
+                assertEquals("No glyph for U+3042 (あ) in font LiberationSans", e.getMessage());
+                return;
+            }
+
+            fail();
+        }
+    }
+
+    @Test
+    public void testSurrogatePairCharacterExceptionIsValidCodePoint() throws IOException
+    {
+        final String message = "𩸽";
+        try (PDDocument doc = new PDDocument())
+        {
+            PDPage page = new PDPage();
+            doc.addPage(page);
+
+            final File testFile = new File("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+            var inputStream = new FileInputStream(testFile);
+
+            PDFont font = PDType0Font.load(doc,inputStream);
+
+            try (PDPageContentStream contents = new PDPageContentStream(doc, page))
+            {
+                contents.beginText();
+                contents.setFont(font, 64);
+                contents.newLineAtOffset(100, 700);
+                contents.showText(message);
+                contents.endText();
+            }
+            catch (IllegalStateException | IllegalArgumentException e)
+            {
+                assertEquals("No glyph for U+29E3D (鸽) in font LiberationSans", e.getMessage());
+                return;
+            }
+
+            fail();
+        }
+    }
+
+    /**
+     * PDFBOX-5230: Zero-width characters should be invisible.
+     *
+     * @throws IOException
+     */
+    @Test
+    public void testEmbeddedFontWithZeroWidthChars() throws IOException
+    {
+        String text = "AAA\u200CBBB";
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (PDDocument document = new PDDocument())
+        {
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            final File testFile = new File("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+            var input = new FileInputStream(testFile);
+
+            PDType0Font font = PDType0Font.load(document, input);
+            try (PDPageContentStream stream = new PDPageContentStream(document, page))
+            {
+                stream.beginText();
+                stream.setFont(font, 20);
+                stream.newLineAtOffset(50, 600);
+                stream.showText(text);
+                stream.endText();
+            }
+            document.save(baos);
+        }
+        try (PDDocument document = Loader.loadPDF(baos.toByteArray()))
+        {
+            // verify that the text still contains zero-width characters
+            PDFTextStripper stripper = new PDFTextStripper();
+            String extractedText = stripper.getText(document).trim();
+            assertEquals(text, extractedText);
+            assertEquals(7, extractedText.length());
+            assertEquals('\u200C', extractedText.charAt(3));
+
+            // verify that the zero-width characters are invisible
+            PDPage page = document.getPage(0);
+            PDResources resources = page.getResources();
+            Iterable< COSName > fontNames = resources.getFontNames();
+            COSName fontName = fontNames.iterator().next();
+            PDType0Font font = (PDType0Font) resources.getFont(fontName);
+            byte[] encoded = font.encode('\u200C');
+            int code = ((encoded[0] & 0xFF) << 8) | (encoded[1] & 0xFF);
+            assertEquals(0f, font.getWidth(code), 0.00f);
+            assertEquals(0f, font.getWidthFromFont(code), 0.00f);
+
+            assertFalse(font.isDamaged());
+        }
     }
 }

@@ -21,6 +21,7 @@ import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.PageMode;
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.rendering.PDFRenderer;
 
 import org.junit.Assert;
@@ -98,7 +99,7 @@ public class TestOptionalContentGroupsInstrumentationTest
 
          //Setup page content stream and paint background/title
          PDPageContentStream contentStream = new PDPageContentStream(doc, page, AppendMode.OVERWRITE, false);
-         PDFont font = PDType1Font.HELVETICA_BOLD;
+         PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
          contentStream.beginMarkedContent(COSName.OC, background);
          contentStream.beginText();
          contentStream.setFont(font, 14);
@@ -107,7 +108,7 @@ public class TestOptionalContentGroupsInstrumentationTest
          contentStream.endText();
          contentStream.endMarkedContent();
 
-         font = PDType1Font.HELVETICA;
+         font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
 
          //Paint enabled layer
          contentStream.beginMarkedContent(COSName.OC, enabled);
@@ -176,7 +177,7 @@ public class TestOptionalContentGroupsInstrumentationTest
          }
 
          PDPageContentStream contentStream = new PDPageContentStream(doc2, page, AppendMode.OVERWRITE, false);
-         PDFont font = PDType1Font.HELVETICA;
+         PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
 
          contentStream.setNonStrokingColor(AWTColor.RED);
          contentStream.beginText();

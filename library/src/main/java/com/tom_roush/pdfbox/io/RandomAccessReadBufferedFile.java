@@ -54,7 +54,7 @@ public class RandomAccessReadBufferedFile implements RandomAccessRead
         private static final long serialVersionUID = -6302488539257741101L;
 
         @Override
-        protected boolean removeEldestEntry(Entry<Long, ByteBuffer> eldest)
+        protected boolean removeEldestEntry(Map.Entry<Long, ByteBuffer> eldest)
         {
             final boolean doRemove = size() > MAX_CACHED_PAGES;
             if (doRemove)
@@ -75,14 +75,14 @@ public class RandomAccessReadBufferedFile implements RandomAccessRead
     private final long fileLength;
     private long fileOffset = 0;
     private boolean isClosed;
-    
+
     /**
      * Create a random access buffered file instance for the file with the given name.
      *
      * @param filename the filename of the file to be read.
      * @throws IOException if something went wrong while accessing the given file.
      */
-    public RandomAccessReadBufferedFile(String filename ) throws IOException
+    public RandomAccessReadBufferedFile( String filename ) throws IOException
     {
         this(new File(filename));
     }
@@ -93,7 +93,7 @@ public class RandomAccessReadBufferedFile implements RandomAccessRead
      * @param file the file to be read.
      * @throws IOException if something went wrong while accessing the given file.
      */
-    public RandomAccessReadBufferedFile(File file ) throws IOException
+    public RandomAccessReadBufferedFile( File file ) throws IOException
     {
         this(file.toPath());
     }
@@ -118,13 +118,13 @@ public class RandomAccessReadBufferedFile implements RandomAccessRead
         checkClosed();
         return fileOffset;
     }
-    
+
     /**
      * Seeks to new position. If new position is outside of current page the new page is either
      * taken from cache or read from file and added to cache.
      *
      * @param position the position to seek to.
-     * @throws IOException if something went wrong.
+     * @throws java.io.IOException if something went wrong.
      */
     @Override
     public void seek( final long position ) throws IOException
@@ -151,7 +151,7 @@ public class RandomAccessReadBufferedFile implements RandomAccessRead
         fileOffset = Math.min(position, fileLength);
         offsetWithinPage = (int) (fileOffset - curPageOffset);
     }
-    
+
     /**
      * Reads a page with data from current file position. If we have a
      * previously removed page from cache the buffer of this page is reused.
@@ -185,7 +185,7 @@ public class RandomAccessReadBufferedFile implements RandomAccessRead
 
         return page;
     }
-    
+
     @Override
     public int read() throws IOException
     {
@@ -203,7 +203,7 @@ public class RandomAccessReadBufferedFile implements RandomAccessRead
         fileOffset++;
         return curPage.get(offsetWithinPage++) & 0xff;
     }
-    
+
     @Override
     public int read( byte[] b, int off, int len ) throws IOException
     {
@@ -232,21 +232,24 @@ public class RandomAccessReadBufferedFile implements RandomAccessRead
 
         return commonLen;
     }
-    
+
     @Override
     public long length() throws IOException
     {
         return fileLength;
     }
-    
+
     @Override
     public void close() throws IOException
     {
-        rafCopies.values().forEach(IOUtils::closeQuietly);
-        rafCopies.clear();
-        fileChannel.close();
-        pageCache.clear();
-        isClosed = true;
+        if (!isClosed())
+        {
+            rafCopies.values().forEach(IOUtils::closeQuietly);
+            rafCopies.clear();
+            fileChannel.close();
+            pageCache.clear();
+            isClosed = true;
+        }
     }
 
     @Override

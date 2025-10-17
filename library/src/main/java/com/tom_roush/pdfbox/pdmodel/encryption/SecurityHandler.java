@@ -17,6 +17,7 @@
 
 package com.tom_roush.pdfbox.pdmodel.encryption;
 
+import android.os.Build;
 import android.util.Log;
 
 import com.tom_roush.pdfbox.cos.COSArray;
@@ -26,6 +27,7 @@ import com.tom_roush.pdfbox.cos.COSDocument;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSStream;
 import com.tom_roush.pdfbox.cos.COSString;
+import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 
 import java.io.ByteArrayInputStream;
@@ -374,7 +376,11 @@ public abstract class SecurityHandler<T_POLICY extends ProtectionPolicy>
 
         try (CipherInputStream cis = new CipherInputStream(data, cipher))
         {
-            cis.transferTo(output);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                cis.transferTo(output);
+            } else {
+                IOUtils.copy(cis, output);
+            }
         }
         catch (IOException exception)
         {
@@ -570,7 +576,12 @@ public abstract class SecurityHandler<T_POLICY extends ProtectionPolicy>
         byte[] rawData;
         try (InputStream in = stream.createRawInputStream())
         {
-            rawData = in.readAllBytes();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                rawData = in.readAllBytes();
+            }
+            else {
+                rawData = IOUtils.readBytesCompat(in);
+            }
         }
         ByteArrayInputStream encryptedStream = new ByteArrayInputStream(rawData);
         try (OutputStream output = stream.createRawOutputStream())

@@ -28,7 +28,6 @@ import java.io.IOException;
  */
 public class GlyfSimpleDescript extends GlyfDescript
 {
-
     private int[] endPtsOfContours;
     private byte[] flags;
     private short[] xCoordinates;
@@ -37,12 +36,10 @@ public class GlyfSimpleDescript extends GlyfDescript
 
     /**
      * Constructor for an empty description.
-     *
-     * @throws IOException is thrown if something went wrong
      */
-    GlyfSimpleDescript() throws IOException
+    GlyfSimpleDescript()
     {
-        super((short) 0, null);
+        super((short) 0);
         pointCount = 0;
     }
 
@@ -56,10 +53,10 @@ public class GlyfSimpleDescript extends GlyfDescript
      */
     GlyfSimpleDescript(short numberOfContours, TTFDataStream bais, short x0) throws IOException
     {
-        super(numberOfContours, bais);
+        super(numberOfContours);
 
         /*
-         * https://developer.apple.com/fonts/TTRefMan/RM06/Chap6glyf.html
+         * https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6glyf.html
          * "If a glyph has zero contours, it need not have any glyph data." set the pointCount to zero to initialize
          * attributes and avoid nullpointer but maybe there shouldn't have GlyphDescript in the GlyphData?
          */
@@ -215,8 +212,8 @@ public class GlyfSimpleDescript extends GlyfDescript
                 {
                     if (index + i >= flags.length)
                     {
-                        Log.e("PdfBox-Android", "repeat count (" + repeats + ") higher than remaining space");
-                        return;
+                        throw new IOException(
+                                "repeat count (" + repeats + ") higher than remaining space");
                     }
                     flags[index + i] = flags[index];
                 }

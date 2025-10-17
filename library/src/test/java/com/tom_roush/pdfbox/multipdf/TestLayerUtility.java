@@ -23,6 +23,7 @@ import com.tom_roush.harmony.awt.AWTColor;
 import com.tom_roush.harmony.awt.geom.AffineTransform;
 import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.pdfwriter.compress.CompressParameters;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentCatalog;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
@@ -32,6 +33,7 @@ import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.optionalcontent.PDOptionalContentGroup;
 import com.tom_roush.pdfbox.pdmodel.graphics.optionalcontent.PDOptionalContentProperties;
@@ -66,10 +68,10 @@ public class TestLayerUtility extends TestCase
         File overlay1 = createOverlay1();
         File targetFile = new File(testResultsDir, "text-with-form-overlay.pdf");
 
-        PDDocument targetDoc = Loader.loadPDF(mainPDF);
-        PDDocument overlay1Doc = Loader.loadPDF(overlay1);
-        try
+        try (PDDocument targetDoc = Loader.loadPDF(mainPDF);
+             PDDocument overlay1Doc = Loader.loadPDF(overlay1))
         {
+            assertEquals(1.4f, targetDoc.getVersion());
             LayerUtility layerUtil = new LayerUtility(targetDoc);
             PDFormXObject form = layerUtil.importPageAsForm(overlay1Doc, 0);
             PDPage targetPage = targetDoc.getPage(0);
@@ -77,16 +79,13 @@ public class TestLayerUtility extends TestCase
             AffineTransform at = new AffineTransform();
             layerUtil.appendFormAsLayer(targetPage, form, at, "overlay");
 
-            targetDoc.save(targetFile.getAbsolutePath());
-        }
-        finally
-        {
-            targetDoc.close();
-            overlay1Doc.close();
+            assertEquals(1.5f, targetDoc.getVersion());
+            // save with no compression to avoid version going up to 1.6
+            targetDoc.save(targetFile.getAbsolutePath(), CompressParameters.NO_COMPRESSION);
+            assertEquals(1.5f, targetDoc.getVersion());
         }
 
-        PDDocument doc = Loader.loadPDF(targetFile);
-        try
+        try (PDDocument doc = Loader.loadPDF(targetFile))
         {
             PDDocumentCatalog catalog = doc.getDocumentCatalog();
 
@@ -94,8 +93,8 @@ public class TestLayerUtility extends TestCase
             assertEquals(1.5f, doc.getVersion());
 
             PDPage page = doc.getPage(0);
-            PDOptionalContentGroup ocg = (PDOptionalContentGroup)page.getResources()
-                .getProperties(COSName.getPDFName("oc1"));
+            PDOptionalContentGroup ocg = (PDOptionalContentGroup) page.getResources()
+                    .getProperties(COSName.getPDFName("oc1"));
             assertNotNull(ocg);
             assertEquals("overlay", ocg.getName());
 
@@ -106,17 +105,12 @@ public class TestLayerUtility extends TestCase
             // test PDFBOX-5232 (never ended)
             new LayerUtility(doc).importPageAsForm(doc, 0);
         }
-        finally
-        {
-            doc.close();
-        }
     }
 
     private File createMainPDF() throws IOException
     {
         File targetFile = new File(testResultsDir, "text-doc.pdf");
-        PDDocument doc = new PDDocument();
-        try
+        try (PDDocument doc = new PDDocument())
         {
             //Create new page
             PDPage page = new PDPage();
@@ -128,41 +122,38 @@ public class TestLayerUtility extends TestCase
                 page.setResources( resources );
             }
 
-            final String[] text = new String[] {
-                "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer fermentum lacus in eros",
-                "condimentum eget tristique risus viverra. Sed ac sem et lectus ultrices placerat. Nam",
-                "fringilla tincidunt nulla id euismod. Vivamus eget mauris dui. Mauris luctus ullamcorper",
-                "leo, et laoreet diam suscipit et. Nulla viverra commodo sagittis. Integer vitae rhoncus velit.",
-                "Mauris porttitor ipsum in est sagittis non luctus purus molestie. Sed placerat aliquet",
-                "vulputate."
+            final String[] text = {
+                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer fermentum lacus in eros",
+                    "condimentum eget tristique risus viverra. Sed ac sem et lectus ultrices placerat. Nam",
+                    "fringilla tincidunt nulla id euismod. Vivamus eget mauris dui. Mauris luctus ullamcorper",
+                    "leo, et laoreet diam suscipit et. Nulla viverra commodo sagittis. Integer vitae rhoncus velit.",
+                    "Mauris porttitor ipsum in est sagittis non luctus purus molestie. Sed placerat aliquet",
+                    "vulputate."
             };
 
-            //Setup page content stream and paint background/title
-            PDPageContentStream contentStream = new PDPageContentStream(doc, page, AppendMode.OVERWRITE, false);
-            PDFont font = PDType1Font.HELVETICA_BOLD;
-            contentStream.beginText();
-            contentStream.newLineAtOffset(50, 720);
-            contentStream.setFont(font, 14);
-            contentStream.showText("Simple test document with text.");
-            contentStream.endText();
-            font = PDType1Font.HELVETICA;
-            contentStream.beginText();
-            int fontSize = 12;
-            contentStream.setFont(font, fontSize);
-            contentStream.newLineAtOffset(50, 700);
-            for (String line : text)
+            try (PDPageContentStream contentStream = new PDPageContentStream(doc, page, AppendMode.OVERWRITE, false))
             {
-                contentStream.newLineAtOffset(0, -fontSize * 1.2f);
-                contentStream.showText(line);
+                //Setup page content stream and paint background/title
+                PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+                contentStream.beginText();
+                contentStream.newLineAtOffset(50, 720);
+                contentStream.setFont(font, 14);
+                contentStream.showText("Simple test document with text.");
+                contentStream.endText();
+                font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+                contentStream.beginText();
+                int fontSize = 12;
+                contentStream.setFont(font, fontSize);
+                contentStream.newLineAtOffset(50, 700);
+                for (String line : text)
+                {
+                    contentStream.newLineAtOffset(0, -fontSize * 1.2f);
+                    contentStream.showText(line);
+                }
+                contentStream.endText();
             }
-            contentStream.endText();
-            contentStream.close();
-
-            doc.save(targetFile.getAbsolutePath());
-        }
-        finally
-        {
-            doc.close();
+            // save with no compression to avoid version going up to 1.6
+            doc.save(targetFile.getAbsolutePath(), CompressParameters.NO_COMPRESSION);
         }
         return targetFile;
     }
@@ -170,8 +161,7 @@ public class TestLayerUtility extends TestCase
     private File createOverlay1() throws IOException
     {
         File targetFile = new File(testResultsDir, "overlay1.pdf");
-        PDDocument doc = new PDDocument();
-        try
+        try (PDDocument doc = new PDDocument())
         {
             //Create new page
             PDPage page = new PDPage();
@@ -183,33 +173,29 @@ public class TestLayerUtility extends TestCase
                 page.setResources( resources );
             }
 
-            //Setup page content stream and paint background/title
-            PDPageContentStream contentStream = new PDPageContentStream(doc, page, AppendMode.OVERWRITE, false);
-            PDFont font = PDType1Font.HELVETICA_BOLD;
-            contentStream.setNonStrokingColor(AWTColor.LIGHT_GRAY);
-            contentStream.beginText();
-            float fontSize = 96;
-            contentStream.setFont(font, fontSize);
-            String text = "OVERLAY";
-            //float sw = font.getStringWidth(text);
-            //Too bad, base 14 fonts don't return character metrics.
-            PDRectangle crop = page.getCropBox();
-            float cx = crop.getWidth() / 2f;
-            float cy = crop.getHeight() / 2f;
-            Matrix transform = new Matrix();
-            transform.translate(cx, cy);
-            transform.rotate(Math.toRadians(45));
-            transform.translate(-190 /* sw/2 */, 0);
-            contentStream.setTextMatrix(transform);
-            contentStream.showText(text);
-            contentStream.endText();
-            contentStream.close();
-
+            try (PDPageContentStream contentStream = new PDPageContentStream(doc, page, AppendMode.OVERWRITE, false))
+            {
+                //Setup page content stream and paint background/title
+                PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+                contentStream.setNonStrokingColor(AWTColor.LIGHT_GRAY);
+                contentStream.beginText();
+                float fontSize = 96;
+                contentStream.setFont(font, fontSize);
+                String text = "OVERLAY";
+                //float sw = font.getStringWidth(text);
+                //Too bad, base 14 fonts don't return character metrics.
+                PDRectangle crop = page.getCropBox();
+                float cx = crop.getWidth() / 2f;
+                float cy = crop.getHeight() / 2f;
+                Matrix transform = new Matrix();
+                transform.translate(cx, cy);
+                transform.rotate(Math.toRadians(45));
+                transform.translate(-190 /* sw/2 */, 0);
+                contentStream.setTextMatrix(transform);
+                contentStream.showText(text);
+                contentStream.endText();
+            }
             doc.save(targetFile.getAbsolutePath());
-        }
-        finally
-        {
-            doc.close();
         }
         return targetFile;
     }

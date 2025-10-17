@@ -1,0 +1,84 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.tom_roush.pdfbox.contentstream.operator.markedcontent;
+
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
+import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
+import com.tom_roush.pdfbox.contentstream.operator.Operator;
+import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
+import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
+import com.tom_roush.pdfbox.cos.COSBase;
+import com.tom_roush.pdfbox.cos.COSDictionary;
+import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.pdmodel.documentinterchange.markedcontent.PDPropertyList;
+
+import java.io.IOException;
+import java.util.List;
+
+/**
+ *
+ * @author Tilman Hausherr
+ */
+public class MarkedContentPointWithProperties extends OperatorProcessor
+{
+    public MarkedContentPointWithProperties(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
+    @Override
+    public void process(Operator operator, List<COSBase> operands) throws IOException
+    {
+        if (operands.size() < 2)
+        {
+            throw new MissingOperandException(operator, operands);
+        }
+        if (!(operands.get(0) instanceof COSName))
+        {
+            return;
+        }
+        PDFStreamEngine context = getContext();
+        COSName tag = (COSName) operands.get(0);
+        COSBase op1 = operands.get(1);
+        COSDictionary propDict = null;
+        if (op1 instanceof COSName)
+        {
+            PDPropertyList prop = context.getResources().getProperties((COSName) op1);
+            if (prop != null)
+            {
+                propDict = prop.getCOSObject();
+            }
+        }
+        else if (op1 instanceof COSDictionary)
+        {
+            propDict = (COSDictionary) op1;
+        }
+        if (propDict == null)
+        {
+            // wrong type or property not found
+            return;
+        }
+        context.markedContentPoint(tag, propDict);
+    }
+
+    @Override
+    public String getName()
+    {
+        return OperatorName.MARKED_CONTENT_POINT_WITH_PROPS;
+    }
+    
+}

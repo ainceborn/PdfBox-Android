@@ -26,7 +26,8 @@ import java.io.IOException;
  */
 public class OpenTypeFont extends TrueTypeFont
 {
-    private boolean isPostScript;
+    // indicates whether the version info identifies this font as PostScriptFont
+    private boolean hasPostScriptTag;
 
     /**
      * Constructor. Clients should use the OTFParser to create a new OpenTypeFont object.
@@ -41,7 +42,7 @@ public class OpenTypeFont extends TrueTypeFont
     @Override
     void setVersion(float versionValue)
     {
-        isPostScript = Float.floatToIntBits(versionValue) == 0x469EA8A9; // OTTO
+        hasPostScriptTag = Float.floatToIntBits(versionValue) == 0x469EA8A9; // OTTO
         super.setVersion(versionValue);
     }
 
@@ -49,10 +50,13 @@ public class OpenTypeFont extends TrueTypeFont
      * Get the "CFF" table for this OTF.
      *
      * @return The "CFF" table.
+     *
+     * @throws IOException if the font data could not be read
+     * @throws UnsupportedOperationException if the current font isn't a CFF font
      */
     public CFFTable getCFF() throws IOException
     {
-        if (!isPostScript)
+        if (!hasPostScriptTag)
         {
             throw new UnsupportedOperationException("TTF fonts do not have a CFF table");
         }
@@ -62,7 +66,7 @@ public class OpenTypeFont extends TrueTypeFont
     @Override
     public GlyphTable getGlyph() throws IOException
     {
-        if (isPostScript)
+        if (hasPostScriptTag)
         {
             throw new UnsupportedOperationException("OTF fonts do not have a glyf table");
         }
@@ -72,36 +76,56 @@ public class OpenTypeFont extends TrueTypeFont
     @Override
     public Path getPath(String name) throws IOException
     {
-        int gid = nameToGID(name);
-        return getCFF().getFont().getType2CharString(gid).getPath();
+        if (hasPostScriptTag && isSupportedOTF())
+        {
+            int gid = nameToGID(name);
+            return getCFF().getFont().getType2CharString(gid).getPath();
+        }
+        else
+        {
+            return super.getPath(name);
+        }
     }
 
     /**
      * Returns true if this font is a PostScript outline font.
+     *
+     * @return true if the font is a PostScript outline font, otherwise false
      */
     public boolean isPostScript()
     {
-        return tables.containsKey(CFFTable.TAG);
+        return hasPostScriptTag || tables.containsKey(CFFTable.TAG) || tables.containsKey("CFF2");
+    }
+
+    /**
+     * Returns true if this font is supported.
+     *
+     * There are 3 kind of OpenType fonts, fonts using TrueType outlines, fonts using CFF outlines (version 1 and 2)
+     *
+     * Fonts using CFF outlines version 2 aren't supported yet.
+     *
+     * @return true if the font is supported
+     */
+    public boolean isSupportedOTF()
+    {
+        // OTF using CFF2 based outlines aren't yet supported
+        return !(hasPostScriptTag //
+                && !tables.containsKey(CFFTable.TAG) //
+                && tables.containsKey("CFF2") //
+        );
     }
 
     /**
      * Returns true if this font uses OpenType Layout (Advanced Typographic) tables.
+     *
+     * @return true if the font has any layout table, otherwise false
      */
     public boolean hasLayoutTables()
     {
-        return tables.containsKey("BASE") ||
-            tables.containsKey("GDEF") ||
-            tables.containsKey("GPOS") ||
-            tables.containsKey("GSUB") ||
-            tables.containsKey("JSTF");
-    }
-
-    public boolean isSupportedOTF()
-    {
-        // OTF using CFF2 based outlines aren't yet supported
-        return !(isPostScript //
-                && !tables.containsKey(CFFTable.TAG) //
-                && tables.containsKey("CFF2") //
-        );
+        return tables.containsKey("BASE") //
+                || tables.containsKey("GDEF") //
+                || tables.containsKey("GPOS") //
+                || tables.containsKey(GlyphSubstitutionTable.TAG) //
+                || tables.containsKey(OTLTable.TAG);
     }
 }

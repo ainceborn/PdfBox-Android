@@ -17,10 +17,12 @@
 package com.tom_roush.pdfbox.pdmodel.graphics.color;
 
 import android.graphics.ColorSpace;
+import android.util.Log;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
@@ -110,11 +112,38 @@ public final class PDOutputIntent implements COSObjectable
     private PDStream configureOutputProfile(PDDocument doc, InputStream colorProfile)
             throws IOException
     {
-//        ICC_Profile icc = ICC_Profile.getInstance(colorProfile);
-//        PDStream stream = new PDStream(doc, new ByteArrayInputStream(icc.getData()), COSName.FLATE_DECODE);
-//        stream.getCOSObject().setInt(COSName.N, icc.getNumComponents()); TODO: PdfBox-Android
+
+        int numComponents = detectNumComponents(colorProfile);
+
         PDStream stream = new PDStream(doc, colorProfile, COSName.FLATE_DECODE);
-        stream.getStream().setInt(COSName.N, 3);
+        stream.getCOSObject().setInt(COSName.N, numComponents);
+
         return stream;
+    }
+
+    private static int detectNumComponents(InputStream colorProfile) throws IOException {
+        colorProfile.mark(32);
+        byte[] header = new byte[32];
+        int read = colorProfile.read(header);
+        colorProfile.reset();
+
+        if (read < 20) {
+            throw new IOException("Invalid ICC profile: too short");
+        }
+
+        // color space signature хранится в байтах 16..19
+        String colorSpace = new String(header, 16, 4, StandardCharsets.US_ASCII).trim();
+
+        switch (colorSpace) {
+            case "GRAY":
+                return 1;
+            case "RGB":
+                return 3;
+            case "CMYK":
+                return 4;
+            default:
+                Log.w("ICCProfile", "Unknown color space: " + colorSpace + ", defaulting to 3 (RGB)");
+                return 3;
+        }
     }
 }  
