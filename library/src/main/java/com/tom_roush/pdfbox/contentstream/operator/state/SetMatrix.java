@@ -18,6 +18,7 @@ package com.tom_roush.pdfbox.contentstream.operator.state;
 
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -33,6 +34,11 @@ import com.tom_roush.pdfbox.util.Matrix;
  */
 public class SetMatrix extends OperatorProcessor
 {
+    public SetMatrix(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws MissingOperandException
     {
@@ -53,8 +59,8 @@ public class SetMatrix extends OperatorProcessor
         COSNumber f = (COSNumber)arguments.get( 5 );
 
         Matrix matrix = new Matrix(a.floatValue(), b.floatValue(), c.floatValue(),
-            d.floatValue(), e.floatValue(), f.floatValue());
-
+                d.floatValue(), e.floatValue(), f.floatValue());
+        PDFStreamEngine context = getContext();
         context.setTextMatrix(matrix);
         context.setTextLineMatrix(matrix.clone());
     }

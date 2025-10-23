@@ -20,6 +20,7 @@ import android.util.Log;
 
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -35,6 +36,11 @@ import com.tom_roush.pdfbox.cos.COSNumber;
  */
 public class SetLineDashPattern extends OperatorProcessor
 {
+    public SetLineDashPattern(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws MissingOperandException
     {
@@ -60,7 +66,7 @@ public class SetLineDashPattern extends OperatorProcessor
             if (base instanceof COSNumber)
             {
                 COSNumber num = (COSNumber) base;
-                if (num.floatValue() != 0)
+                if (Float.compare(num.floatValue(), 0) != 0)
                 {
                     break;
                 }
@@ -72,7 +78,7 @@ public class SetLineDashPattern extends OperatorProcessor
                 break;
             }
         }
-        context.setLineDashPattern(dashArray, dashPhase);
+        getContext().setLineDashPattern(dashArray, dashPhase);
     }
 
     @Override

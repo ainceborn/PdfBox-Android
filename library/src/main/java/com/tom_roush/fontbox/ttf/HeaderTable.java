@@ -59,9 +59,19 @@ public class HeaderTable extends TTFTable
     private short indexToLocFormat;
     private short glyphDataFormat;
 
-    HeaderTable(TrueTypeFont font)
+    HeaderTable()
     {
-        super(font);
+        super();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    void readHeaders(TrueTypeFont ttf, TTFDataStream data, FontHeaders outHeaders) throws IOException
+    {
+        // 44 == 4 + 4 + 4 + 4 + 2 + 2 + 2*8 + 4*2, see read()
+        data.seek(data.getCurrentPosition() + 44);
+        macStyle = data.readUnsignedShort();
+        outHeaders.setHeaderMacStyle(macStyle);
     }
 
     /**
@@ -71,6 +81,7 @@ public class HeaderTable extends TTFTable
      * @param data The stream to read the data from.
      * @throws IOException If there is an error reading the data.
      */
+    @Override
     void read(TrueTypeFont ttf, TTFDataStream data) throws IOException
     {
         version = data.read32Fixed();

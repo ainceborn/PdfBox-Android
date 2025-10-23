@@ -17,24 +17,14 @@
 
 package com.tom_roush.fontbox.cff;
 
-public abstract class FDSelect
+public interface FDSelect
 {
-    protected final CFFCIDFont owner;
-
-    /**
-     * Constructor.
-     *
-     * @param owner the owner of the FDSelect data.
-     */
-    public FDSelect(CFFCIDFont owner)
-    {
-        this.owner = owner;
-    }
-
     /**
      * Returns the Font DICT index for the given GID.
      *
      * @param gid GID
+     *
+     * @return the font dictionary index of the given GID
      */
     public abstract int getFDIndex(int gid);
 }

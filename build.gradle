@@ -17,19 +17,9 @@ allprojects {
     version = VERSION_NAME
 
     repositories {
-//        Enable downloading snapshot versions
-//        maven { url "https://s01.oss.sonatype.org/content/repositories/snapshots/" }
         maven { url 'https://jitpack.io' }
         mavenCentral()
         google()
         jcenter()
     }
-
-//    Show more warnings if desired
-//    gradle.projectsEvaluated {
-//        tasks.withType(JavaCompile) {
-//            options.encoding = 'UTF-8'
-//            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-//        }
-//    }
 }

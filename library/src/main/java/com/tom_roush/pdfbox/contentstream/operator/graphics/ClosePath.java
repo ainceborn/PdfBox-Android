@@ -21,6 +21,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
 import com.tom_roush.pdfbox.cos.COSBase;
@@ -32,9 +33,16 @@ import com.tom_roush.pdfbox.cos.COSBase;
  */
 public final class ClosePath extends GraphicsOperatorProcessor
 {
+
+    public ClosePath(PDFGraphicsStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> operands) throws IOException
     {
+        PDFGraphicsStreamEngine context = getGraphicsContext();
         if (context.getCurrentPoint() == null)
         {
             Log.w("PdfBox-Android", "ClosePath without initial MoveTo");

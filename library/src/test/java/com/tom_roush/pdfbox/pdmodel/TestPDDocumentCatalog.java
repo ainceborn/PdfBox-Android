@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDOutputIntent;
 import org.junit.Test;
@@ -50,7 +51,7 @@ public class TestPDDocumentCatalog
         PDDocument doc = null;
         try
         {
-            doc = PDDocument.load(TestPDDocumentCatalog.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/test_pagelabels.pdf"));
+            doc = Loader.loadPDF(TestPDDocumentCatalog.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/test_pagelabels.pdf"));
             PDDocumentCatalog cat = doc.getDocumentCatalog();
             String[] labels = cat.getPageLabels().getLabelsByPageIndices();
             assertEquals(12, labels.length);
@@ -91,7 +92,7 @@ public class TestPDDocumentCatalog
         PDDocument doc = null;
         try
         {
-            doc = PDDocument.load(TestPDDocumentCatalog.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/badpagelabels.pdf"));
+            doc = Loader.loadPDF(TestPDDocumentCatalog.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/badpagelabels.pdf"));
             PDDocumentCatalog cat = doc.getDocumentCatalog();
             // getLabelsByPageIndices() should not throw an exception
             cat.getPageLabels().getLabelsByPageIndices();
@@ -121,7 +122,7 @@ public class TestPDDocumentCatalog
         PDDocument doc = null;
         try
         {
-            doc = PDDocument.load(TestPDDocumentCatalog.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/test.unc.pdf"));
+            doc = Loader.loadPDF(TestPDDocumentCatalog.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/test.unc.pdf"));
             assertEquals(4, doc.getNumberOfPages());
         }
         finally
@@ -150,7 +151,7 @@ public class TestPDDocumentCatalog
         try
         {
 
-            doc = PDDocument.load(TestPDDocumentCatalog.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/test.unc.pdf"));
+            doc = Loader.loadPDF(TestPDDocumentCatalog.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/test.unc.pdf"));
             PDDocumentCatalog catalog = doc.getDocumentCatalog();
 
             // retrieve OutputIntents

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.io.IOUtils;
@@ -132,8 +133,7 @@ public class TestFilters
     {
         File inputPdf = new File("target/pdfs/PDFBOX-4517-cryptfilter.pdf");
         assumeTrue(inputPdf.exists());
-        PDDocument.load(inputPdf,
-            "userpassword1234");
+        Loader.loadPDF(inputPdf, "userpassword1234");
     }
 
     /**

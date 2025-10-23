@@ -19,6 +19,7 @@ package com.tom_roush.pdfbox.contentstream.operator.graphics;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImage;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDInlineImage;
@@ -32,6 +33,11 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
  */
 public final class BeginInlineImage extends GraphicsOperatorProcessor
 {
+    public BeginInlineImage(PDFGraphicsStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> operands) throws IOException
     {
@@ -39,9 +45,19 @@ public final class BeginInlineImage extends GraphicsOperatorProcessor
         {
             return;
         }
+        PDFGraphicsStreamEngine context = getGraphicsContext();
         PDImage image = new PDInlineImage(operator.getImageParameters(),
-            operator.getImageData(),
-            context.getResources());
+                operator.getImageData(),
+                context.getResources());
+        // maybe something went wrong when decoding the image data
+        if (image.isEmpty())
+        {
+            return;
+        }
+        if (!image.isStencil() && !context.isShouldProcessColorOperators())
+        {
+            return;
+        }
         context.drawImage(image);
     }
 

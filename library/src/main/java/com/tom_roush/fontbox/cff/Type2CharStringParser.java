@@ -27,40 +27,29 @@ import java.util.Locale;
  */
 public class Type2CharStringParser
 {
-    private int hstemCount = 0;
-    private int vstemCount = 0;
-    private List<Object> sequence = null;
-    @SuppressWarnings("unused")
+    // 1-byte commands
+    private static final int CALLSUBR = CharStringCommand.CALLSUBR.getValue();
+    private static final int CALLGSUBR = CharStringCommand.CALLGSUBR.getValue();
+
+    // not yet supported commands
+    private static final int HINTMASK = CharStringCommand.HINTMASK.getValue();
+    private static final int CNTRMASK = CharStringCommand.CNTRMASK.getValue();
+
     private final String fontName;
-    @SuppressWarnings("unused")
-    private final String glyphName;
 
     /**
      * Constructs a new Type1CharStringParser object for a Type 1-equivalent font.
      *
      * @param fontName font name
-     * @param glyphName glyph name
      */
-    public Type2CharStringParser(String fontName, String glyphName)
+    public Type2CharStringParser(String fontName)
     {
         this.fontName = fontName;
-        this.glyphName = glyphName;
-    }
-
-    /**
-     * Constructs a new Type1CharStringParser object for a CID-Keyed font.
-     *
-     * @param fontName font name
-     * @param cid CID
-     */
-    public Type2CharStringParser(String fontName, int cid)
-    {
-        this.fontName = fontName;
-        this.glyphName = String.format(Locale.US, "%04x", cid); // for debugging only
     }
 
     /**
      * The given byte array will be parsed and converted to a Type2 sequence.
+     *
      * @param bytes the given mapping as byte array
      * @param globalSubrIndex array containing all global subroutines
      * @param localSubrIndex array containing all local subroutines
@@ -68,186 +57,161 @@ public class Type2CharStringParser
      * @return the Type2 sequence
      * @throws IOException if an error occurs during reading
      */
-    public List<Object> parse(byte[] bytes, byte[][] globalSubrIndex, byte[][] localSubrIndex) throws IOException
+    public List<Object> parse(byte[] bytes, byte[][] globalSubrIndex, byte[][] localSubrIndex)
+            throws IOException
     {
-        return parse(bytes, globalSubrIndex, localSubrIndex, true);
+        GlyphData glyphData = new GlyphData();
+        parseSequence(bytes, globalSubrIndex, localSubrIndex, glyphData);
+        return glyphData.sequence;
     }
 
-    private List<Object> parse(byte[] bytes, byte[][] globalSubrIndex, byte[][] localSubrIndex, boolean init) throws IOException
+    private void parseSequence(byte[] bytes, byte[][] globalSubrIndex, byte[][] localSubrIndex,
+                               GlyphData glyphData) throws IOException
     {
-        if (init)
-        {
-            hstemCount = 0;
-            vstemCount = 0;
-            sequence = new ArrayList<Object>();
-        }
-        DataInput input = new DataInput(bytes);
-        boolean localSubroutineIndexProvided = localSubrIndex != null && localSubrIndex.length > 0;
-        boolean globalSubroutineIndexProvided = globalSubrIndex != null && globalSubrIndex.length > 0;
+        DataInput input = new DataInputByteArray(bytes);
 
         while (input.hasRemaining())
         {
             int b0 = input.readUnsignedByte();
-            if (b0 == 10 && localSubroutineIndexProvided)
-            { // process subr command
-                Integer operand=(Integer)sequence.remove(sequence.size()-1);
-                //get subrbias
-                int bias = 0;
-                int nSubrs = localSubrIndex.length;
-
-                if (nSubrs < 1240)
-                {
-                    bias = 107;
-                }
-                else if (nSubrs < 33900)
-                {
-                    bias = 1131;
-                }
-                else
-                {
-                    bias = 32768;
-                }
-                int subrNumber = bias+operand;
-                if (subrNumber < localSubrIndex.length)
-                {
-                    byte[] subrBytes = localSubrIndex[subrNumber];
-                    parse(subrBytes, globalSubrIndex, localSubrIndex, false);
-                    Object lastItem=sequence.get(sequence.size()-1);
-                    if (lastItem instanceof CharStringCommand && ((CharStringCommand)lastItem).getKey().getValue()[0] == 11)
-                    {
-                        sequence.remove(sequence.size()-1); // remove "return" command
-                    }
-                }
-
-            }
-            else if (b0 == 29 && globalSubroutineIndexProvided)
-            { // process globalsubr command
-                Integer operand=(Integer)sequence.remove(sequence.size()-1);
-                //get subrbias
-                int bias;
-                int nSubrs = globalSubrIndex.length;
-
-                if (nSubrs < 1240)
-                {
-                    bias = 107;
-                }
-                else if (nSubrs < 33900)
-                {
-                    bias = 1131;
-                }
-                else
-                {
-                    bias = 32768;
-                }
-
-                int subrNumber = bias+operand;
-                if (subrNumber < globalSubrIndex.length)
-                {
-                    byte[] subrBytes = globalSubrIndex[subrNumber];
-                    parse(subrBytes, globalSubrIndex, localSubrIndex, false);
-                    Object lastItem=sequence.get(sequence.size()-1);
-                    if (lastItem instanceof CharStringCommand && ((CharStringCommand)lastItem).getKey().getValue()[0]==11)
-                    {
-                        sequence.remove(sequence.size()-1); // remove "return" command
-                    }
-                }
-
-            }
-            else if (b0 >= 0 && b0 <= 27)
+            if (b0 == CALLSUBR)
             {
-                sequence.add(readCommand(b0, input));
+                processCallSubr(globalSubrIndex, localSubrIndex, glyphData);
             }
-            else if (b0 == 28)
+            else if (b0 == CALLGSUBR)
             {
-                sequence.add(readNumber(b0, input));
+                processCallGSubr(globalSubrIndex, localSubrIndex, glyphData);
             }
-            else if (b0 >= 29 && b0 <= 31)
+            else if (b0 == HINTMASK || b0 == CNTRMASK)
             {
-                sequence.add(readCommand(b0, input));
+                glyphData.vstemCount += countNumbers(glyphData.sequence) / 2;
+                int maskLength = getMaskLength(glyphData.hstemCount, glyphData.vstemCount);
+                // drop the following bytes representing the mask as long as we don't support HINTMASK and CNTRMASK
+                for (int i = 0; i < maskLength; i++)
+                {
+                    input.readUnsignedByte();
+                }
+                glyphData.sequence.add(CharStringCommand.getInstance(b0));
             }
-            else if (b0 >= 32 && b0 <= 255)
+            else if ((b0 >= 0 && b0 <= 18) || (b0 >= 21 && b0 <= 27) || (b0 >= 29 && b0 <= 31))
             {
-                sequence.add(readNumber(b0, input));
+                glyphData.sequence.add(readCommand(b0, input, glyphData));
+            }
+            else if (b0 == 28 || (b0 >= 32 && b0 <= 255))
+            {
+                glyphData.sequence.add(readNumber(b0, input));
             }
             else
             {
                 throw new IllegalArgumentException();
             }
         }
-        return sequence;
     }
 
-    private CharStringCommand readCommand(int b0, DataInput input) throws IOException
+    private byte[] getSubrBytes(byte[][] subrIndex, GlyphData glyphData)
     {
+        int subrNumber = calculateSubrNumber(
+                (Integer) glyphData.sequence.remove(glyphData.sequence.size() - 1),
+                subrIndex.length);
+        return subrNumber < subrIndex.length ? subrIndex[subrNumber] : null;
+    }
 
-        if (b0 == 1 || b0 == 18)
+    private void processCallSubr(byte[][] globalSubrIndex, byte[][] localSubrIndex,
+                                 GlyphData glyphData) throws IOException
+    {
+        if (localSubrIndex != null && localSubrIndex.length > 0)
         {
-            hstemCount += peekNumbers().size() / 2;
+            byte[] subrBytes = getSubrBytes(localSubrIndex, glyphData);
+            processSubr(globalSubrIndex, localSubrIndex, subrBytes, glyphData);
         }
-        else if (b0 == 3 || b0 == 19 || b0 == 20 || b0 == 23)
-        {
-            vstemCount += peekNumbers().size() / 2;
-        } // End if
+    }
 
-        if (b0 == 12)
+    private void processCallGSubr(byte[][] globalSubrIndex, byte[][] localSubrIndex,
+                                  GlyphData glyphData) throws IOException
+    {
+        if (globalSubrIndex != null && globalSubrIndex.length > 0)
         {
-            int b1 = input.readUnsignedByte();
-
-            return new CharStringCommand(b0, b1);
+            byte[] subrBytes = getSubrBytes(globalSubrIndex, glyphData);
+            processSubr(globalSubrIndex, localSubrIndex, subrBytes, glyphData);
         }
-        else if (b0 == 19 || b0 == 20)
+    }
+
+    private void processSubr(byte[][] globalSubrIndex, byte[][] localSubrIndex, byte[] subrBytes,
+                             GlyphData glyphData) throws IOException
+    {
+        parseSequence(subrBytes, globalSubrIndex, localSubrIndex, glyphData);
+        Object lastItem = glyphData.sequence.get(glyphData.sequence.size() - 1);
+        if (lastItem instanceof CharStringCommand
+                && CharStringCommand.Type2KeyWord.RET == ((CharStringCommand) lastItem).getType2KeyWord())
         {
-            int[] value = new int[1 + getMaskLength()];
-            value[0] = b0;
-
-            for (int i = 1; i < value.length; i++)
-            {
-                value[i] = input.readUnsignedByte();
-            }
-
-            return new CharStringCommand(value);
+            // remove "return" command
+            glyphData.sequence.remove(glyphData.sequence.size() - 1);
         }
+    }
 
-        return new CharStringCommand(b0);
+    private int calculateSubrNumber(int operand, int subrIndexlength)
+    {
+        if (subrIndexlength < 1240)
+        {
+            return 107 + operand;
+        }
+        if (subrIndexlength < 33900)
+        {
+            return 1131 + operand;
+        }
+        return 32768 + operand;
+    }
+
+    private CharStringCommand readCommand(int b0, DataInput input, GlyphData glyphData)
+            throws IOException
+    {
+        switch (b0)
+        {
+            case 1:
+            case 18:
+                glyphData.hstemCount += countNumbers(glyphData.sequence) / 2;
+                return CharStringCommand.getInstance(b0);
+            case 3:
+            case 23:
+                glyphData.vstemCount += countNumbers(glyphData.sequence) / 2;
+                return CharStringCommand.getInstance(b0);
+            case 12:
+                return CharStringCommand.getInstance(b0, input.readUnsignedByte());
+            default:
+                return CharStringCommand.getInstance(b0);
+        }
     }
 
     private Number readNumber(int b0, DataInput input) throws IOException
     {
-
         if (b0 == 28)
         {
             return (int) input.readShort();
         }
-        else if (b0 >= 32 && b0 <= 246)
+        if (b0 >= 32 && b0 <= 246)
         {
             return b0 - 139;
         }
-        else if (b0 >= 247 && b0 <= 250)
+        if (b0 >= 247 && b0 <= 250)
         {
             int b1 = input.readUnsignedByte();
-
             return (b0 - 247) * 256 + b1 + 108;
         }
-        else if (b0 >= 251 && b0 <= 254)
+        if (b0 >= 251 && b0 <= 254)
         {
             int b1 = input.readUnsignedByte();
-
             return -(b0 - 251) * 256 - b1 - 108;
         }
-        else if (b0 == 255)
+        if (b0 == 255)
         {
             short value = input.readShort();
             // The lower bytes are representing the digits after the decimal point
             double fraction = input.readUnsignedShort() / 65535d;
             return value + fraction;
         }
-        else
-        {
-            throw new IllegalArgumentException();
-        }
+        throw new IllegalArgumentException();
     }
 
-    private int getMaskLength()
+    private int getMaskLength(int hstemCount, int vstemCount)
     {
         int hintCount = hstemCount + vstemCount;
         int length = hintCount / 8;
@@ -258,19 +222,34 @@ public class Type2CharStringParser
         return length;
     }
 
-    private List<Number> peekNumbers()
+    private int countNumbers(List<Object> sequence)
     {
-        List<Number> numbers = new ArrayList<Number>();
+        int count = 0;
         for (int i = sequence.size() - 1; i > -1; i--)
         {
-            Object object = sequence.get(i);
-
-            if (!(object instanceof Number))
+            if (!(sequence.get(i) instanceof Number))
             {
-                return numbers;
+                return count;
             }
-            numbers.add(0, (Number) object);
+            count++;
         }
-        return numbers;
+        return count;
+    }
+
+    @Override
+    public String toString()
+    {
+        return fontName;
+    }
+
+    private class GlyphData
+    {
+        final List<Object> sequence = new ArrayList<>();
+        int hstemCount = 0;
+        int vstemCount = 0;
+
+        private GlyphData()
+        {
+        }
     }
 }

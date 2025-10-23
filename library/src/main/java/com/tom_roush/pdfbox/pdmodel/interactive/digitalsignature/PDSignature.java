@@ -16,12 +16,6 @@
  */
 package com.tom_roush.pdfbox.pdmodel.interactive.digitalsignature;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Calendar;
-
 import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
@@ -29,6 +23,13 @@ import com.tom_roush.pdfbox.cos.COSInteger;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSString;
 import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Calendar;
 
 /**
  * This represents a digital signature that can be attached to a document. To learn more about
@@ -354,7 +355,7 @@ public class PDSignature implements COSObjectable
     {
         int[] byteRange = getByteRange();
         int begin = byteRange[0]+byteRange[1]+1;
-        int len = byteRange[2]-begin;
+        int len = byteRange[2]-begin-1;
 
         return getConvertedContents(new ByteArrayInputStream(pdfFile, begin, len));
     }
@@ -383,7 +384,7 @@ public class PDSignature implements COSObjectable
         }
         is.close();
 
-        return COSString.parseHex(baos.toString("ISO-8859-1")).getBytes();
+        return COSString.parseHex(baos.toString(StandardCharsets.ISO_8859_1)).getBytes();
     }
 
     /**
@@ -393,8 +394,7 @@ public class PDSignature implements COSObjectable
      */
     public void setContents(byte[] bytes)
     {
-        COSString string = new COSString(bytes);
-        string.setForceHexForm(true);
+        COSString string = new COSString(bytes, true);
         dictionary.setItem(COSName.CONTENTS, string);
     }
 
@@ -411,19 +411,9 @@ public class PDSignature implements COSObjectable
      */
     public byte[] getSignedContent(InputStream pdfFile) throws IOException
     {
-        COSFilterInputStream fis=null;
-
-        try
+        try (COSFilterInputStream fis = new COSFilterInputStream(pdfFile, getByteRange()))
         {
-            fis = new COSFilterInputStream(pdfFile,getByteRange());
             return fis.toByteArray();
-        }
-        finally
-        {
-            if (fis != null)
-            {
-                fis.close();
-            }
         }
     }
 
@@ -440,18 +430,9 @@ public class PDSignature implements COSObjectable
      */
     public byte[] getSignedContent(byte[] pdfFile) throws IOException
     {
-        COSFilterInputStream fis=null;
-        try
+        try (COSFilterInputStream fis = new COSFilterInputStream(pdfFile, getByteRange()))
         {
-            fis = new COSFilterInputStream(pdfFile,getByteRange());
             return fis.toByteArray();
-        }
-        finally
-        {
-            if (fis != null)
-            {
-                fis.close();
-            }
         }
     }
 

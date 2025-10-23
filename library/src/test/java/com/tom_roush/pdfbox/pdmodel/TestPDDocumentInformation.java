@@ -16,6 +16,8 @@
  */
 package com.tom_roush.pdfbox.pdmodel;
 
+import com.tom_roush.pdfbox.Loader;
+
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
@@ -36,7 +38,7 @@ public class TestPDDocumentInformation extends TestCase
         try
         {
             // This document has been selected for this test as it contains custom metadata.
-            doc = PDDocument.load( new File("src/test/resources/pdfbox/input/hello3.pdf"));
+            doc = Loader.loadPDF( new File("src/test/resources/pdfbox/input/hello3.pdf"));
             PDDocumentInformation info = doc.getDocumentInformation();
 
             assertEquals("Wrong author", "Brian Carrier", info.getAuthor());
@@ -78,7 +80,7 @@ public class TestPDDocumentInformation extends TestCase
      */
     public void testPDFBox3068() throws Exception
     {
-        PDDocument doc = PDDocument.load(TestPDDocumentInformation.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/PDFBOX-3068.pdf"));
+        PDDocument doc = Loader.loadPDF(TestPDDocumentInformation.class.getResourceAsStream("/pdfbox/com/tom_roush/pdfbox/pdmodel/PDFBOX-3068.pdf"));
         PDDocumentInformation documentInformation = doc.getDocumentInformation();
         assertEquals("Title", documentInformation.getTitle());
         doc.close();

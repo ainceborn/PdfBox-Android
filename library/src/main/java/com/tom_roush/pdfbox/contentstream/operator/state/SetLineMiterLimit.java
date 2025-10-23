@@ -19,6 +19,7 @@ package com.tom_roush.pdfbox.contentstream.operator.state;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -33,6 +34,11 @@ import com.tom_roush.pdfbox.cos.COSNumber;
  */
 public class SetLineMiterLimit extends OperatorProcessor
 {
+    public SetLineMiterLimit(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
@@ -40,8 +46,12 @@ public class SetLineMiterLimit extends OperatorProcessor
         {
             throw new MissingOperandException(operator, arguments);
         }
+        if (!checkArrayTypesClass(arguments, COSNumber.class))
+        {
+            return;
+        }
         COSNumber miterLimit = (COSNumber)arguments.get( 0 );
-        context.getGraphicsState().setMiterLimit(miterLimit.floatValue());
+        getContext().getGraphicsState().setMiterLimit(miterLimit.floatValue());
     }
 
     @Override

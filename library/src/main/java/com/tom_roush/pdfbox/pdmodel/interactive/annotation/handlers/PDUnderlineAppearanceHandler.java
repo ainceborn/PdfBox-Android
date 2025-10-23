@@ -26,7 +26,7 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationUnderline;
 
 /**
  *
@@ -46,7 +46,7 @@ public class PDUnderlineAppearanceHandler extends PDAbstractAppearanceHandler
     @Override
     public void generateNormalAppearance()
     {
-        PDAnnotationTextMarkup annotation = (PDAnnotationTextMarkup) getAnnotation();
+        PDAnnotationUnderline annotation = (PDAnnotationUnderline) getAnnotation();
         PDRectangle rect = annotation.getRectangle();
         if (rect == null)
         {

@@ -19,6 +19,7 @@ package com.tom_roush.pdfbox.contentstream.operator.color;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
@@ -34,6 +35,11 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
  */
 public class SetStrokingColorSpace extends OperatorProcessor
 {
+    public SetStrokingColorSpace(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
@@ -43,6 +49,11 @@ public class SetStrokingColorSpace extends OperatorProcessor
         }
         COSBase base = arguments.get(0);
         if (!(base instanceof COSName))
+        {
+            return;
+        }
+        PDFStreamEngine context = getContext();
+        if (!context.isShouldProcessColorOperators())
         {
             return;
         }

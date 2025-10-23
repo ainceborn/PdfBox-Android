@@ -28,6 +28,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 
@@ -114,13 +115,13 @@ public class TestRendering
 
     public void render(String fileName) throws IOException
     {
-        PDDocument document = PDDocument.load(testContext.getAssets().open(fileName));
+        PDDocument document =  Loader.loadPDF(testContext.getAssets().open(fileName));
         render(document, fileName.substring(fileName.lastIndexOf("/") + 1));
     }
 
     public void render(File file) throws IOException
     {
-        PDDocument document = PDDocument.load(file);
+        PDDocument document =  Loader.loadPDF(file);
         render(document, file.getName());
     }
 

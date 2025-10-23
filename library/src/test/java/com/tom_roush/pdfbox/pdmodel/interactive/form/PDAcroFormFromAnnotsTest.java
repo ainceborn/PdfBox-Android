@@ -25,6 +25,7 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
@@ -63,7 +64,7 @@ public class PDAcroFormFromAnnotsTest
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(acrobatSourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(acrobatSourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          PDAcroForm acroForm = catalog.getAcroForm(null);
          numFormFieldsByAcrobat = acroForm.getFields().size();
@@ -75,7 +76,7 @@ public class PDAcroFormFromAnnotsTest
 
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          // need to do a low level cos access as the PDModel access will build the AcroForm 
          COSDictionary cosAcroForm = (COSDictionary) catalog.getCOSObject().getDictionaryObject(COSName.ACRO_FORM);
@@ -109,7 +110,7 @@ public class PDAcroFormFromAnnotsTest
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(acrobatSourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(acrobatSourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          PDAcroForm acroForm = catalog.getAcroForm(null);
          numFormFieldsByAcrobat = acroForm.getFields().size();
@@ -121,7 +122,7 @@ public class PDAcroFormFromAnnotsTest
 
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          // need to do a low level cos access as the PDModel access will build the AcroForm 
          COSDictionary cosAcroForm = (COSDictionary) catalog.getCOSObject().getDictionaryObject(COSName.ACRO_FORM);
@@ -154,7 +155,7 @@ public class PDAcroFormFromAnnotsTest
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          // need to do a low level cos access as the PDModel access will build the AcroForm 
          COSDictionary cosAcroForm = (COSDictionary) catalog.getCOSObject().getDictionaryObject(COSName.ACRO_FORM);
@@ -186,7 +187,7 @@ public class PDAcroFormFromAnnotsTest
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          // need to do a low level cos access as the PDModel access will build the AcroForm
          COSDictionary cosAcroForm = (COSDictionary) catalog.getCOSObject().getDictionaryObject(COSName.ACRO_FORM);
@@ -223,7 +224,7 @@ public class PDAcroFormFromAnnotsTest
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(acrobatSourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(acrobatSourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          PDAcroForm acroForm = catalog.getAcroForm(null);
          numFormFieldsByAcrobat = acroForm.getFields().size();
@@ -239,7 +240,7 @@ public class PDAcroFormFromAnnotsTest
 
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          // need to do a low level cos access as the PDModel access will build the AcroForm
          COSDictionary cosAcroForm = (COSDictionary) catalog.getCOSObject().getDictionaryObject(COSName.ACRO_FORM);
@@ -287,7 +288,7 @@ public class PDAcroFormFromAnnotsTest
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(acrobatSourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(acrobatSourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          PDAcroForm acroForm = catalog.getAcroForm(null);
          PDResources acroFormResources = acroForm.getDefaultResources();
@@ -315,7 +316,7 @@ public class PDAcroFormFromAnnotsTest
 
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          PDAcroForm acroForm = catalog.getAcroForm(new CreateFieldsFixup(testPdf));
          PDResources acroFormResources = acroForm.getDefaultResources();
@@ -354,7 +355,7 @@ public class PDAcroFormFromAnnotsTest
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          boolean thrown = false;
          try

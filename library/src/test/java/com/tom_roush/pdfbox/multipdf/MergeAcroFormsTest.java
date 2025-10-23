@@ -21,6 +21,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
@@ -29,6 +30,7 @@ import com.tom_roush.pdfbox.multipdf.PDFMergerUtility.AcroFormMergeMode;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDField;
+import com.tom_roush.tools.FileTools;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -76,8 +78,8 @@ public class MergeAcroFormsTest
 
         try
         {
-            compliantDocument = PDDocument.load(new File(IN_DIR,"PDFBoxLegacyMerge-SameMerged.pdf"));
-            toBeCompared = PDDocument.load(new File(OUT_DIR,"PDFBoxLegacyMerge-SameMerged.pdf"));
+            compliantDocument = Loader.loadPDF(new File(IN_DIR,"PDFBoxLegacyMerge-SameMerged.pdf"));
+            toBeCompared = Loader.loadPDF(new File(OUT_DIR,"PDFBoxLegacyMerge-SameMerged.pdf"));
 
 
             PDAcroForm compliantAcroForm = compliantDocument.getDocumentCatalog().getAcroForm();
@@ -107,60 +109,6 @@ public class MergeAcroFormsTest
             IOUtils.closeQuietly(toBeCompared);
         }
     }
-
-    /*
-     * Test Join Field Merge for text fields only and same source documents
-     */
-    @Test
-    public void testJoinFieldsMerge_TextFieldsOnly_SameMerged() throws IOException
-    {
-        PDFMergerUtility merger = new PDFMergerUtility();
-        File toBeMerged = new File(IN_DIR,"AcroFormForMerge-TextFieldsOnly.pdf");
-        File pdfOutput = new File(OUT_DIR,"PDFBoxJoinFieldsMerge-TextFieldsOnly-SameMerged.pdf");
-        merger.setDestinationFileName(pdfOutput.getAbsolutePath());
-        merger.addSource(toBeMerged);
-        merger.addSource(toBeMerged);
-        merger.setAcroFormMergeMode(AcroFormMergeMode.JOIN_FORM_FIELDS_MODE);
-        merger.mergeDocuments(null);
-
-        PDDocument compliantDocument = null;
-        PDDocument toBeCompared = null;
-
-
-        try
-        {
-            compliantDocument = PDDocument.load(new File(IN_DIR,"AcrobatMerge-TextFieldsOnly-SameMerged.pdf"));
-            toBeCompared = PDDocument.load(new File(OUT_DIR,"PDFBoxJoinFieldsMerge-TextFieldsOnly-SameMerged.pdf"));
-
-
-            PDAcroForm compliantAcroForm = compliantDocument.getDocumentCatalog().getAcroForm();
-            PDAcroForm toBeComparedAcroForm = toBeCompared.getDocumentCatalog().getAcroForm();
-
-            assertEquals("There shall be the same number of root fields",
-                compliantAcroForm.getFields().size(),
-                toBeComparedAcroForm.getFields().size());
-
-            for (PDField compliantField : compliantAcroForm.getFieldTree())
-            {
-                assertNotNull("There shall be a field with the same FQN", toBeComparedAcroForm.getField(compliantField.getFullyQualifiedName()));
-                PDField toBeComparedField = toBeComparedAcroForm.getField(compliantField.getFullyQualifiedName());
-                compareFieldProperties(compliantField, toBeComparedField);
-            }
-
-            for (PDField toBeComparedField : toBeComparedAcroForm.getFieldTree())
-            {
-                assertNotNull("There shall be a field with the same FQN", compliantAcroForm.getField(toBeComparedField.getFullyQualifiedName()));
-                PDField compliantField = compliantAcroForm.getField(toBeComparedField.getFullyQualifiedName());
-                compareFieldProperties(toBeComparedField, compliantField);
-            }
-        }
-        finally
-        {
-            IOUtils.closeQuietly(compliantDocument);
-            IOUtils.closeQuietly(toBeCompared);
-        }
-    }
-
 
     private void compareFieldProperties(PDField sourceField, PDField toBeComapredField)
     {
@@ -197,24 +145,20 @@ public class MergeAcroFormsTest
         InputStream s1 = null;
         InputStream s2 = null;
         // Merge the PDFs form PDFBOX-1031
-        PDFMergerUtility merger = new PDFMergerUtility();
         try {
-            File f1 = new File(TARGET_PDF_DIR, "PDFBOX-1031-1.pdf");
-            assumeTrue(f1.exists());
-            s1 = new FileInputStream(f1);
+            PDFMergerUtility merger = new PDFMergerUtility();
 
-            File f2 = new File(TARGET_PDF_DIR, "PDFBOX-1031-2.pdf");
-            assumeTrue(f2.exists());
-            s2 = new FileInputStream(f2);
+            File f1 = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12481683/1.pdf", "PDFBOX-1031-1.pdf");
+            File f2 = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12481684/2.pdf", "PDFBOX-1031-2.pdf");
+            File pdfOutput = new File(OUT_DIR,"PDFBOX-1031.pdf");
 
-            File pdfOutput = new File(OUT_DIR, "PDFBOX-1031.pdf");
             merger.setDestinationFileName(pdfOutput.getAbsolutePath());
-            merger.addSource(s1);
-            merger.addSource(s2);
+            merger.addSource(f1);
+            merger.addSource(f2);
             merger.mergeDocuments(null);
 
             // Test merge result
-            PDDocument mergedPDF = PDDocument.load(pdfOutput);
+            PDDocument mergedPDF = Loader.loadPDF(pdfOutput);
             assertEquals("There shall be 2 pages", 2, mergedPDF.getNumberOfPages());
 
             assertNotNull("There shall be an /Annots entry for the first page", mergedPDF.getPage(0).getCOSObject().getDictionaryObject(COSName.ANNOTS));
@@ -234,29 +178,24 @@ public class MergeAcroFormsTest
      * PDFBOX-1100 Ensure that after merging the PDFs there is an AP and V entry.
      */
     @Test
-    public void testAPEntry() throws IOException {
+    public void testAPEntry() throws IOException
+    {
 
-        InputStream is1 = null;
-        InputStream is2 = null;
+        File file1 = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12490774/a.pdf", "PDFBOX-1100-1.pdf");
+        File file2 = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12490774/b.pdf", "PDFBOX-1100-2.pdf");
         // Merge the PDFs form PDFBOX-1100
         PDFMergerUtility merger = new PDFMergerUtility();
 
-        try {
-            File file1 = new File(TARGET_PDF_DIR, "PDFBOX-1100-1.pdf");
-            assumeTrue(file1.exists());
-            is1 = new FileInputStream(file1);
+        File pdfOutput = new File(OUT_DIR,"PDFBOX-1100.pdf");
 
-            File file2 = new File(TARGET_PDF_DIR, "PDFBOX-1100-2.pdf");
-            assumeTrue(file2.exists());
-            is2 = new FileInputStream(file2);
-            File pdfOutput = new File(OUT_DIR, "PDFBOX-1100.pdf");
-            merger.setDestinationFileName(pdfOutput.getAbsolutePath());
-            merger.addSource(is1);
-            merger.addSource(is2);
-            merger.mergeDocuments(null);
+        merger.setDestinationFileName(pdfOutput.getAbsolutePath());
+        merger.addSource(file1);
+        merger.addSource(file2);
+        merger.mergeDocuments(null);
 
-            // Test merge result
-            PDDocument mergedPDF = PDDocument.load(pdfOutput);
+        // Test merge result
+        try (PDDocument mergedPDF = Loader.loadPDF(pdfOutput))
+        {
             assertEquals("There shall be 2 pages", 2, mergedPDF.getNumberOfPages());
 
             PDAcroForm acroForm = mergedPDF.getDocumentCatalog().getAcroForm();
@@ -266,13 +205,8 @@ public class MergeAcroFormsTest
             assertNotNull("There shall be a /V entry for the field", formField.getCOSObject().getDictionaryObject(COSName.V));
 
             formField = acroForm.getField("Testfeld2");
-            assertNotNull("There shall be an /AP entry for the field", formField.getCOSObject().getDictionaryObject(COSName.AP));
-            assertNotNull("There shall be a /V entry for the field", formField.getCOSObject().getDictionaryObject(COSName.V));
-
-            mergedPDF.close();
-        } finally {
-            IOUtils.closeQuietly(is1);
-            IOUtils.closeQuietly(is2);
+            assertNotNull( "There shall be an /AP entry for the field", formField.getCOSObject().getDictionaryObject(COSName.AP));
+            assertNotNull( "There shall be a /V entry for the field", formField.getCOSObject().getDictionaryObject(COSName.V));
         }
     }
 }

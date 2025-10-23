@@ -34,6 +34,7 @@ import com.tom_roush.pdfbox.filter.Filter;
 import com.tom_roush.pdfbox.io.RandomAccess;
 import com.tom_roush.pdfbox.io.RandomAccessInputStream;
 import com.tom_roush.pdfbox.io.RandomAccessOutputStream;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 import com.tom_roush.pdfbox.io.ScratchFile;
 
 /**
@@ -43,6 +44,29 @@ import com.tom_roush.pdfbox.io.ScratchFile;
  */
 public final class COSInputStream extends FilterInputStream
 {
+
+    /**
+     * Creates a new COSInputStream from an encoded input stream.
+     *
+     * @param filters Filters to be applied.
+     * @param parameters Filter parameters.
+     * @param in Encoded input stream.
+     * @param options decode options for the encoded stream
+     * @return Decoded stream.
+     * @throws IOException If the stream could not be read.
+     */
+    static COSInputStream create(List<Filter> filters, COSDictionary parameters, InputStream in,
+                                 DecodeOptions options) throws IOException
+    {
+        if (filters.isEmpty())
+        {
+            return new COSInputStream(in, Collections.emptyList());
+        }
+        List<DecodeResult> results = new ArrayList<>(filters.size());
+        RandomAccessRead decoded = Filter.decode(in, filters, parameters, options, results);
+        return new COSInputStream(new RandomAccessInputStream(decoded), results);
+    }
+
     /**
      * Creates a new COSInputStream from an encoded input stream.
      *

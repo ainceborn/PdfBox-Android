@@ -22,6 +22,7 @@ import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSString;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,7 +41,7 @@ public class PDDefaultAppearanceStringTest
         resources = new PDResources();
         // the resource name is created when the font is added so need
         // to capture that
-        fontResourceName = resources.add(PDType1Font.HELVETICA);
+        fontResourceName = resources.add(new PDType1Font(Standard14Fonts.FontName.HELVETICA));
     }
 
     @Test
@@ -51,7 +52,9 @@ public class PDDefaultAppearanceStringTest
         PDDefaultAppearanceString defaultAppearanceString = new PDDefaultAppearanceString(sampleString, resources);
 
         assertEquals(12, defaultAppearanceString.getFontSize(), 0.001);
-        assertEquals(PDType1Font.HELVETICA, defaultAppearanceString.getFont());
+        PDType1Font helvetica = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
+        assertEquals(helvetica.getName(), defaultAppearanceString.getFont().getName());
         assertEquals(PDDeviceRGB.INSTANCE, defaultAppearanceString.getFontColor().getColorSpace());
         assertEquals(0.019, defaultAppearanceString.getFontColor().getComponents()[0], 0.0001);
         assertEquals(0.305, defaultAppearanceString.getFontColor().getComponents()[1], 0.0001);

@@ -21,11 +21,18 @@ import android.util.Log;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
+import com.tom_roush.pdfbox.contentstream.operator.graphics.GraphicsOperatorProcessor;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.pdmodel.MissingResourceException;
 import com.tom_roush.pdfbox.pdmodel.graphics.PDXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.form.PDTransparencyGroup;
+import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import com.tom_roush.pdfbox.text.PDFMarkedContentExtractor;
+import com.tom_roush.pdfbox.text.PDFTextStripper;
 
 /**
  * Do: Draws an XObject.
@@ -33,8 +40,14 @@ import com.tom_roush.pdfbox.pdmodel.graphics.form.PDTransparencyGroup;
  * @author Ben Litchfield
  * @author Mario Ivankovits
  */
-public class DrawObject extends OperatorProcessor
+public final class DrawObject extends OperatorProcessor
 {
+
+    public DrawObject(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
@@ -48,14 +61,12 @@ public class DrawObject extends OperatorProcessor
             return;
         }
         COSName name = (COSName) base0;
-
-        if (context.getResources().isImageXObject(name))
-        {
-            // we're done here, don't decode images when doing text extraction
-            return;
-        }
-
+        PDFStreamEngine context = getContext();
         PDXObject xobject = context.getResources().getXObject(name);
+
+        if(context instanceof PDFMarkedContentExtractor){
+            ((PDFMarkedContentExtractor) context).xobject(xobject);
+        }
 
         if (xobject instanceof PDFormXObject)
         {

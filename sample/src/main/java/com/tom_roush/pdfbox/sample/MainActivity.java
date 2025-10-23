@@ -18,6 +18,7 @@ import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxConfig;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentCatalog;
@@ -27,6 +28,7 @@ import com.tom_roush.pdfbox.pdmodel.encryption.AccessPermission;
 import com.tom_roush.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
@@ -92,7 +94,7 @@ public class MainActivity extends Activity {
         document.addPage(page);
 
         // Create a new font object selecting one of the PDF base fonts
-        PDFont font = PDType1Font.HELVETICA;
+        PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
         // Or a custom font
 //        try
 //        {
@@ -158,11 +160,11 @@ public class MainActivity extends Activity {
         // Render the page and save it to an image file
         try {
             // Load in an already created PDF
-            PDDocument document = PDDocument.load(assetManager.open("FormTest.pdf"));
+            PDDocument document = Loader.loadPDF(assetManager.open("pdf-test.pdf"));
             // Create a renderer for the document
             PDFRenderer renderer = new PDFRenderer(document);
             // Render the image to an RGB Bitmap
-            pageImage = renderer.renderImage(0, 1, ImageType.RGB);
+            pageImage = renderer.renderImage(0, 1, ImageType.ARGB);
 
             // Save the render result to an image
             //tv.setText("Successfully rendered image to " + path);
@@ -181,7 +183,7 @@ public class MainActivity extends Activity {
     public void fillForm(View v) {
         try {
             // Load the document and get the AcroForm
-            PDDocument document = PDDocument.load(assetManager.open("FormTest.pdf"));
+            PDDocument document = Loader.loadPDF(assetManager.open("FormTest.pdf"));
             PDDocumentCatalog docCatalog = document.getDocumentCatalog();
             PDAcroForm acroForm = docCatalog.getAcroForm();
 
@@ -222,7 +224,7 @@ public class MainActivity extends Activity {
         String parsedText = null;
         PDDocument document = null;
         try {
-            document = PDDocument.load(assetManager.open("Hello.pdf"));
+            document = Loader.loadPDF(assetManager.open("Hello.pdf"));
         } catch(IOException e) {
             Log.e("PdfBox-Android-Sample", "Exception thrown while loading document to strip", e);
         }
@@ -270,7 +272,7 @@ public class MainActivity extends Activity {
         BouncyCastleProvider provider = new BouncyCastleProvider();
         Security.addProvider(provider);
 
-        PDFont font = PDType1Font.HELVETICA;
+        PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
         PDDocument document = new PDDocument();
         PDPage page = new PDPage();
 

@@ -16,6 +16,7 @@
  */
 package com.tom_roush.pdfbox.pdmodel.common;
 
+import android.os.Build;
 import android.util.Log;
 
 import java.io.ByteArrayInputStream;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +41,8 @@ import com.tom_roush.pdfbox.filter.DecodeOptions;
 import com.tom_roush.pdfbox.filter.Filter;
 import com.tom_roush.pdfbox.filter.FilterFactory;
 import com.tom_roush.pdfbox.io.IOUtils;
+import com.tom_roush.pdfbox.io.RandomAccessInputStream;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.common.filespecification.PDFileSpecification;
 
@@ -128,64 +132,13 @@ public class PDStream implements COSObjectable
      */
     private PDStream(PDDocument doc, InputStream input, COSBase filters) throws IOException
     {
-        OutputStream output = null;
-        try
+        stream = doc.getDocument().createCOSStream();
+        try (input; OutputStream output = stream.createOutputStream(filters))
         {
-            stream = doc.getDocument().createCOSStream();
-            output = stream.createOutputStream(filters);
-            IOUtils.copy(input, output);
-        }
-        finally
-        {
-            if (output != null)
-            {
-                output.close();
-            }
-            input.close();
-        }
-    }
-
-    /**
-     * If there are not compression filters on the current stream then this will
-     * add a compression filter, flate compression for example.
-     *
-     * @deprecated This method is inefficient. To copying an existing InputStream, use
-     *             {@link #PDStream(PDDocument, InputStream, COSName)} instead, with
-     *             COSName.FLATE_DECODE as the final argument.
-     *
-     *             Otherwise, to write new compressed data, use {@link #createOutputStream(COSName)},
-     *             with COSName.FLATE_DECODE as the argument.
-     */
-    @Deprecated
-    public void addCompression()
-    {
-        List<COSName> filters = getFilters();
-        if (filters == null)
-        {
-            if (stream.getLength() > 0)
-            {
-                OutputStream out = null;
-                try
-                {
-                    byte[] bytes = IOUtils.toByteArray(stream.createInputStream());
-                    out = stream.createOutputStream(COSName.FLATE_DECODE);
-                    out.write(bytes);
-                }
-                catch (IOException e)
-                {
-                    // not much else we can do here without breaking the existing API, sorry.
-                    throw new RuntimeException(e);
-                }
-                finally
-                {
-                    IOUtils.closeQuietly(out);
-                }
-            }
-            else
-            {
-                filters = new ArrayList<COSName>(1);
-                filters.add(COSName.FLATE_DECODE);
-                setFilters(filters);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                input.transferTo(output);
+            } else {
+                IOUtils.copy(input, output);
             }
         }
     }
@@ -252,48 +205,28 @@ public class PDStream implements COSObjectable
      */
     public InputStream createInputStream(List<String> stopFilters) throws IOException
     {
-        InputStream is = stream.createRawInputStream();
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-        List<COSName> filters = getFilters();
-        if (filters != null)
+        if (stopFilters == null)
         {
-            for (int i = 0; i < filters.size(); i++)
-            {
-                COSName nextFilter = filters.get(i);
-                if ((stopFilters != null) && stopFilters.contains(nextFilter.getName()))
-                {
-                    break;
-                }
-                else
-                {
-                    Filter filter = FilterFactory.INSTANCE.getFilter(nextFilter);
-                    try
-                    {
-                        filter.decode(is, os, stream, i);
-                    }
-                    finally
-                    {
-                        IOUtils.closeQuietly(is);
-                    }
-                    is = new ByteArrayInputStream(os.toByteArray());
-                    os.reset();
-                }
-            }
+            stopFilters = Collections.emptyList();
         }
-        return is;
-    }
-
-    /**
-     * Get the cos stream associated with this object.
-     *
-     * @return The cos object that matches this Java object.
-     *
-     * @deprecated use {@link #getCOSObject() }
-     */
-    @Deprecated
-    public COSStream getStream()
-    {
-        return stream;
+        InputStream is = stream.createRawInputStream();
+        List<Filter> someFilters = new ArrayList<>();
+        List<COSName> filters = getFilters();
+        for (COSName nextFilter : filters)
+        {
+            if (stopFilters.contains(nextFilter.getName()))
+            {
+                break;
+            }
+            someFilters.add(FilterFactory.INSTANCE.getFilter(nextFilter));
+        }
+        if (someFilters.isEmpty())
+        {
+            return is;
+        }
+        RandomAccessRead decoded = Filter.decode(is, someFilters, getCOSObject(),
+                DecodeOptions.DEFAULT, null);
+        return new RandomAccessInputStream(decoded);
     }
 
     /**
@@ -309,24 +242,21 @@ public class PDStream implements COSObjectable
 
     /**
      * This will get the list of filters that are associated with this stream.
-     * Or null if there are none.
      *
-     * @return A list of all encoding filters to apply to this stream.
+     * @return A (possibly empty) list of all encoding filters to apply to this stream, never null.
      */
     public List<COSName> getFilters()
     {
-        List<COSName> retval = null;
         COSBase filters = stream.getFilters();
         if (filters instanceof COSName)
         {
-            COSName name = (COSName) filters;
-            retval = new COSArrayList<COSName>(name, name, stream, COSName.FILTER);
+            return Collections.singletonList((COSName) filters);
         }
         else if (filters instanceof COSArray)
         {
-            retval = (List<COSName>) ((COSArray) filters).toList();
+            return (List<COSName>)((COSArray) filters).toList();
         }
-        return retval;
+        return Collections.emptyList();
     }
 
     /**
@@ -336,8 +266,7 @@ public class PDStream implements COSObjectable
      */
     public void setFilters(List<COSName> filters)
     {
-        COSBase obj = COSArrayList.converterToCOSArray(filters);
-        stream.setItem(COSName.FILTER, obj);
+        stream.setItem(COSName.FILTER, new COSArray(filters));
     }
 
     /**
@@ -349,7 +278,7 @@ public class PDStream implements COSObjectable
      */
     public List<Object> getDecodeParms() throws IOException
     {
-        // See PDF Ref 1.5 implementation note 7, the DP is sometimes used instead.
+        // See PDF Ref 1.5 implementation note 7, /DP is sometimes used instead.
         return internalGetDecodeParams(COSName.DECODE_PARMS, COSName.DP);
     }
 
@@ -368,16 +297,17 @@ public class PDStream implements COSObjectable
     private List<Object> internalGetDecodeParams(COSName name1, COSName name2) throws IOException
     {
         COSBase dp = stream.getDictionaryObject(name1, name2);
+
         if (dp instanceof COSDictionary)
         {
             Map<?, ?> map = COSDictionaryMap.convertBasicTypesToMap((COSDictionary) dp);
-            return new COSArrayList<Object>(map, dp, stream, name1);
+            return new COSArrayList<>(map, dp, stream, name1);
         }
 
         if (dp instanceof COSArray)
         {
             COSArray array = (COSArray) dp;
-            List<Object> actuals = new ArrayList<Object>(array.size());
+            List<Object> actuals = new ArrayList<>(array.size());
             for (int i = 0; i < array.size(); i++)
             {
                 COSBase base = array.getObject(i);
@@ -390,7 +320,7 @@ public class PDStream implements COSObjectable
                     Log.w("PdfBox-Android", "Expected COSDictionary, got " + base + ", ignored");
                 }
             }
-            return new COSArrayList<Object>(actuals, array);
+            return new COSArrayList<>(actuals, array);
         }
 
         return null;
@@ -404,7 +334,7 @@ public class PDStream implements COSObjectable
     public void setDecodeParms(List<?> decodeParams)
     {
         stream.setItem(COSName.DECODE_PARMS,
-            COSArrayList.converterToCOSArray(decodeParams));
+                COSArrayList.converterToCOSArray(decodeParams));
     }
 
     /**
@@ -431,27 +361,23 @@ public class PDStream implements COSObjectable
     }
 
     /**
-     * This will get the list of filters that are associated with this stream.
-     * Or null if there are none.
+     * This will get the list of filters that are associated with this stream. The list is empty if there are none.
      *
      * @return A list of all encoding filters to apply to this stream.
      */
     public List<String> getFileFilters()
     {
-        List<String> retval = null;
         COSBase filters = stream.getDictionaryObject(COSName.F_FILTER);
         if (filters instanceof COSName)
         {
             COSName name = (COSName) filters;
-            retval = new COSArrayList<String>(name.getName(), name, stream,
-                COSName.F_FILTER);
+            return Collections.singletonList(name.getName());
         }
         else if (filters instanceof COSArray)
         {
-            retval = COSArrayList
-                .convertCOSNameCOSArrayToList((COSArray) filters);
+            return ((COSArray) filters).toCOSNameStringList();
         }
-        return retval;
+        return Collections.emptyList();
     }
 
     /**
@@ -461,7 +387,7 @@ public class PDStream implements COSObjectable
      */
     public void setFileFilters(List<String> filters)
     {
-        COSBase obj = COSArrayList.convertStringListToCOSNameCOSArray(filters);
+        COSBase obj = COSArray.ofCOSNames(filters);
         stream.setItem(COSName.F_FILTER, obj);
     }
 
@@ -483,17 +409,12 @@ public class PDStream implements COSObjectable
      */
     public byte[] toByteArray() throws IOException
     {
-        InputStream is = null;
-        try
+        try (InputStream is = createInputStream())
         {
-            is = createInputStream();
-            return IOUtils.toByteArray(is);
-        }
-        finally
-        {
-            if (is != null)
-            {
-                is.close();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                return is.readAllBytes();
+            } else {
+                return IOUtils.readBytesCompat(is);
             }
         }
     }
@@ -521,7 +442,7 @@ public class PDStream implements COSObjectable
         else if (mdStream != null)
         {
             throw new IllegalStateException("Expected a COSStream but was a "
-                + mdStream.getClass().getSimpleName());
+                    + mdStream.getClass().getSimpleName());
         }
         return retval;
     }

@@ -17,6 +17,7 @@
 package com.tom_roush.pdfbox.pdmodel.font;
 
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.util.Log;
 
 import java.io.IOException;
@@ -28,12 +29,14 @@ import com.tom_roush.fontbox.FontBoxFont;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.font.encoding.DictionaryEncoding;
 import com.tom_roush.pdfbox.pdmodel.font.encoding.Encoding;
 import com.tom_roush.pdfbox.pdmodel.font.encoding.GlyphList;
 import com.tom_roush.pdfbox.pdmodel.font.encoding.MacRomanEncoding;
 import com.tom_roush.pdfbox.pdmodel.font.encoding.StandardEncoding;
 import com.tom_roush.pdfbox.pdmodel.font.encoding.WinAnsiEncoding;
+import com.tom_roush.pdfbox.pdmodel.font.encoding.ZapfDingbatsEncoding;
 
 /**
  * A simple font. Simple fonts use a PostScript encoding vector.
@@ -45,7 +48,7 @@ public abstract class PDSimpleFont extends PDFont
     protected Encoding encoding;
     protected GlyphList glyphList;
     private Boolean isSymbolic;
-    private final Set<Integer> noUnicode = new HashSet<Integer>(); // for logging
+    private final Set<Integer> noUnicode = new HashSet<>(); // for logging
 
     /**
      * Constructor for embedding.
@@ -57,7 +60,7 @@ public abstract class PDSimpleFont extends PDFont
     /**
      * Constructor for Standard 14.
      */
-    PDSimpleFont(String baseFont)
+    PDSimpleFont(Standard14Fonts.FontName baseFont)
     {
         super(baseFont);
         assignGlyphList(baseFont);
@@ -68,7 +71,7 @@ public abstract class PDSimpleFont extends PDFont
      *
      * @param fontDictionary Font dictionary.
      */
-    PDSimpleFont(COSDictionary fontDictionary) throws IOException
+    PDSimpleFont(COSDictionary fontDictionary)
     {
         super(fontDictionary);
     }
@@ -85,11 +88,20 @@ public abstract class PDSimpleFont extends PDFont
         if (encodingBase instanceof COSName)
         {
             COSName encodingName = (COSName) encodingBase;
-            this.encoding = Encoding.getInstance(encodingName);
-            if (this.encoding == null)
+            if (Standard14Fonts.FontName.ZAPF_DINGBATS.getName().equals(getName()) && !isEmbedded())
             {
-                Log.w("PdfBox-Android", "Unknown encoding: " + encodingName.getName());
-                this.encoding = readEncodingFromFont(); // fallback
+                // PDFBOX- and PDF.js issue 16464: ignore other encodings
+                // this segment will work only if readEncoding() is called after the data
+                // for getName() and isEmbedded() is available
+                this.encoding = ZapfDingbatsEncoding.INSTANCE;
+            }
+            else
+            {
+                this.encoding = Encoding.getInstance(encodingName);
+                if (this.encoding == null)
+                {
+                    this.encoding = readEncodingFromFont(); // fallback
+                }
             }
         }
         else if (encodingBase instanceof COSDictionary)
@@ -101,7 +113,7 @@ public abstract class PDSimpleFont extends PDFont
             COSName baseEncoding = encodingDict.getCOSName(COSName.BASE_ENCODING);
 
             boolean hasValidBaseEncoding = baseEncoding != null &&
-                Encoding.getInstance(baseEncoding) != null;
+                    Encoding.getInstance(baseEncoding) != null;
 
             if (!hasValidBaseEncoding && Boolean.TRUE.equals(symbolic))
             {
@@ -119,19 +131,23 @@ public abstract class PDSimpleFont extends PDFont
             this.encoding = readEncodingFromFont();
         }
         // normalise the standard 14 name, e.g "Symbol,Italic" -> "Symbol"
-        String standard14Name = Standard14Fonts.getMappedFontName(getName());
+        Standard14Fonts.FontName standard14Name = Standard14Fonts.getMappedFontName(getName());
         assignGlyphList(standard14Name);
     }
 
     /**
      * Called by readEncoding() if the encoding needs to be extracted from the font file.
      *
+     * @return encoding of the font
+     *
      * @throws IOException if the font file could not be read.
      */
     protected abstract Encoding readEncodingFromFont() throws IOException;
 
     /**
-     * Returns the Encoding vector.
+     * Returns the Encoding.
+     *
+     * @return encoding
      */
     public Encoding getEncoding()
     {
@@ -139,7 +155,9 @@ public abstract class PDSimpleFont extends PDFont
     }
 
     /**
-     * Returns the Encoding vector.
+     * Returns the glyphlist.
+     *
+     * @return the glyphlist
      */
     public GlyphList getGlyphList()
     {
@@ -147,8 +165,9 @@ public abstract class PDSimpleFont extends PDFont
     }
 
     /**
-     * Returns true the font is a symbolic (that is, it does not use the Adobe Standard Roman
-     * character set).
+     * Returns true if the font is a symbolic (that is, it does not use the Adobe Standard Roman character set).
+     *
+     * @return true if the font is a symbolic
      */
     public final boolean isSymbolic()
     {
@@ -169,8 +188,9 @@ public abstract class PDSimpleFont extends PDFont
     }
 
     /**
-     * Internal implementation of isSymbolic, allowing for the fact that the result may be
-     * indeterminate.
+     * Internal implementation of isSymbolic, allowing for the fact that the result may be indeterminate.
+     *
+     * @return true if isSymbolic
      */
     protected Boolean isFontSymbolic()
     {
@@ -181,8 +201,8 @@ public abstract class PDSimpleFont extends PDFont
         }
         else if (isStandard14())
         {
-            String mappedName = Standard14Fonts.getMappedFontName(getName());
-            return mappedName.equals("Symbol") || mappedName.equals("ZapfDingbats");
+            Standard14Fonts.FontName mappedName = Standard14Fonts.getMappedFontName(getName());
+            return mappedName == Standard14Fonts.FontName.SYMBOL || mappedName == Standard14Fonts.FontName.ZAPF_DINGBATS;
         }
         else
         {
@@ -198,8 +218,8 @@ public abstract class PDSimpleFont extends PDFont
                 return true;
             }
             else if (encoding instanceof WinAnsiEncoding ||
-                encoding instanceof MacRomanEncoding ||
-                encoding instanceof StandardEncoding)
+                    encoding instanceof MacRomanEncoding ||
+                    encoding instanceof StandardEncoding)
             {
                 return false;
             }
@@ -213,8 +233,8 @@ public abstract class PDSimpleFont extends PDFont
                         // skip
                     }
                     else if (!(WinAnsiEncoding.INSTANCE.contains(name) &&
-                        MacRomanEncoding.INSTANCE.contains(name) &&
-                        StandardEncoding.INSTANCE.contains(name)))
+                            MacRomanEncoding.INSTANCE.contains(name) &&
+                            StandardEncoding.INSTANCE.contains(name)))
                     {
                         return true;
                     }
@@ -231,8 +251,9 @@ public abstract class PDSimpleFont extends PDFont
     }
 
     /**
-     * Returns the value of the symbolic flag,  allowing for the fact that the result may be
-     * indeterminate.
+     * Returns the value of the symbolic flag, allowing for the fact that the result may be indeterminate.
+     *
+     * @return the value of the isSymbolic flag form the font descriptor
      */
     protected final Boolean getSymbolicFlag()
     {
@@ -245,13 +266,13 @@ public abstract class PDSimpleFont extends PDFont
     }
 
     @Override
-    public String toUnicode(int code) throws IOException
+    public String toUnicode(int code)
     {
         return toUnicode(code, GlyphList.getAdobeGlyphList());
     }
 
     @Override
-    public String toUnicode(int code, GlyphList customGlyphList) throws IOException
+    public String toUnicode(int code, GlyphList customGlyphList)
     {
         // allow the glyph list to be overridden for the purpose of extracting Unicode
         // we only do this when the font's glyph list is the AGL, to avoid breaking Zapf Dingbats
@@ -294,16 +315,6 @@ public abstract class PDSimpleFont extends PDFont
         {
             // we keep track of which warnings have been issued, so we don't log multiple times
             noUnicode.add(code);
-            if (name != null)
-            {
-                Log.w("PdfBox-Android", "No Unicode mapping for " + name + " (" + code + ") in font " +
-                    getName());
-            }
-            else
-            {
-                Log.w("PdfBox-Android", "No Unicode mapping for character code " + code + " in font " +
-                    getName());
-            }
         }
 
         return null;
@@ -354,7 +365,7 @@ public abstract class PDSimpleFont extends PDFont
         if (getEncoding() instanceof DictionaryEncoding)
         {
             DictionaryEncoding dictionary = (DictionaryEncoding)getEncoding();
-            if (dictionary.getDifferences().size() > 0)
+            if (!dictionary.getDifferences().isEmpty())
             {
                 // we also require that the differences are actually different, see PDFBOX-1900 with
                 // the file from PDFBOX-2192 on Windows
@@ -371,11 +382,22 @@ public abstract class PDSimpleFont extends PDFont
         return super.isStandard14();
     }
 
+    protected boolean isNonZeroBoundingBox(PDRectangle bbox) {
+        if (bbox == null) return false;
+        return bbox.getLowerLeftX() != 0f ||
+                bbox.getLowerLeftY() != 0f ||
+                bbox.getUpperRightX() != 0f ||
+                bbox.getUpperRightY() != 0f;
+    }
+
+
     /**
-     * Returns the path for the character with the given name. For some fonts, GIDs may be used
-     * instead of names when calling this method.
+     * Returns the path for the character with the given name. For some fonts, GIDs may be used instead of names when
+     * calling this method. *
      *
-     * @return glyph path
+     * @param name glyph name
+     * @return glyph path of the character with the given name
+     *
      * @throws IOException if the path could not be read
      */
     public abstract Path getPath(String name) throws IOException;
@@ -383,12 +405,17 @@ public abstract class PDSimpleFont extends PDFont
     /**
      * Returns true if the font contains the character with the given name.
      *
+     * @param name glyph name
+     * @return true if the font contains the character with the given name
+     *
      * @throws IOException if the path could not be read
      */
     public abstract boolean hasGlyph(String name) throws IOException;
 
     /**
      * Returns the embedded or system font used for rendering. This is never null.
+     *
+     * @return the embedded or system font used for rendering
      */
     public abstract FontBoxFont getFontBoxFont();
 
@@ -425,10 +452,10 @@ public abstract class PDSimpleFont extends PDFont
         return false;
     }
 
-    private void assignGlyphList(String baseFont)
+    private void assignGlyphList(Standard14Fonts.FontName fontName)
     {
         // assign the glyph list based on the font
-        if ("ZapfDingbats".equals(baseFont))
+        if (Standard14Fonts.FontName.ZAPF_DINGBATS == fontName)
         {
             glyphList = GlyphList.getZapfDingbats();
         }

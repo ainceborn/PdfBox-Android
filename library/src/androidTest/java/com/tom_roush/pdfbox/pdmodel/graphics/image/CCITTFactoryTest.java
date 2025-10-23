@@ -27,9 +27,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.io.IOUtils;
-import com.tom_roush.pdfbox.io.RandomAccessBuffer;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
@@ -38,6 +38,7 @@ import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceGray;
 
 import org.junit.Assert;
+import org.junit.Test;
 
 import junit.framework.TestCase;
 
@@ -67,41 +68,40 @@ public class CCITTFactoryTest extends TestCase
      * Tests CCITTFactory#createFromRandomAccess(PDDocument document,
      * RandomAccess reader) with a single page TIFF
      */
+    @Test
     public void testCreateFromRandomAccessSingle() throws IOException
     {
-        String tiffG3Path = "pdfbox/com/tom_roush/pdfbox/pdmodel/graphics/image/ccittg3.tif";
-        String tiffG4Path = "pdfbox/com/tom_roush/pdfbox/pdmodel/graphics/image/ccittg4.tif";
+        String tiffG3Path = "src/test/resources/org/apache/pdfbox/pdmodel/graphics/image/ccittg3.tif";
+        String tiffG4Path = "src/test/resources/org/apache/pdfbox/pdmodel/graphics/image/ccittg4.tif";
 
-        PDDocument document = new PDDocument();
-        PDImageXObject ximage3 = CCITTFactory.createFromRandomAccess(document,
-            new RandomAccessBuffer(testContext.getAssets().open(tiffG3Path)));
-        validate(ximage3, 1, 344, 287, "tiff", PDDeviceGray.INSTANCE.getName());
-//        Bitmap bim3 = ImageIO.read(new File(tiffG3Path));
-//        checkIdent(bim3, ximage3.getOpaqueImage());
-        PDPage page = new PDPage(PDRectangle.A4);
-        document.addPage(page);
-        PDPageContentStream contentStream = new PDPageContentStream(document, page, AppendMode.APPEND, false);
-        contentStream.drawImage(ximage3, 0, 0, ximage3.getWidth(), ximage3.getHeight());
-        contentStream.close();
+        try (PDDocument document = new PDDocument())
+        {
+            PDImageXObject ximage3 = CCITTFactory.createFromFile(document, new File(tiffG3Path));
+            validate(ximage3, 1, 344, 287, "tiff", PDDeviceGray.INSTANCE.getName());
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+            try (PDPageContentStream contentStream = new PDPageContentStream(document, page, AppendMode.APPEND, false))
+            {
+                contentStream.drawImage(ximage3, 0, 0, ximage3.getWidth(), ximage3.getHeight());
+            }
 
-        PDImageXObject ximage4 = CCITTFactory.createFromRandomAccess(document,
-            new RandomAccessBuffer(testContext.getAssets().open(tiffG4Path)));
-        validate(ximage4, 1, 344, 287, "tiff", PDDeviceGray.INSTANCE.getName());
-//        Bitmap bim4 = ImageIO.read(new File(tiffG3Path));
-//        checkIdent(bim4, ximage4.getOpaqueImage());
-        page = new PDPage(PDRectangle.A4);
-        document.addPage(page);
-        contentStream = new PDPageContentStream(document, page, AppendMode.APPEND, false);
-        contentStream.drawImage(ximage4, 0, 0);
-        contentStream.close();
+            PDImageXObject ximage4 = CCITTFactory.createFromFile(document, new File(tiffG4Path));
+            validate(ximage4, 1, 344, 287, "tiff", PDDeviceGray.INSTANCE.getName());
 
-        document.save(testResultsDir + "/singletiff.pdf");
-        document.close();
+            page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+            try (PDPageContentStream contentStream = new PDPageContentStream(document, page, AppendMode.APPEND, false))
+            {
+                contentStream.drawImage(ximage4, 0, 0);
+            }
 
-        document = PDDocument.load(new File(testResultsDir, "singletiff.pdf"));
-        assertEquals(2, document.getNumberOfPages());
+            document.save(testResultsDir + "/singletiff.pdf");
+        }
 
-        document.close();
+        try (PDDocument document = Loader.loadPDF(new File(testResultsDir, "singletiff.pdf")))
+        {
+            assertEquals(2, document.getNumberOfPages());
+        }
     }
 
     /**
@@ -123,8 +123,7 @@ public class CCITTFactoryTest extends TestCase
         int pdfPageNum = 0;
         while (true)
         {
-            PDImageXObject ximage = CCITTFactory.createFromRandomAccess(document,
-                new RandomAccessBuffer(testContext.getAssets().open(tiffPath)), pdfPageNum);
+            PDImageXObject ximage = CCITTFactory.createFromFile(document, new File(tiffPath), pdfPageNum);
             if (ximage == null)
             {
                 break;
@@ -148,7 +147,7 @@ public class CCITTFactoryTest extends TestCase
         document.save(testResultsDir + "/multitiff.pdf");
         document.close();
 
-        document = PDDocument.load(new File(testResultsDir, "multitiff.pdf"), (String)null);
+        document = Loader.loadPDF(new File(testResultsDir, "multitiff.pdf"), (String)null);
 //        assertEquals(countTiffImages, document.getNumberOfPages());
 
         document.close();
@@ -174,7 +173,7 @@ public class CCITTFactoryTest extends TestCase
         document.save(testResultsDir + "/singletifffrombi.pdf");
         document.close();
 
-        document = PDDocument.load(new File(testResultsDir, "singletifffrombi.pdf"));
+        document =  Loader.loadPDF(new File(testResultsDir, "singletifffrombi.pdf"));
         assertEquals(1, document.getNumberOfPages());
 
         document.close();
@@ -208,7 +207,7 @@ public class CCITTFactoryTest extends TestCase
         document.save(testResultsDir + "/singletifffromchessbi.pdf");
         document.close();
 
-        document = PDDocument.load(new File(testResultsDir, "singletifffromchessbi.pdf"));
+        document = Loader.loadPDF(new File(testResultsDir, "singletifffromchessbi.pdf"));
         assertEquals(1, document.getNumberOfPages());
 
         document.close();

@@ -16,6 +16,8 @@
  */
 package com.tom_roush.pdfbox.cos;
 
+import android.util.Log;
+
 import java.io.IOException;
 
 /**
@@ -27,10 +29,7 @@ import java.io.IOException;
 public class COSObject extends COSBase implements COSUpdateInfo
 {
     private COSBase baseObject;
-    private long objectNumber;
-    private int generationNumber;
-    private boolean needToBeUpdated;
-    private boolean dereferencingInProgress = false;
+    private ICOSParser parser;
     private boolean isDereferenced = false;
     private final COSUpdateState updateState;
 
@@ -39,48 +38,64 @@ public class COSObject extends COSBase implements COSUpdateInfo
      *
      * @param object The object that this encapsulates.
      *
-     * @throws IOException If there is an error with the object passed in.
      */
-    public COSObject( COSBase object ) throws IOException
+    public COSObject(COSBase object)
     {
-        setObject( object );
-        isDereferenced = true;
         updateState = new COSUpdateState(this);
+        baseObject = object;
+        isDereferenced = true;
     }
 
     /**
-     * This will get the dictionary object in this object that has the name key and
-     * if it is a pdfobjref then it will dereference that and return it.
+     * Constructor.
      *
-     * @param key The key to the value that we are searching for.
-     *
-     * @return The pdf object that matches the key.
+     * @param object The object that this encapsulates.
+     * @param objectKey The COSObjectKey of the encapsulated object
      */
-    public COSBase getDictionaryObject( COSName key )
+    public COSObject(COSBase object, COSObjectKey objectKey)
     {
-        COSBase retval =null;
-        if( baseObject instanceof COSDictionary )
-        {
-            retval = ((COSDictionary)baseObject).getDictionaryObject( key );
-        }
-        return retval;
+        this(objectKey, null);
+        baseObject = object;
+        isDereferenced = true;
     }
 
     /**
-     * This will get the dictionary object in this object that has the name key.
+     * Constructor.
      *
-     * @param key The key to the value that we are searching for.
+     * @param object The object that this encapsulates.
+     * @param parser The parser to be used to load the object on demand
      *
-     * @return The pdf object that matches the key.
      */
-    public COSBase getItem( COSName key )
+    public COSObject(COSBase object, ICOSParser parser)
     {
-        COSBase retval =null;
-        if( baseObject instanceof COSDictionary )
-        {
-            retval = ((COSDictionary)baseObject).getItem( key );
-        }
-        return retval;
+        updateState = new COSUpdateState(this);
+        baseObject = object;
+        isDereferenced = object != null;
+        this.parser = parser;
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param key The object number of the encapsulated object.
+     * @param parser The parser to be used to load the object on demand
+     *
+     */
+    public COSObject(COSObjectKey key, ICOSParser parser)
+    {
+        updateState = new COSUpdateState(this);
+        this.parser = parser;
+        setKey(key);
+    }
+
+    /**
+     * Indicates if the referenced object is present or not.
+     *
+     * @return true if the indirect object is dereferenced
+     */
+    public boolean isObjectNull()
+    {
+        return baseObject == null;
     }
 
     /**
@@ -90,47 +105,38 @@ public class COSObject extends COSBase implements COSUpdateInfo
      */
     public COSBase getObject()
     {
-        isDereferenced = true;
+        if (!isDereferenced && parser != null)
+        {
+            try
+            {
+                // mark as dereferenced to avoid endless recursions
+                isDereferenced = true;
+                baseObject = parser.dereferenceCOSObject(this);
+                getUpdateState().dereferenceChild(baseObject);
+            }
+            catch (IOException e)
+            {
+                Log.e("PdfBox-Android", "Can't dereference " + this, e);
+            }
+            finally
+            {
+                parser = null;
+            }
+        }
         return baseObject;
     }
 
     /**
-     * This will set the object that this object encapsulates.
-     *
-     * @param object The new object to encapsulate.
-     *
-     * @throws IOException If there is an error setting the updated object.
+     * Sets the referenced object to COSNull and removes the initially assigned parser.
      */
-    public final void setObject( COSBase object ) throws IOException
+    public final void setToNull()
     {
-        baseObject = object;
-    }
-
-    /**
-     * Indicates that the dereferencing of the represented indirect object is in progress. It is used to detect a
-     * possible recursion which most likely ends up in a stack overflow.
-     *
-     * @return true if dereferencing is in progress.
-     */
-    public boolean derefencingInProgress()
-    {
-        return dereferencingInProgress;
-    }
-
-    /**
-     * Start dereferencing the represented indirect object.
-     */
-    public void dereferencingStarted()
-    {
-        dereferencingInProgress = true;
-    }
-
-    /**
-     * Dereferencing of the represented indirect object is finished.
-     */
-    public void dereferencingFinished()
-    {
-        dereferencingInProgress = false;
+        if(baseObject != null)
+        {
+            getUpdateState().update();
+        }
+        baseObject = COSNull.NULL;
+        parser = null;
     }
 
     /**
@@ -139,94 +145,41 @@ public class COSObject extends COSBase implements COSUpdateInfo
     @Override
     public String toString()
     {
-        return "COSObject{" + objectNumber + ", " + generationNumber + "}";
-    }
-
-    /**
-     * Getter for property objectNumber.
-     * @return Value of property objectNumber.
-     */
-    public long getObjectNumber()
-    {
-        return objectNumber;
-    }
-
-    /**
-     * Setter for property objectNumber.
-     * @param objectNum New value of property objectNumber.
-     */
-    public void setObjectNumber(long objectNum)
-    {
-        objectNumber = objectNum;
-    }
-
-    /**
-     * Getter for property generationNumber.
-     * @return Value of property generationNumber.
-     */
-    public int getGenerationNumber()
-    {
-        return generationNumber;
-    }
-
-    /**
-     * Setter for property generationNumber.
-     * @param generationNumberValue New value of property generationNumber.
-     */
-    public void setGenerationNumber(int generationNumberValue)
-    {
-        generationNumber = generationNumberValue;
+        return "COSObject{" + getKey() + "}";
     }
 
     /**
      * visitor pattern double dispatch method.
      *
      * @param visitor The object to notify when visiting this object.
-     * @return any object, depending on the visitor implementation, or null
      * @throws IOException If an error occurs while visiting this object.
      */
     @Override
-    public Object accept( ICOSVisitor visitor ) throws IOException
+    public void accept(ICOSVisitor visitor ) throws IOException
     {
-        COSBase object = getObject();
-        return object != null ? object.accept(visitor) : COSNull.NULL.accept(visitor);
+        visitor.visitFromObject(this);
     }
 
     /**
-     * Get the update state for the COSWriter.
+     * Returns {@code true}, if the hereby referenced {@link COSBase} has already been parsed and loaded.
      *
-     * @return the update state.
+     * @return {@code true}, if the hereby referenced {@link COSBase} has already been parsed and loaded.
      */
-    @Override
-    public boolean isNeedToBeUpdated()
-    {
-        return needToBeUpdated;
-    }
-
-    /**
-     * Set the update state of the dictionary for the COSWriter.
-     *
-     * @param flag the update state.
-     */
-    @Override
-    public void setNeedToBeUpdated(boolean flag)
-    {
-        needToBeUpdated = flag;
-    }
-
-    @Override
-    public COSIncrement toIncrement() {
-        return COSUpdateInfo.super.toIncrement();
-    }
-
-    @Override
-    public COSUpdateState getUpdateState() {
-        return updateState;
-    }
-
     public boolean isDereferenced()
     {
         return isDereferenced;
+    }
+
+    /**
+     * Returns the current {@link COSUpdateState} of this {@link COSObject}.
+     *
+     * @return The current {@link COSUpdateState} of this {@link COSObject}.
+     * @see COSUpdateState
+     */
+    @Override
+    public COSUpdateState getUpdateState()
+    {
+        return updateState;
     }
 
 }

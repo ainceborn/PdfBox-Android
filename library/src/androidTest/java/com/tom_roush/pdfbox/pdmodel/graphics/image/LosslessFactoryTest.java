@@ -29,6 +29,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.File;
 import java.io.IOException;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.android.TestResourceGenerator;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
@@ -130,7 +131,7 @@ public class LosslessFactoryTest
         document.save(pdfFile);
         document.close();
 
-        document = PDDocument.load(pdfFile, (String) null);
+        document =  Loader.loadPDF(pdfFile, (String) null);
         new PDFRenderer(document).renderImage(0);
         document.close();
     }

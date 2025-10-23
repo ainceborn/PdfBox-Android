@@ -21,6 +21,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -36,6 +37,11 @@ import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
  */
 public class SetGraphicsStateParameters extends OperatorProcessor
 {
+    public SetGraphicsStateParameters(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
@@ -51,6 +57,7 @@ public class SetGraphicsStateParameters extends OperatorProcessor
 
         // set parameters from graphics state parameter dictionary
         COSName graphicsName = (COSName) base0;
+        PDFStreamEngine context = getContext();
         PDExtendedGraphicsState gs = context.getResources().getExtGState(graphicsName);
         if (gs == null)
         {

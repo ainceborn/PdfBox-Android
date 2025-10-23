@@ -49,7 +49,7 @@ public final class PDColor
      */
     public PDColor(COSArray array, PDColorSpace colorSpace)
     {
-        if (array.size() > 0 && array.get(array.size() - 1) instanceof COSName)
+        if (!array.isEmpty() && array.get(array.size() - 1) instanceof COSName)
         {
             // color components (optional), for the color of an uncoloured tiling pattern
             components = new float[array.size() - 1];
@@ -103,6 +103,11 @@ public final class PDColor
         this.components = components.clone();
         this.patternName = null;
         this.colorSpace = colorSpace;
+        if (colorSpace != null && colorSpace.getNumberOfComponents() != components.length)
+        {
+            // PDFBOX-5882
+            Log.w("PdfBox-Android", "Colorspace component count {} doesn't match components length {}");
+        }
     }
 
     /**
@@ -128,6 +133,15 @@ public final class PDColor
         this.components = components.clone();
         this.patternName = patternName;
         this.colorSpace = colorSpace;
+        if (colorSpace instanceof PDPattern)
+        {
+            PDColorSpace ucs = ((PDPattern) colorSpace).getUnderlyingColorSpace();
+            if (ucs != null && ucs.getNumberOfComponents() != components.length)
+            {
+                // PDFBOX-5882
+                Log.w("PdfBox-Android", "Pattern colorspace component count {} doesn't match components length {}");
+            }
+        }
     }
 
     /**
@@ -136,7 +150,7 @@ public final class PDColor
      */
     public float[] getComponents()
     {
-        if (colorSpace instanceof PDPattern ||  colorSpace == null)
+        if (colorSpace instanceof PDPattern || colorSpace == null)
         {
             // colorspace of the pattern color isn't known, so just clone
             // null colorspace can happen with empty annotation color
@@ -169,14 +183,11 @@ public final class PDColor
      * Returns the packed RGB value for this color, if any.
      * @return RGB
      * @throws IOException if the color conversion fails
-     * @throws IllegalStateException if this color value is a pattern.
+     * @throws UnsupportedOperationException if this color value is a pattern.
      */
     public int toRGB() throws IOException
     {
         float[] floats = colorSpace.toRGB(components);
-
-        if(floats == null) return Color.WHITE;
-
         int r = Math.round(floats[0] * 255);
         int g = Math.round(floats[1] * 255);
         int b = Math.round(floats[2] * 255);
@@ -192,8 +203,7 @@ public final class PDColor
      */
     public COSArray toCOSArray()
     {
-        COSArray array = new COSArray();
-        array.setFloatArray(components);
+        COSArray array = COSArray.of(components);
         if (patternName != null)
         {
             array.add(patternName);
@@ -203,6 +213,8 @@ public final class PDColor
 
     /**
      * Returns the color space in which this color value is defined.
+     *
+     * @return the color space in which this color value is defined
      */
     public PDColorSpace getColorSpace()
     {
@@ -212,7 +224,6 @@ public final class PDColor
     @Override
     public String toString()
     {
-        return "PDColor{components=" + Arrays.toString(components) +
-            ", patternName=" + patternName + "}";
+        return "PDColor{components=" + Arrays.toString(components) + ", patternName=" + patternName + ", colorSpace=" + colorSpace + '}';
     }
 }

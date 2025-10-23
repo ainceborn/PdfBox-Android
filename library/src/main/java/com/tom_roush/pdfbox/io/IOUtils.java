@@ -19,13 +19,27 @@
 
 package com.tom_roush.pdfbox.io;
 
+import android.graphics.Matrix;
+import android.graphics.Path;
+import android.os.Build;
 import android.util.Log;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 /**
  * This class contains various I/O-related methods.
@@ -34,6 +48,7 @@ public final class IOUtils
 {
 
     //TODO PDFBox should really use Apache Commons IO.
+    private static final RandomAccessStreamCache.StreamCacheCreateFunction streamCache = RandomAccessStreamCacheImpl::new;
 
     private IOUtils()
     {
@@ -144,5 +159,91 @@ public final class IOUtils
             }
         }
         return initialException;
+    }
+
+    public static RandomAccessStreamCache.StreamCacheCreateFunction createMemoryOnlyStreamCache()
+    {
+        return streamCache;
+    }
+
+    public static RandomAccessStreamCache.StreamCacheCreateFunction createTempFileOnlyStreamCache()
+    {
+        return MemoryUsageSetting.setupTempFileOnly().streamCache;
+    }
+
+    public static byte[] readBytesCompat(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] data = new byte[1024];
+        int nRead;
+        while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
+            buffer.write(data, 0, nRead);
+        }
+        return buffer.toByteArray();
+    }
+
+    public static InputStream newInputStream(File file) throws IOException {
+        if (file == null) {
+            throw new IllegalArgumentException("File cannot be null");
+        }
+        return new FileInputStream(file);
+    }
+
+    /**
+     * Создаёт BufferedWriter для файла с указанной кодировкой, совместимый с API 24+
+     *
+     * @param file    файл для записи
+     * @param charset кодировка
+     * @return BufferedWriter
+     * @throws IOException если файл недоступен
+     */
+    public static BufferedWriter newBufferedWriter(File file, Charset charset) throws IOException {
+        if (file == null || charset == null) {
+            throw new IllegalArgumentException("File and charset cannot be null");
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return new BufferedWriter(new FileWriter(file, StandardCharsets.UTF_8));
+        }
+        return new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), charset));
+    }
+
+    public static BufferedReader newBufferedReader(File file, Charset charset) throws IOException {
+
+        if (file == null || charset == null) {
+            throw new IllegalArgumentException("File and charset cannot be null");
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return new BufferedReader(new FileReader(file, StandardCharsets.UTF_8));
+        }
+
+        return new BufferedReader(new InputStreamReader(new FileInputStream(file), charset));
+    }
+
+    public static void writeBytesCompat(ByteArrayOutputStream out, byte[] bytes) {
+        if (out == null || bytes == null) return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            out.writeBytes(bytes);
+            return;
+        }
+
+        try {
+            out.write(bytes);
+        } catch (IOException e) {
+            throw new RuntimeException("Unexpected IOException writing to ByteArrayOutputStream", e);
+        }
+    }
+
+    public static void appendPath(Path dest, Path src, Matrix transform) {
+        if (dest == null || src == null) return;
+
+        Path tmp = new Path(src);
+
+        if (transform != null) {
+            tmp.transform(transform);
+        }
+
+        dest.addPath(tmp);
     }
 }

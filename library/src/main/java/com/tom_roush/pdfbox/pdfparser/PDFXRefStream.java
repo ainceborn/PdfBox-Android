@@ -18,6 +18,8 @@ package com.tom_roush.pdfbox.pdfparser;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -34,23 +36,19 @@ import com.tom_roush.pdfbox.cos.COSInteger;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSObject;
 import com.tom_roush.pdfbox.cos.COSStream;
+import com.tom_roush.pdfbox.pdfparser.xref.FreeXReference;
+import com.tom_roush.pdfbox.pdfparser.xref.XReferenceEntry;
 import com.tom_roush.pdfbox.pdfwriter.COSWriterXRefEntry;
 
 /**
  * @author Alexander Funk
  */
-public class PDFXRefStream implements PDFXRef
+public class PDFXRefStream
 {
 
-    private static final int ENTRY_OBJSTREAM = 2;
+    private final List<XReferenceEntry> streamData = new ArrayList<>();
 
-    private static final int ENTRY_NORMAL = 1;
-
-    private static final int ENTRY_FREE = 0;
-
-    private final Map<Long, Object> streamData;
-
-    private final Set<Long> objectNumbers;
+    private final Set<Long> objectNumbers = new TreeSet<>();
 
     private final COSStream stream;
 
@@ -59,26 +57,11 @@ public class PDFXRefStream implements PDFXRef
     /**
      * Create a fresh XRef stream like for a fresh file or an incremental update.
      *
-     * @deprecated use {@link #PDFXRefStream(com.tom_roush.pdfbox.cos.COSDocument)}
-     */
-    @Deprecated
-    public PDFXRefStream()
-    {
-        this.stream = new COSStream();
-        streamData = new TreeMap<Long, Object>();
-        objectNumbers = new TreeSet<Long>();
-    }
-
-    /**
-     * Create a fresh XRef stream like for a fresh file or an incremental update.
-     *
-     * @param cosDocument
+     * @param cosDocument the COSDocmernt to be used to create a new COSStream
      */
     public PDFXRefStream(COSDocument cosDocument)
     {
         stream = cosDocument.createCOSStream();
-        streamData = new TreeMap<Long, Object>();
-        objectNumbers = new TreeSet<Long>();
     }
 
     /**
@@ -111,15 +94,16 @@ public class PDFXRefStream implements PDFXRef
         }
         stream.setItem(COSName.W, wAsArray);
 
-        OutputStream outputStream = this.stream.createOutputStream(COSName.FLATE_DECODE);
-        writeStreamData(outputStream, wEntry);
-        outputStream.flush();
-        outputStream.close();
+        try (OutputStream outputStream = this.stream.createOutputStream(COSName.FLATE_DECODE))
+        {
+            writeStreamData(outputStream, wEntry);
+            outputStream.flush();
+        }
 
         Set<COSName> keySet = this.stream.keySet();
         for ( COSName cosName : keySet )
         {
-            // "Other cross-reference stream entries not listed in Table 17 may be indirect; in fact, 
+            // "Other cross-reference stream entries not listed in Table 17 may be indirect; in fact,
             // some (such as Root in Table 15) shall be indirect."
             if (COSName.ROOT.equals(cosName) || COSName.INFO.equals(cosName) || COSName.PREV.equals(cosName))
             {
@@ -143,16 +127,14 @@ public class PDFXRefStream implements PDFXRef
      */
     public void addTrailerInfo(COSDictionary trailerDict)
     {
-        Set<Entry<COSName, COSBase>> entrySet = trailerDict.entrySet();
-        for ( Entry<COSName, COSBase> entry : entrySet )
+        trailerDict.forEach((key, value) ->
         {
-            COSName key = entry.getKey();
             if (COSName.INFO.equals(key) || COSName.ROOT.equals(key) || COSName.ENCRYPT.equals(key)
-                || COSName.ID.equals(key) || COSName.PREV.equals(key))
+                    || COSName.ID.equals(key) || COSName.PREV.equals(key))
             {
-                stream.setItem(key, entry.getValue());
+                stream.setItem(key, value);
             }
-        }
+        });
     }
 
     /**
@@ -160,26 +142,14 @@ public class PDFXRefStream implements PDFXRef
      *
      * @param entry new entry to be added
      */
-    public void addEntry(COSWriterXRefEntry entry)
+    public void addEntry(XReferenceEntry entry)
     {
-        objectNumbers.add(entry.getKey().getNumber());
-        if (entry.isFree())
+        if (objectNumbers.contains(entry.getReferencedKey().getNumber()))
         {
-            // what would be a f-Entry in the xref table
-            FreeReference value = new FreeReference();
-            value.nextGenNumber = entry.getKey().getGeneration();
-            value.nextFree = entry.getKey().getNumber();
-            streamData.put(value.nextFree, value);
+            return;
         }
-        else
-        {
-            // we don't care for ObjectStreamReferences for now and only handle
-            // normal references that would be f-Entrys in the xref table.
-            NormalReference value = new NormalReference();
-            value.genNumber = entry.getKey().getGeneration();
-            value.offset = entry.getOffset();
-            streamData.put(entry.getKey().getNumber(), value);
-        }
+        objectNumbers.add(entry.getReferencedKey().getNumber());
+        streamData.add(entry);
     }
 
     /**
@@ -190,34 +160,11 @@ public class PDFXRefStream implements PDFXRef
     private int[] getWEntry()
     {
         long[] wMax = new long[3];
-        for ( Object entry : streamData.values() )
+        for (XReferenceEntry entry : streamData)
         {
-            if (entry instanceof FreeReference)
-            {
-                FreeReference free = (FreeReference)entry;
-                wMax[0] = Math.max(wMax[0], ENTRY_FREE); // the type field for a free reference
-                wMax[1] = Math.max(wMax[1], free.nextFree);
-                wMax[2] = Math.max(wMax[2], free.nextGenNumber);
-            }
-            else if (entry instanceof NormalReference)
-            {
-                NormalReference ref = (NormalReference)entry;
-                wMax[0] = Math.max(wMax[0], ENTRY_NORMAL); // the type field for a normal reference
-                wMax[1] = Math.max(wMax[1], ref.offset);
-                wMax[2] = Math.max(wMax[2], ref.genNumber);
-            }
-            else if (entry instanceof ObjectStreamReference)
-            {
-                ObjectStreamReference objStream = (ObjectStreamReference)entry;
-                wMax[0] = Math.max(wMax[0], ENTRY_OBJSTREAM); // the type field for a objstm reference
-                wMax[1] = Math.max(wMax[1], objStream.offset);
-                wMax[2] = Math.max(wMax[2], objStream.objectNumberOfObjectStream);
-            }
-            // TODO add here if new standard versions define new types
-            else
-            {
-                throw new RuntimeException("unexpected reference type");
-            }
+            wMax[0] = Math.max(wMax[0], entry.getFirstColumnValue());
+            wMax[1] = Math.max(wMax[1], entry.getSecondColumnValue());
+            wMax[2] = Math.max(wMax[2], entry.getThirdColumnValue());
         }
         // find the max bytes needed to display that column
         int[] w = new int[3];
@@ -244,10 +191,10 @@ public class PDFXRefStream implements PDFXRef
 
     private List<Long> getIndexEntry()
     {
-        LinkedList<Long> linkedList = new LinkedList<Long>();
+        LinkedList<Long> linkedList = new LinkedList<>();
         Long first = null;
         Long length = null;
-        Set<Long> objNumbers = new TreeSet<Long>();
+        Set<Long> objNumbers = new TreeSet<>();
         // add object number 0 to the set
         objNumbers.add(0L);
         objNumbers.addAll(objectNumbers);
@@ -293,77 +240,18 @@ public class PDFXRefStream implements PDFXRef
 
     private void writeStreamData(OutputStream os, int[] w) throws IOException
     {
-        // write dummy entry for object number 0
-        writeNumber(os, ENTRY_FREE, w[0]);
-        writeNumber(os, ENTRY_FREE, w[1]);
-        writeNumber(os, 0xFFFF, w[2]);
+        Collections.sort(streamData);
+        FreeXReference nullEntry = FreeXReference.NULL_ENTRY;
+        writeNumber(os, nullEntry.getFirstColumnValue(), w[0]);
+        writeNumber(os, nullEntry.getSecondColumnValue(), w[1]);
+        writeNumber(os, nullEntry.getThirdColumnValue(), w[2]);
         // iterate over all streamData and write it in the required format
-        for ( Object entry : streamData.values() )
+        for (XReferenceEntry entry : streamData)
         {
-            if (entry instanceof FreeReference)
-            {
-                FreeReference free = (FreeReference)entry;
-                writeNumber(os, ENTRY_FREE, w[0]);
-                writeNumber(os, free.nextFree, w[1]);
-                writeNumber(os, free.nextGenNumber, w[2]);
-            }
-            else if (entry instanceof NormalReference)
-            {
-                NormalReference ref = (NormalReference)entry;
-                writeNumber(os, ENTRY_NORMAL, w[0]);
-                writeNumber(os, ref.offset, w[1]);
-                writeNumber(os, ref.genNumber, w[2]);
-            }
-            else if (entry instanceof ObjectStreamReference)
-            {
-                ObjectStreamReference objStream = (ObjectStreamReference)entry;
-                writeNumber(os, ENTRY_OBJSTREAM, w[0]);
-                writeNumber(os, objStream.offset, w[1]);
-                writeNumber(os, objStream.objectNumberOfObjectStream, w[2]);
-            }
-            // TODO add here if new standard versions define new types
-            else
-            {
-                throw new RuntimeException("unexpected reference type");
-            }
+            writeNumber(os, entry.getFirstColumnValue(), w[0]);
+            writeNumber(os, entry.getSecondColumnValue(), w[1]);
+            writeNumber(os, entry.getThirdColumnValue(), w[2]);
         }
     }
 
-    /**
-     * A class representing an object stream reference. 
-     *
-     */
-    static class ObjectStreamReference
-    {
-        long objectNumberOfObjectStream;
-        long offset;
-    }
-
-    /**
-     * A class representing a normal reference. 
-     *
-     */
-    static class NormalReference
-    {
-        int genNumber;
-        long offset;
-    }
-
-    /**
-     * A class representing a free reference. 
-     *
-     */
-    static class FreeReference
-    {
-        int nextGenNumber;
-        long nextFree;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public COSObject getObject(int objectNumber)
-    {
-        return null;
-    }
 }

@@ -33,12 +33,12 @@ import com.tom_roush.fontbox.util.BoundingBox;
  */
 public abstract class CFFFont implements FontBoxFont
 {
-    protected String fontName;
-    protected final Map<String, Object> topDict = new LinkedHashMap<String, Object>();
-    protected CFFCharset charset;
+    private String fontName;
+    private CFFCharset charset;
+    private CFFParser.ByteSource source;
+    protected final Map<String, Object> topDict = new LinkedHashMap<>();
     protected byte[][] charStrings;
     protected byte[][] globalSubrIndex;
-    private CFFParser.ByteSource source;
 
     /**
      * The name of the font.
@@ -89,15 +89,24 @@ public abstract class CFFFont implements FontBoxFont
      * Returns the FontMatrix.
      */
     @Override
-    public abstract List<Number> getFontMatrix();
+    public List<Number> getFontMatrix()
+    {
+        return (List<Number>) topDict.get("FontMatrix");
+    }
 
     /**
      * Returns the FontBBox.
+     *
+     * @throws IOException if there are less than 4 numbers
      */
     @Override
-    public BoundingBox getFontBBox()
+    public BoundingBox getFontBBox() throws IOException
     {
-        List<Number> numbers = (List<Number>)topDict.get("FontBBox");
+        List<Number> numbers = (List<Number>) topDict.get("FontBBox");
+        if (numbers.size() < 4)
+        {
+            throw new IOException("FontBBox must have 4 numbers, but is " + numbers);
+        }
         return new BoundingBox(numbers);
     }
 
@@ -141,6 +150,10 @@ public abstract class CFFFont implements FontBoxFont
 
     /**
      * Returns the CFF data.
+     *
+     * @return the cff data as byte array
+     *
+     * @throws IOException if the data could not be read
      */
     public byte[] getData() throws IOException
     {
@@ -149,6 +162,8 @@ public abstract class CFFFont implements FontBoxFont
 
     /**
      * Returns the number of charstrings in the font.
+     *
+     * @return the number of charstrings
      */
     public int getNumCharStrings()
     {
@@ -179,6 +194,9 @@ public abstract class CFFFont implements FontBoxFont
      * Returns the Type 2 charstring for the given CID.
      *
      * @param cidOrGid CID for CIFFont, or GID for Type 1 font
+     *
+     * @return the Type2 charstring of the given cid/gid
+     *
      * @throws IOException if the charstring could not be read
      */
     public abstract Type2CharString getType2CharString(int cidOrGid) throws IOException;
@@ -187,7 +205,7 @@ public abstract class CFFFont implements FontBoxFont
     public String toString()
     {
         return getClass().getSimpleName() + "[name=" + fontName + ", topDict=" + topDict
-            + ", charset=" + charset + ", charStrings=" + Arrays.deepToString(charStrings)
-            + "]";
+                + ", charset=" + charset + ", charStrings=" + Arrays.deepToString(charStrings)
+                + "]";
     }
 }

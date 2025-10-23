@@ -17,10 +17,15 @@
 
 package com.tom_roush.fontbox.ttf;
 
+import com.tom_roush.pdfbox.io.RandomAccessRead;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * OpenType font file parser.
+ */
 /**
  * OpenType font file parser.
  */
@@ -41,36 +46,13 @@ public final class OTFParser extends TTFParser
      */
     public OTFParser(boolean isEmbedded)
     {
-        this(isEmbedded, false);
-    }
-
-    /**
-     *  Constructor.
-     *
-     * @param isEmbedded true if the font is embedded in PDF
-     * @param parseOnDemand true if the tables of the font should be parsed on demand
-     */
-    public OTFParser(boolean isEmbedded, boolean parseOnDemand)
-    {
-        super(isEmbedded, parseOnDemand);
+        super(isEmbedded);
     }
 
     @Override
-    public OpenTypeFont parse(String file) throws IOException
+    public OpenTypeFont parse(RandomAccessRead randomAccessRead) throws IOException
     {
-        return (OpenTypeFont)super.parse(file);
-    }
-
-    @Override
-    public OpenTypeFont parse(File file) throws IOException
-    {
-        return (OpenTypeFont)super.parse(file);
-    }
-
-    @Override
-    public OpenTypeFont parse(InputStream data) throws IOException
-    {
-        return (OpenTypeFont)super.parse(data);
+        return (OpenTypeFont) super.parse(randomAccessRead);
     }
 
     @Override
@@ -86,22 +68,21 @@ public final class OTFParser extends TTFParser
     }
 
     @Override
-    protected TTFTable readTable(TrueTypeFont font, String tag)
+    protected TTFTable readTable(String tag)
     {
         // todo: this is a stub, a full implementation is needed
-
-        if (tag.equals("BASE") || tag.equals("GDEF") || tag.equals("GPOS") ||
-            tag.equals("GSUB") || tag.equals("JSTF"))
+        switch (tag)
         {
-            return new OTLTable(font);
-        }
-        else if (tag.equals("CFF "))
-        {
-            return new CFFTable(font);
-        }
-        else
-        {
-            return super.readTable(font, tag);
+            case "BASE":
+            case "GDEF":
+            case "GPOS":
+            case GlyphSubstitutionTable.TAG:
+            case OTLTable.TAG:
+                return new OTLTable();
+            case CFFTable.TAG:
+                return new CFFTable();
+            default:
+                return super.readTable(tag);
         }
     }
 

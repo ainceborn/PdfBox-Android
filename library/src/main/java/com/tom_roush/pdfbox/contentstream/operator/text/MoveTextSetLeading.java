@@ -19,6 +19,8 @@ package com.tom_roush.pdfbox.contentstream.operator.text;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 
 import com.tom_roush.pdfbox.cos.COSBase;
@@ -35,6 +37,11 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
  */
 public class MoveTextSetLeading extends OperatorProcessor
 {
+    public MoveTextSetLeading(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
@@ -51,8 +58,9 @@ public class MoveTextSetLeading extends OperatorProcessor
         }
         COSNumber y = (COSNumber) base1;
 
-        List<COSBase> args = new ArrayList<COSBase>();
+        List<COSBase> args = new ArrayList<>();
         args.add(new COSFloat(-y.floatValue()));
+        PDFStreamEngine context = getContext();
         context.processOperator(OperatorName.SET_TEXT_LEADING, args);
         context.processOperator(OperatorName.MOVE_TEXT, arguments);
     }

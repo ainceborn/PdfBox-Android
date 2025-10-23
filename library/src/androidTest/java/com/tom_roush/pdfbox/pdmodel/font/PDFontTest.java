@@ -41,10 +41,12 @@ import com.tom_roush.fontbox.ttf.TTFParser;
 import com.tom_roush.fontbox.ttf.TrueTypeCollection;
 import com.tom_roush.fontbox.ttf.TrueTypeFont;
 import com.tom_roush.fontbox.util.autodetect.FontFileFinder;
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.android.TestResourceGenerator;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.io.IOUtils;
+import com.tom_roush.pdfbox.io.RandomAccessReadBufferedFile;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
@@ -97,7 +99,7 @@ public class PDFontTest
             IOUtils.copy(testContext.getAssets().open("pdfbox/com/tom_roush/pdfbox/pdmodel/font/F001u_3_7j.pdf"), os);
             os.close();
 
-            doc = PDDocument.load(pdf);
+            doc = Loader.loadPDF(pdf);
             PDFRenderer renderer = new PDFRenderer(doc);
             renderer.renderImage(0);
             // the allegation is that renderImage() will crash the JVM or hang
@@ -127,11 +129,11 @@ public class PDFontTest
         IOUtils.copy(testContext.getAssets().open("com/tom_roush/pdfbox/resources/ttf/LiberationSans-Regular.ttf"), os);
         os.close();
 
-        TrueTypeFont ttf1 = new TTFParser().parse(fontFile);
+        TrueTypeFont ttf1 = new TTFParser().parse(new RandomAccessReadBufferedFile(fontFile));
         testPDFBox3826checkFonts(testPDFBox3826createDoc(ttf1), fontFile);
         ttf1.close();
 
-        TrueTypeFont ttf2 = new TTFParser().parse(new FileInputStream(fontFile));
+        TrueTypeFont ttf2 = new TTFParser().parse(new RandomAccessReadBufferedFile(fontFile));
         testPDFBox3826checkFonts(testPDFBox3826createDoc(ttf2), fontFile);
         ttf2.close();
     }
@@ -170,7 +172,7 @@ public class PDFontTest
         doc.save(outputFile);
         doc.close();
 
-        doc = PDDocument.load(outputFile);
+        doc = Loader.loadPDF(outputFile);
 
         font = (PDType1Font) doc.getPage(0).getResources().getFont(COSName.getPDFName("F1"));
         Assert.assertEquals(WinAnsiEncoding.INSTANCE, font.getEncoding());
@@ -197,16 +199,16 @@ public class PDFontTest
     {
         try
         {
-            PDType1Font.HELVETICA_BOLD.encode("\u0080");
+            new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD).encode("\u0080");
             Assert.fail("should have thrown IllegalArgumentException");
         }
         catch (IllegalArgumentException ex)
         {
         }
-        PDType1Font.HELVETICA_BOLD.encode("€");
+        new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD).encode("€");
         try
         {
-            PDType1Font.HELVETICA_BOLD.encode("\u0080");
+            new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD).encode("\u0080");
             Assert.fail("should have thrown IllegalArgumentException");
         }
         catch (IllegalArgumentException ex)
@@ -266,7 +268,7 @@ public class PDFontTest
     public void testPDFox5048() throws IOException
     {
         InputStream is = new URL("https://issues.apache.org/jira/secure/attachment/13017227/stringwidth.pdf").openStream();
-        PDDocument doc = PDDocument.load(is);
+        PDDocument doc = Loader.loadPDF(is);
         PDPage page = doc.getPage(0);
         PDFont font = page.getResources().getFont(COSName.getPDFName("F70"));
         Assert.assertTrue(font.isDamaged());
@@ -278,7 +280,7 @@ public class PDFontTest
 
     private void testPDFBox3826checkFonts(byte[] byteArray, File fontFile) throws IOException
     {
-        PDDocument doc = PDDocument.load(byteArray);
+        PDDocument doc = Loader.loadPDF(byteArray);
 
         PDPage page2 = doc.getPage(0);
 
@@ -385,7 +387,7 @@ public class PDFontTest
 
         Assert.assertTrue(tempFontFile.delete());
 
-        doc = PDDocument.load(tempPdfFile);
+        doc = Loader.loadPDF(tempPdfFile);
         PDFTextStripper stripper = new PDFTextStripper();
         String extractedText = stripper.getText(doc);
         Assert.assertEquals(text, extractedText.trim());
@@ -405,7 +407,7 @@ public class PDFontTest
         PDDocument doc = new PDDocument();
         PDPage page = new PDPage();
         doc.addPage(page);
-        PDFont font1 = PDType1Font.HELVETICA;
+        PDFont font1 = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
         PDFont font2 = PDType0Font.load(doc, testContext.getAssets().open(
             "com/tom_roush/pdfbox/resources/ttf/LiberationSans-Regular.ttf"));
 
@@ -425,7 +427,7 @@ public class PDFontTest
         doc.save(baos);
         doc.close();
 
-        doc = PDDocument.load(baos.toByteArray());
+        doc = Loader.loadPDF(baos.toByteArray());
         PDFTextStripper stripper = new PDFTextStripper();
         stripper.setLineSeparator("\n");
         String extractedText = stripper.getText(doc);
@@ -444,7 +446,7 @@ public class PDFontTest
         File fontFile = TestResourceGenerator.downloadTestResource(IN_DIR, "PDFBOX-5484.ttf", "https://issues.apache.org/jira/secure/attachment/13047577/PDFBOX-5484.ttf");
         assumeTrue(fontFile.exists());
 
-        TrueTypeFont ttf = new TTFParser().parse(fontFile);
+        TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBufferedFile(fontFile));
         PDDocument doc = new PDDocument();
         PDTrueTypeFont tr = PDTrueTypeFont.load(doc, ttf, WinAnsiEncoding.INSTANCE);
         Path path1 = tr.getPath("oslash");

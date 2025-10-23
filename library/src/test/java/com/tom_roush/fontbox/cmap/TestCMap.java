@@ -22,10 +22,12 @@ import java.io.IOException;
 import com.tom_roush.fontbox.ttf.CmapLookup;
 import com.tom_roush.fontbox.ttf.TTFParser;
 import com.tom_roush.fontbox.ttf.TrueTypeFont;
+import com.tom_roush.pdfbox.io.RandomAccessReadBufferedFile;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeTrue;
 
 /**
@@ -60,11 +62,16 @@ public class TestCMap
 //    TODO: PdfBox-Android - provide test file
     public void testPDFBox3997() throws IOException
     {
+
         String fontPath = "target/pdfs/NotoEmoji-Regular.ttf";
         assumeTrue(new File(fontPath).exists());
-        TrueTypeFont ttf = new TTFParser().parse(fontPath);
-        CmapLookup cmap = ttf.getUnicodeCmapLookup(false);
-        Assert.assertEquals(886, cmap.getGlyphId(0x1F681));
-        ttf.close();
+        var file = new File(fontPath);
+
+        try (TrueTypeFont ttf = new TTFParser()
+                .parse(new RandomAccessReadBufferedFile("target/fonts/NotoEmoji-Regular.ttf")))
+        {
+            CmapLookup cmap = ttf.getUnicodeCmapLookup(false);
+            assertEquals(886, cmap.getGlyphId(0x1F681));
+        }
     }
 }

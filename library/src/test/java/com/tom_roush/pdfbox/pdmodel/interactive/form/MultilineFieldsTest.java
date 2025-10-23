@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.cos.COSString;
@@ -41,7 +42,7 @@ public class MultilineFieldsTest
    @Test
    public void testMultilineAuto() throws IOException
    {
-      PDDocument document = PDDocument.load(new File(IN_DIR, "PDFBOX3812-acrobat-multiline-auto.pdf"));
+      PDDocument document = Loader.loadPDF(new File(IN_DIR, "PDFBOX3812-acrobat-multiline-auto.pdf"));
       PDAcroForm acroForm = document.getDocumentCatalog().getAcroForm();
 
       // Get and store the field sizes in the original PDF
@@ -73,7 +74,7 @@ public class MultilineFieldsTest
    public void testMultilineBreak() throws IOException
    {
       final String TEST_PDF = "PDFBOX-3835-input-acrobat-wrap.pdf";
-      PDDocument document = PDDocument.load(new File(IN_DIR, TEST_PDF));
+      PDDocument document = Loader.loadPDF(new File(IN_DIR, TEST_PDF));
       PDAcroForm acroForm = document.getDocumentCatalog().getAcroForm();
 
       // Get and store the field sizes in the original PDF

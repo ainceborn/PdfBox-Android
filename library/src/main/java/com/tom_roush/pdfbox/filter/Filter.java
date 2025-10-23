@@ -21,12 +21,22 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.zip.Deflater;
 
 import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.io.IOUtils;
+import com.tom_roush.pdfbox.io.RandomAccessInputStream;
+import com.tom_roush.pdfbox.io.RandomAccessOutputStream;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
+import com.tom_roush.pdfbox.io.RandomAccessReadBuffer;
+import com.tom_roush.pdfbox.io.RandomAccessReadWriteBuffer;
 
 /**
  * A filter for stream data.
@@ -149,5 +159,75 @@ public abstract class Filter
             Log.w("PdfBox-Android", ex.getMessage(), ex);
         }
         return Math.max(-1, Math.min(Deflater.BEST_COMPRESSION, compressionLevel));
+    }
+
+    public static RandomAccessRead decode(InputStream encoded, List<Filter> filterList,
+                                          COSDictionary parameters, DecodeOptions options, List<DecodeResult> results)
+            throws IOException
+    {
+        long length = parameters.getLong(COSName.LENGTH,
+                RandomAccessReadBuffer.DEFAULT_CHUNK_SIZE_4KB);
+        if (filterList.isEmpty())
+        {
+            throw new IllegalArgumentException("Empty filterList");
+        }
+        if (filterList.size() > 1)
+        {
+            Set<Filter> filterSet = new HashSet<>(filterList);
+            if (filterSet.size() != filterList.size())
+            {
+                List<Filter> reducedFilterList = new ArrayList<>();
+                for (Filter filter : filterList)
+                {
+                    if (!reducedFilterList.contains(filter))
+                    {
+                        reducedFilterList.add(filter);
+                    }
+                }
+                // replace origin list with the reduced one
+                filterList = reducedFilterList;
+                Log.w("PdfBox-Android", "Removed duplicated filter entries");
+            }
+        }
+        InputStream input = encoded;
+        RandomAccessReadWriteBuffer randomAccessWriteBuffer = null;
+        OutputStream output = null;
+        // apply filters
+        for (int i = 0; i < filterList.size(); i++)
+        {
+            if (i > 0)
+            {
+                randomAccessWriteBuffer.seek(0);
+                input = new RandomAccessInputStream(randomAccessWriteBuffer);
+                length = randomAccessWriteBuffer.length();
+            }
+            // we don't know the size of the decoded stream, just estimate a 4 times bigger size than the encoded stream
+            // use the estimated stream size as chunk size, use the default chunk size as limit to avoid to big values
+            if (length <= 0 || length >= RandomAccessReadBuffer.DEFAULT_CHUNK_SIZE_4KB / 4)
+            {
+                length = RandomAccessReadBuffer.DEFAULT_CHUNK_SIZE_4KB;
+            }
+            else
+            {
+                length = length * 4;
+            }
+            randomAccessWriteBuffer = new RandomAccessReadWriteBuffer((int) length);
+            output = new RandomAccessOutputStream(randomAccessWriteBuffer);
+            try
+            {
+                DecodeResult result = filterList.get(i).decode(input, output, parameters, i,
+                        options);
+                if (results != null)
+                {
+                    results.add(result);
+                }
+            }
+            finally
+            {
+                IOUtils.closeQuietly(input);
+            }
+        }
+        randomAccessWriteBuffer.seek(0);
+        return randomAccessWriteBuffer;
     }
 }

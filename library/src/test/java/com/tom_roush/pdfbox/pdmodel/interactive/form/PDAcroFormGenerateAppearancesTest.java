@@ -20,6 +20,7 @@ package com.tom_roush.pdfbox.pdmodel.interactive.form;
 import java.io.IOException;
 import java.net.URL;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentCatalog;
@@ -44,7 +45,7 @@ public class PDAcroFormGenerateAppearancesTest {
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          boolean thrown = false;
          try
@@ -73,10 +74,11 @@ public class PDAcroFormGenerateAppearancesTest {
 
       String sourceUrl = "https://issues.apache.org/jira/secure/attachment/12908175/AML1.PDF";
 
+
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          boolean thrown = false;
          try
@@ -107,7 +109,7 @@ public class PDAcroFormGenerateAppearancesTest {
       PDDocument testPdf = null;
       try
       {
-         testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          boolean thrown = false;
          try

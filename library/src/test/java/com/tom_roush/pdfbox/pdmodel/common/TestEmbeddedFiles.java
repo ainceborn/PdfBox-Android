@@ -21,6 +21,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Map;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentCatalog;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentNameDictionary;
@@ -40,7 +41,7 @@ public class TestEmbeddedFiles extends TestCase
         boolean ok = false;
         try
         {
-            PDDocument doc = PDDocument.load(getClass().getResourceAsStream(
+            PDDocument doc = Loader.loadPDF(getClass().getResourceAsStream(
                 "/pdfbox/com/tom_roush/pdfbox/pdmodel/common/null_PDComplexFileSpecification.pdf"));
 
             PDDocumentCatalog catalog = doc.getDocumentCatalog();
@@ -77,7 +78,7 @@ public class TestEmbeddedFiles extends TestCase
         PDEmbeddedFile dosFile = null;
         PDEmbeddedFile unixFile = null;
 
-        PDDocument doc = PDDocument.load(TestEmbeddedFiles.class.getResourceAsStream(
+        PDDocument doc = Loader.loadPDF(TestEmbeddedFiles.class.getResourceAsStream(
             "/pdfbox/com/tom_roush/pdfbox/pdmodel/common/testPDF_multiFormatEmbFiles.pdf"));
 
         PDDocumentCatalog catalog = doc.getDocumentCatalog();

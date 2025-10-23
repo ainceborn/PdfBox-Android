@@ -26,18 +26,31 @@ import java.util.Locale;
 import java.util.Map.Entry;
 
 import com.tom_roush.fontbox.util.autodetect.FontFileFinder;
+import com.tom_roush.pdfbox.io.RandomAccessReadBuffer;
+import com.tom_roush.pdfbox.io.RandomAccessReadBufferedFile;
+import com.tom_roush.tools.FileTools;
 
+import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
+
+import android.graphics.Path;
+import android.graphics.RectF;
 
 /**
  *
  * @author Tilman Hausherr
  */
+@RunWith(RobolectricTestRunner.class)
 public class TTFSubsetterTest
 {
 
@@ -49,16 +62,19 @@ public class TTFSubsetterTest
     @Test
     public void testEmptySubset() throws IOException
     {
-        TrueTypeFont x = new TTFParser().parse("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+        TrueTypeFont x = new TTFParser().parse(new RandomAccessReadBufferedFile(
+                "src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf"));
         TTFSubsetter ttfSubsetter = new TTFSubsetter(x);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ttfSubsetter.writeToStream(baos);
-        TrueTypeFont subset = new TTFParser(true).parse(new ByteArrayInputStream(baos.toByteArray()));
-        assertEquals(1, subset.getNumberOfGlyphs());
-        assertEquals(0, subset.nameToGID(".notdef"));
-        assertNotNull(subset.getGlyph().getGlyph(0));
-        subset.close();
+        try (TrueTypeFont subset = new TTFParser(true)
+                .parse(new RandomAccessReadBuffer(baos.toByteArray())))
+        {
+            assertEquals(1, subset.getNumberOfGlyphs());
+            assertEquals(0, subset.nameToGID(".notdef"));
+            assertNotNull(subset.getGlyph().getGlyph(0));
+        }
     }
 
     /**
@@ -69,9 +85,9 @@ public class TTFSubsetterTest
     @Test
     public void testEmptySubset2() throws IOException
     {
-        TrueTypeFont x = new TTFParser().parse("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+        TrueTypeFont x = new TTFParser().parse(new RandomAccessReadBufferedFile("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf"));
         // List copied from TrueTypeEmbedder.java
-        List<String> tables = new ArrayList<String>();
+        List<String> tables = new ArrayList<>();
         tables.add("head");
         tables.add("hhea");
         tables.add("loca");
@@ -86,11 +102,13 @@ public class TTFSubsetterTest
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ttfSubsetter.writeToStream(baos);
-        TrueTypeFont subset = new TTFParser(true).parse(new ByteArrayInputStream(baos.toByteArray()));
-        assertEquals(1, subset.getNumberOfGlyphs());
-        assertEquals(0, subset.nameToGID(".notdef"));
-        assertNotNull(subset.getGlyph().getGlyph(0));
-        subset.close();
+        try (TrueTypeFont subset = new TTFParser(true)
+                .parse(new RandomAccessReadBuffer(baos.toByteArray())))
+        {
+            assertEquals(1, subset.getNumberOfGlyphs());
+            assertEquals(0, subset.nameToGID(".notdef"));
+            assertNotNull(subset.getGlyph().getGlyph(0));
+        }
     }
 
     /**
@@ -101,23 +119,26 @@ public class TTFSubsetterTest
     @Test
     public void testNonEmptySubset() throws IOException
     {
-        TrueTypeFont full = new TTFParser().parse("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+        TrueTypeFont full = new TTFParser().parse(new RandomAccessReadBufferedFile(
+                "src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf"));
         TTFSubsetter ttfSubsetter = new TTFSubsetter(full);
         ttfSubsetter.add('a');
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ttfSubsetter.writeToStream(baos);
-        TrueTypeFont subset = new TTFParser(true).parse(new ByteArrayInputStream(baos.toByteArray()));
-        assertEquals(2, subset.getNumberOfGlyphs());
-        assertEquals(0, subset.nameToGID(".notdef"));
-        assertEquals(1, subset.nameToGID("a"));
-        assertNotNull(subset.getGlyph().getGlyph(0));
-        assertNotNull(subset.getGlyph().getGlyph(1));
-        assertNull(subset.getGlyph().getGlyph(2));
-        assertEquals(full.getAdvanceWidth(full.nameToGID("a")),
-            subset.getAdvanceWidth(subset.nameToGID("a")));
-        assertEquals(full.getHorizontalMetrics().getLeftSideBearing(full.nameToGID("a")),
-            subset.getHorizontalMetrics().getLeftSideBearing(subset.nameToGID("a")));
-        subset.close();
+        try (TrueTypeFont subset = new TTFParser(true)
+                .parse(new RandomAccessReadBuffer(baos.toByteArray())))
+        {
+            assertEquals(2, subset.getNumberOfGlyphs());
+            assertEquals(0, subset.nameToGID(".notdef"));
+            assertEquals(1, subset.nameToGID("a"));
+            assertNotNull(subset.getGlyph().getGlyph(0));
+            assertNotNull(subset.getGlyph().getGlyph(1));
+            assertNull(subset.getGlyph().getGlyph(2));
+            assertEquals(full.getAdvanceWidth(full.nameToGID("a")),
+                    subset.getAdvanceWidth(subset.nameToGID("a")));
+            assertEquals(full.getHorizontalMetrics().getLeftSideBearing(full.nameToGID("a")),
+                    subset.getHorizontalMetrics().getLeftSideBearing(subset.nameToGID("a")));
+        }
     }
 
     /**
@@ -132,23 +153,14 @@ public class TTFSubsetterTest
         System.out.println("Searching for SimHei font...");
         FontFileFinder fontFileFinder = new FontFileFinder();
         List<URI> files = fontFileFinder.find();
-        File simhei = null;
-        for (URI uri : files)
-        {
-            String path = uri.getPath();
-            if (path != null && path.toLowerCase(Locale.US).endsWith("simhei.ttf"))
-            {
-                simhei = new File(uri);
-                break;
-            }
-        }
-        assumeTrue("SimHei font not available on this machine, test skipped", simhei != null);
+        File simhei = new File("src/test/resources/fontbox/ttf/SimHei.ttf");
+        assertTrue("SimHei font not available on this machine, test skipped", simhei != null);
         System.out.println("SimHei font found!");
-        TrueTypeFont full = new TTFParser().parse(simhei);
+        TrueTypeFont full = new TTFParser().parse(new RandomAccessReadBufferedFile(simhei));
 
         // List copied from TrueTypeEmbedder.java
         // Without it, the test would fail because of missing post table in source font
-        List<String> tables = new ArrayList<String>();
+        List<String> tables = new ArrayList<>();
         tables.add("head");
         tables.add("hhea");
         tables.add("loca");
@@ -172,18 +184,20 @@ public class TTFSubsetterTest
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ttfSubsetter.writeToStream(baos);
-        TrueTypeFont subset = new TTFParser(true).parse(new ByteArrayInputStream(baos.toByteArray()));
-        assertEquals(6, subset.getNumberOfGlyphs());
-
-        for (Entry<Integer, Integer> entry : ttfSubsetter.getGIDMap().entrySet())
+        try (TrueTypeFont subset = new TTFParser(true)
+                .parse(new RandomAccessReadBuffer(baos.toByteArray())))
         {
-            Integer newGID = entry.getKey();
-            Integer oldGID = entry.getValue();
-            assertEquals(full.getAdvanceWidth(oldGID), subset.getAdvanceWidth(newGID));
-            assertEquals(full.getHorizontalMetrics().getLeftSideBearing(oldGID),
-                subset.getHorizontalMetrics().getLeftSideBearing(newGID));
+            assertEquals(6, subset.getNumberOfGlyphs());
+
+            for (Entry<Integer, Integer> entry : ttfSubsetter.getGIDMap().entrySet())
+            {
+                Integer newGID = entry.getKey();
+                Integer oldGID = entry.getValue();
+                assertEquals(full.getAdvanceWidth(oldGID), subset.getAdvanceWidth(newGID));
+                assertEquals(full.getHorizontalMetrics().getLeftSideBearing(oldGID),
+                        subset.getHorizontalMetrics().getLeftSideBearing(newGID));
+            }
         }
-        subset.close();
     }
 
     /**
@@ -192,34 +206,196 @@ public class TTFSubsetterTest
      * @throws java.io.IOException
      */
     @Test
-//    TODO: PdfBox-Android - provide test file
     public void testPDFBox3379() throws IOException
     {
-        String fontPath = "target/pdfs/DejaVuSansMono.ttf";
-        assumeTrue(new File(fontPath).exists());
-        TrueTypeFont full = new TTFParser().parse(fontPath);
+        var file = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/12809395/DejaVuSansMono.ttf", "target/pdfs/DejaVuSansMono.ttf");
+        TrueTypeFont full = new TTFParser()
+                .parse(new RandomAccessReadBufferedFile(file));
         TTFSubsetter ttfSubsetter = new TTFSubsetter(full);
         ttfSubsetter.add('A');
         ttfSubsetter.add(' ');
         ttfSubsetter.add('B');
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ttfSubsetter.writeToStream(baos);
-        TrueTypeFont subset = new TTFParser().parse(new ByteArrayInputStream(baos.toByteArray()));
-        assertEquals(4, subset.getNumberOfGlyphs());
-        assertEquals(0, subset.nameToGID(".notdef"));
-        assertEquals(1, subset.nameToGID("space"));
-        assertEquals(2, subset.nameToGID("A"));
-        assertEquals(3, subset.nameToGID("B"));
-        String [] names = new String[]{"A","B","space"};
-        for (String name : names)
+        try (TrueTypeFont subset = new TTFParser()
+                .parse(new RandomAccessReadBuffer(baos.toByteArray())))
         {
-            assertEquals(full.getAdvanceWidth(full.nameToGID(name)),
-                subset.getAdvanceWidth(subset.nameToGID(name)));
-            assertEquals(full.getHorizontalMetrics().getLeftSideBearing(full.nameToGID(name)),
-                subset.getHorizontalMetrics().getLeftSideBearing(subset.nameToGID(name)));
+            assertEquals(4, subset.getNumberOfGlyphs());
+            assertEquals(0, subset.nameToGID(".notdef"));
+            assertEquals(1, subset.nameToGID("space"));
+            assertEquals(2, subset.nameToGID("A"));
+            assertEquals(3, subset.nameToGID("B"));
+            String [] names = {"A","B","space"};
+            for (String name : names)
+            {
+                assertEquals(full.getAdvanceWidth(full.nameToGID(name)),
+                        subset.getAdvanceWidth(subset.nameToGID(name)));
+                assertEquals(full.getHorizontalMetrics().getLeftSideBearing(full.nameToGID(name)),
+                        subset.getHorizontalMetrics().getLeftSideBearing(subset.nameToGID(name)));
+            }
         }
-        subset.close();
     }
 
-//    testPDFBox3757 is an instrumentation test
+    /**
+     * Test of PDFBOX-3757: check that PostScript names that are not part of WGL4Names don't get
+     * shuffled in buildPostTable().
+     *
+     * @throws java.io.IOException
+     */
+    @Test
+    public void testPDFBox3757() throws IOException
+    {
+        final File testFile = new File("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+        TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBufferedFile(testFile));
+        TTFSubsetter ttfSubsetter = new TTFSubsetter(ttf);
+        ttfSubsetter.add('Ö');
+        ttfSubsetter.add('\u200A');
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ttfSubsetter.writeToStream(baos);
+        try (TrueTypeFont subset = new TTFParser(true)
+                .parse(new RandomAccessReadBuffer(baos.toByteArray())))
+        {
+            assertEquals(5, subset.getNumberOfGlyphs());
+
+            assertEquals(0, subset.nameToGID(".notdef"));
+            assertEquals(1, subset.nameToGID("O"));
+            assertEquals(2, subset.nameToGID("Odieresis"));
+            assertEquals(3, subset.nameToGID("uni200A"));
+            assertEquals(4, subset.nameToGID("dieresis.uc"));
+
+            PostScriptTable pst = subset.getPostScript();
+            assertEquals(".notdef", pst.getName(0));
+            assertEquals("O", pst.getName(1));
+            assertEquals("Odieresis", pst.getName(2));
+            assertEquals("uni200A", pst.getName(3));
+            assertEquals("dieresis.uc", pst.getName(4));
+
+            assertTrue("Hair space path should be empty", isTrulyEmpty(subset.getPath("uni200A")));
+
+            assertFalse("UC dieresis path should not be empty", subset.getPath("dieresis.uc").isEmpty());
+        }
+    }
+
+    /**
+     * Test font with v3 PostScript table format and no glyph names.
+     *
+     * @throws IOException
+     */
+    @Test
+    public void testPDFBox5728() throws IOException
+    {
+        var font = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/13065025/NotoMono-Regular.ttf", "target/fonts/NotoMono-Regular.ttf");
+        try (TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBufferedFile(font)))
+        {
+            PostScriptTable postScript = ttf.getPostScript();
+            assertEquals(3.0, postScript.getFormatType(), 0.004f);
+            assertNull(postScript.getGlyphNames());
+            TTFSubsetter subsetter = new TTFSubsetter(ttf);
+            subsetter.add('a');
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            subsetter.writeToStream(output);
+        }
+    }
+
+    /**
+     * Test of PDFBOX-5230: check that subsetting can be forced to use invisible glyphs.
+     *
+     * @throws java.io.IOException
+     */
+    @Test
+    public void testPDFBox5230() throws IOException
+    {
+        final File testFile = new File("src/test/resources/fontbox/ttf/LiberationSans-Regular.ttf");
+        TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBufferedFile(testFile));
+        TTFSubsetter ttfSubsetter = new TTFSubsetter(ttf);
+        ttfSubsetter.add('A');
+        ttfSubsetter.add('B');
+        ttfSubsetter.add('\u200C');
+
+        // verify results without forcing
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ttfSubsetter.writeToStream(baos);
+        try (TrueTypeFont subset = new TTFParser(true)
+                .parse(new RandomAccessReadBuffer(baos.toByteArray())))
+        {
+            assertEquals(4, subset.getNumberOfGlyphs());
+            assertEquals(0, subset.nameToGID(".notdef"));
+            assertEquals(1, subset.nameToGID("A"));
+            assertEquals(2, subset.nameToGID("B"));
+            assertEquals(3, subset.nameToGID("uni200C"));
+
+            PostScriptTable pst = subset.getPostScript();
+            assertEquals(".notdef", pst.getName(0));
+            assertEquals("A", pst.getName(1));
+            assertEquals("B", pst.getName(2));
+            assertEquals("uni200C", pst.getName(3));
+
+            assertFalse("A path should not be empty", subset.getPath("A").isEmpty());
+            assertFalse("B path should not be empty", subset.getPath("B").isEmpty());
+            assertFalse("ZWNJ path should not be empty", subset.getPath("uni200C").isEmpty());
+
+            assertNotEquals("A width should not be zero.", 0, subset.getWidth("A"));
+            assertNotEquals("B width should not be zero.", 0, subset.getWidth("B"));
+            assertEquals("ZWNJ width should be zero", 0f, subset.getWidth("uni200C"), 0.05f);
+        }
+
+        // verify results while forcing B and ZWNJ to use invisible glyphs
+
+        ttfSubsetter.forceInvisible('B');
+        ttfSubsetter.forceInvisible('\u200C');
+        ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
+        ttfSubsetter.writeToStream(baos2);
+        try (TrueTypeFont subset = new TTFParser(true)
+                .parse(new RandomAccessReadBuffer(baos2.toByteArray())))
+        {
+            assertEquals(4, subset.getNumberOfGlyphs());
+            assertEquals(0, subset.nameToGID(".notdef"));
+            assertEquals(1, subset.nameToGID("A"));
+            assertEquals(2, subset.nameToGID("B"));
+            assertEquals(3, subset.nameToGID("uni200C"));
+
+            PostScriptTable pst = subset.getPostScript();
+            assertEquals(".notdef", pst.getName(0));
+            assertEquals("A", pst.getName(1));
+            assertEquals("B", pst.getName(2));
+            assertEquals("uni200C", pst.getName(3));
+
+            assertFalse("A path should not be empty", isTrulyEmpty(subset.getPath("A")));
+            assertTrue("B path should be empty", isTrulyEmpty(subset.getPath("B")));
+            assertTrue("ZWNJ path should be empty", subset.getPath("uni200C").isEmpty());
+
+            assertNotEquals("A width should not be zero.", 0, subset.getWidth("A"));
+            assertEquals("B width should be zero.", 0, subset.getWidth("B"), 0.005f);
+            assertEquals("ZWNJ width should be zero", 0, subset.getWidth("uni200C"), 0.005f);
+        }
+    }
+
+    public static boolean isTrulyEmpty(Path path) {
+        RectF bounds = new RectF();
+        path.computeBounds(bounds, true);
+        return bounds.isEmpty();
+    }
+
+    /**
+     * PDFBOX-6015: test font with 0/1 cmap.
+     *
+     * @throws IOException
+     */
+    @Test
+    public void testPDFBox6015() throws IOException
+    {
+        var font = FileTools.getInternetFile("https://issues.apache.org/jira/secure/attachment/13076859/Keyboard.ttf", "target/fonts/Keyboard.ttf");
+        try (TrueTypeFont ttf = new TTFParser()
+                .parse(new RandomAccessReadBufferedFile(font)))
+        {
+            CmapLookup unicodeCmapLookup = ttf.getUnicodeCmapLookup();
+            assertEquals(185, unicodeCmapLookup.getGlyphId('a'));
+            assertEquals(210, unicodeCmapLookup.getGlyphId('z'));
+            assertEquals(159, unicodeCmapLookup.getGlyphId('A'));
+            assertEquals(184, unicodeCmapLookup.getGlyphId('Z'));
+            assertEquals(49, unicodeCmapLookup.getGlyphId('0'));
+            assertEquals(58, unicodeCmapLookup.getGlyphId('9'));
+        }
+    }
 }

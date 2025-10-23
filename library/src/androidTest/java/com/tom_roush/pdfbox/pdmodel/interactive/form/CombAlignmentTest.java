@@ -23,6 +23,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.File;
 import java.io.IOException;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.rendering.TestRendering;
@@ -54,22 +55,26 @@ public class CombAlignmentTest
 
    // PDFBOX-5256
    @Test
-   public void testCombFields() throws IOException
-   {
-      PDDocument document = PDDocument.load(testContext.getAssets().open(IN_DIR + "/" + NAME_OF_PDF));
-      PDAcroForm acroForm = document.getDocumentCatalog().getAcroForm();
-      PDField field = acroForm.getField("PDFBoxCombLeft");
-      field.setValue(TEST_VALUE);
-      field = acroForm.getField("PDFBoxCombMiddle");
-      field.setValue(TEST_VALUE);
-      field = acroForm.getField("PDFBoxCombRight");
-      field.setValue(TEST_VALUE);
-      // compare rendering
-      File file = new File(OUT_DIR, NAME_OF_PDF);
-      document.save(file);
-      document.close();
-      TestRendering testRendering = new TestRendering();
-      testRendering.setUp();
-      testRendering.render(file);
+   public void testCombFields() throws IOException {
+       try (PDDocument document = Loader.loadPDF(new File(IN_DIR, NAME_OF_PDF))) {
+           PDAcroForm acroForm = document.getDocumentCatalog().getAcroForm();
+           PDField field = acroForm.getField("PDFBoxCombLeft");
+           field.setValue("");
+           field.setValue(TEST_VALUE);
+           field = acroForm.getField("PDFBoxCombMiddle");
+           field.setValue("");
+           field.setValue(TEST_VALUE);
+           field = acroForm.getField("PDFBoxCombRight");
+           field.setValue("");
+           field.setValue(TEST_VALUE);
+           // compare rendering
+           File file = new File(OUT_DIR, NAME_OF_PDF);
+           document.save(file);
+           document.close();
+           TestRendering testRendering = new TestRendering();
+           testRendering.setUp();
+           testRendering.render(file);
+       }
    }
 }
+

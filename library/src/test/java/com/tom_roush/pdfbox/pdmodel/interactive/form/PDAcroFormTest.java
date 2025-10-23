@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.io.IOUtils;
@@ -31,6 +32,7 @@ import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 
@@ -115,7 +117,7 @@ public class PDAcroFormTest
         try
         {
             byte[] pdfBytes =  createAcroFormWithMissingResourceInformation();
-            PDDocument pdfDocument = PDDocument.load(pdfBytes);
+            PDDocument pdfDocument = Loader.loadPDF(pdfBytes);
 
             // do a low level access to the AcroForm to avoid the generation of missing entries
             PDDocumentCatalog documentCatalog = pdfDocument.getDocumentCatalog();
@@ -146,7 +148,7 @@ public class PDAcroFormTest
         try
         {
             byte[] pdfBytes =  createAcroFormWithMissingResourceInformation();
-            PDDocument pdfDocument = PDDocument.load(pdfBytes);
+            PDDocument pdfDocument = Loader.loadPDF(pdfBytes);
             PDDocumentCatalog documentCatalog = pdfDocument.getDocumentCatalog();
 
             // this call shall trigger the generation of missing information
@@ -185,7 +187,7 @@ public class PDAcroFormTest
         try
         {
             byte[] pdfBytes =  createAcroFormWithMissingResourceInformation();
-            PDDocument pdfDocument = PDDocument.load(pdfBytes);
+            PDDocument pdfDocument = Loader.loadPDF(pdfBytes);
             PDDocumentCatalog documentCatalog = pdfDocument.getDocumentCatalog();
 
             // this call shall skip triggering the generation of missing information
@@ -293,7 +295,7 @@ public class PDAcroFormTest
         doc.save(baos);
         doc.close();
 
-        doc = PDDocument.load(baos.toByteArray());
+        doc = Loader.loadPDF(baos.toByteArray());
         acroForm2 = doc.getDocumentCatalog().getAcroForm();
         defaultResources = acroForm2.getDefaultResources();
         helv = defaultResources.getFont(COSName.HELV);
@@ -301,8 +303,8 @@ public class PDAcroFormTest
         assertNotNull(helv);
         assertNotNull(zadb);
         // make sure that font wasn't overwritten
-        assertNotEquals(PDType1Font.HELVETICA, helv);
-        assertNotEquals(PDType1Font.ZAPF_DINGBATS, zadb);
+        assertNotEquals(new PDType1Font(Standard14Fonts.FontName.HELVETICA), helv);
+        assertNotEquals(new PDType1Font(Standard14Fonts.FontName.ZAPF_DINGBATS), zadb);
         doc.close();
     }
 
@@ -319,7 +321,7 @@ public class PDAcroFormTest
         PDDocument testPdf = null;
         try
         {
-            testPdf = PDDocument.load(new URL(sourceUrl).openStream());
+            testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
             PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
             boolean thrown = false;
             try

@@ -75,6 +75,10 @@ public class PDGraphicsState implements Cloneable
     private double flatness = 1.0;
     private double smoothness = 0;
 
+
+    private Matrix textMatrix = null;
+    private Matrix textLineMatrix = null;
+
     /**
      * Constructor with a given page size to initialize the clipping path.
      * @param page the size of the page
@@ -505,6 +509,8 @@ public class PDGraphicsState implements Cloneable
             clone.clippingPaths = clippingPaths; // not cloned, see intersectClippingPath
             clone.clippingCache = clippingCache;
             clone.isClippingPathDirty = false;
+            clone.textLineMatrix = textLineMatrix == null ? null : textLineMatrix.clone();
+            clone.textMatrix = textMatrix == null ? null : textMatrix.clone();
             return clone;
         }
         catch (CloneNotSupportedException e)
@@ -702,5 +708,37 @@ public class PDGraphicsState implements Cloneable
     public void setTransfer(COSBase transfer)
     {
         this.transfer = transfer;
+    }
+
+    /**
+     * @return Returns the textLineMatrix.
+     */
+    public Matrix getTextLineMatrix()
+    {
+        return textLineMatrix;
+    }
+
+    /**
+     * @param value The textLineMatrix to set.
+     */
+    public void setTextLineMatrix(Matrix value)
+    {
+        textLineMatrix = value;
+    }
+
+    /**
+     * @return Returns the textMatrix.
+     */
+    public Matrix getTextMatrix()
+    {
+        return textMatrix;
+    }
+
+    /**
+     * @param value The textMatrix to set.
+     */
+    public void setTextMatrix(Matrix value)
+    {
+        textMatrix = value;
     }
 }

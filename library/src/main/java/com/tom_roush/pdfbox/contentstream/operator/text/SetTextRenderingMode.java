@@ -19,6 +19,7 @@ package com.tom_roush.pdfbox.contentstream.operator.text;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -34,6 +35,11 @@ import com.tom_roush.pdfbox.pdmodel.graphics.state.RenderingMode;
  */
 public class SetTextRenderingMode extends OperatorProcessor
 {
+    public SetTextRenderingMode(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> arguments) throws IOException
     {
@@ -53,7 +59,7 @@ public class SetTextRenderingMode extends OperatorProcessor
             return;
         }
         RenderingMode renderingMode = RenderingMode.fromInt(val);
-        context.getGraphicsState().getTextState().setRenderingMode(renderingMode);
+        getContext().getGraphicsState().getTextState().setRenderingMode(renderingMode);
     }
 
     @Override

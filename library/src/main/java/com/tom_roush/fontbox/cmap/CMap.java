@@ -18,6 +18,8 @@ package com.tom_roush.fontbox.cmap;
 
 import android.util.Log;
 
+import com.tom_roush.Global;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -44,18 +46,27 @@ public class CMap
     private int minCodeLength = 4;
     private int maxCodeLength;
 
+    private int minCidLength = 4;
+    private int maxCidLength = 0;
+
     // code lengths
-    private final List<CodespaceRange> codespaceRanges = new ArrayList<CodespaceRange>();
+    private final List<CodespaceRange> codespaceRanges = new ArrayList<>();
 
     // Unicode mappings
-    private final Map<Integer,String> charToUnicode = new HashMap<Integer,String>();
-
-    // inverted map
-    private final Map <String, byte[]> unicodeToByteCodes = new HashMap<String, byte[]>();
+    // one byte input values
+    private final Map<Integer, String> charToUnicodeOneByte = new HashMap<>();
+    // two byte input values
+    private final Map<Integer, String> charToUnicodeTwoBytes = new HashMap<>();
+    // 3 / 4 byte input values
+    private final Map<Integer, String> charToUnicodeMoreBytes = new HashMap<>();
 
     // CID mappings
-    private final Map<Integer,Integer> codeToCid = new HashMap<Integer,Integer>();
-    private final List<CIDRange> codeToCidRanges = new ArrayList<CIDRange>();
+    // map with all code to cid mappings organized by the origin byte length of the input value
+    private final Map<Integer, Map<Integer, Integer>> codeToCid = new HashMap<>();
+    private final List<CIDRange> codeToCidRanges = new ArrayList<>();
+
+    // inverted map
+    private final Map <String, byte[]> unicodeToByteCodes = new HashMap<>();
 
     private static final String SPACE = " ";
     private int spaceMapping = -1;
@@ -84,23 +95,74 @@ public class CMap
      */
     public boolean hasUnicodeMappings()
     {
-        return !charToUnicode.isEmpty();
+        return !charToUnicodeOneByte.isEmpty() || !charToUnicodeTwoBytes.isEmpty() || !charToUnicodeMoreBytes.isEmpty();
     }
 
     /**
      * Returns the sequence of Unicode characters for the given character code.
+     *
+     * This method exists for convenience. It may return false values as the origin byte length of the input value is
+     * unknown and the mapping for some input values aren't unique. <br>
+     * Example:<br>
+     * The two byte value 0x00, 0x65 maps to 0x20 <br>
+     * An input value of 0x65 always returns 0x20 even if the value has an origin byte length of 1.
      *
      * @param code character code
      * @return Unicode characters (may be more than one, e.g "fi" ligature)
      */
     public String toUnicode(int code)
     {
-        return charToUnicode.get(code);
+        String unicode = code < 256 ? toUnicode(code, 1) : null;
+        if (unicode == null)
+        {
+            if (code <= 0xFFFF)
+            {
+                return toUnicode(code, 2);
+            }
+            if (code <= 0xFFFFFF)
+            {
+                return toUnicode(code, 3);
+            }
+            return toUnicode(code, 4);
+        }
+        return unicode;
+    }
+
+    /**
+     * Returns the sequence of Unicode characters for the given character code.
+     *
+     * @param code character code
+     * @param length code length
+     * @return Unicode characters (may be more than one, e.g "fi" ligature)
+     */
+    public String toUnicode(int code, int length)
+    {
+        if (length == 1)
+        {
+            return charToUnicodeOneByte.get(code);
+        }
+        if (length == 2)
+        {
+            return charToUnicodeTwoBytes.get(code);
+        }
+        return charToUnicodeMoreBytes.get(code);
+    }
+
+    /**
+     * Returns the sequence of Unicode characters for the given character code.
+     *
+     * @param code bytes of the character code
+     * @return Unicode characters (may be more than one, e.g "fi" ligature)
+     */
+    public String toUnicode(byte[] code)
+    {
+        return toUnicode(toInt(code), code.length);
     }
 
     /**
      * Reads a character code from a string in the content stream.
-     * <p>See "CMap Mapping" and "Handling Undefined Characters" in PDF32000 for more details.
+     * <p>
+     * See "CMap Mapping" and "Handling Undefined Characters" in PDF32000 for more details.
      *
      * @param in string stream
      * @return character code
@@ -113,25 +175,25 @@ public class CMap
         in.mark(maxCodeLength);
         for (int i = minCodeLength-1; i < maxCodeLength; i++)
         {
-            final int byteCount = i+1;
-            for (CodespaceRange range : codespaceRanges)
+            final int byteCount = i + 1;
+            if (codespaceRanges.stream().anyMatch(r -> r.isFullMatch(bytes, byteCount)))
             {
-                if (range.isFullMatch(bytes, byteCount))
-                {
-                    return toInt(bytes, byteCount);
-                }
+                return toInt(bytes, byteCount);
             }
             if (byteCount < maxCodeLength)
             {
                 bytes[byteCount] = (byte)in.read();
             }
         }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < maxCodeLength; ++i)
+        if (Global.IS_WARMING_ENABLED)
         {
-            sb.append(String.format("0x%02X (%04o) ", bytes[i], bytes[i]));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < maxCodeLength; ++i)
+            {
+                sb.append(String.format("0x%02X (%04o) ", bytes[i], bytes[i]));
+            }
+            Log.w("PdfBox-Android", "Invalid character code sequence {" + sb + "} in CMap {" + cmapName + "}");
         }
-        Log.w("PdfBox-Android", "Invalid character code sequence " + sb + "in CMap " + cmapName);
         // PDFBOX-4811 reposition to where we were after initial read
         if (in.markSupported())
         {
@@ -148,7 +210,15 @@ public class CMap
     /**
      * Returns an int for the given byte array
      */
-    static int toInt(byte[] data, int dataLen)
+    static int toInt(byte[] data)
+    {
+        return toInt(data, data.length);
+    }
+
+    /**
+     * Returns an int for the given byte array
+     */
+    private static int toInt(byte[] data, int dataLen)
     {
         int code = 0;
         for (int i = 0; i < dataLen; ++i)
@@ -162,19 +232,85 @@ public class CMap
     /**
      * Returns the CID for the given character code.
      *
+     * @param code character code as byte array
+     * @return CID
+     */
+    public int toCID(byte[] code)
+    {
+        if (!hasCIDMappings() || code.length < minCidLength || code.length > maxCidLength)
+        {
+            return 0;
+        }
+        Integer cid = null;
+        Map<Integer, Integer> codeToCidMap = codeToCid.get(code.length);
+        if (codeToCidMap != null)
+        {
+            cid = codeToCidMap.get(toInt(code));
+        }
+        return cid != null ? cid : toCIDFromRanges(code);
+    }
+
+    /**
+     * Returns the CID for the given character code.
+     *
+     * This method exists for convenience. It may return false values as the origin byte length of the input value is
+     * unknown and the mapping for some input values aren't unique. <br>
+     * Example:<br>
+     * The two byte value 0x00, 0x65 maps to 0x20 <br>
+     * An input value of 0x65 always returns 0x20 even if the value has an origin byte length of 1.
+     *
      * @param code character code
      * @return CID
      */
     public int toCID(int code)
     {
-        Integer cid = codeToCid.get(code);
-        if (cid != null)
+        if (!hasCIDMappings())
         {
-            return cid;
+            return 0;
         }
+        int cid = 0;
+        int length = minCidLength;
+        while (cid == 0 && (length <= maxCidLength))
+        {
+            cid = toCID(code, length++);
+        }
+        return cid;
+    }
+
+    /**
+     * Returns the CID for the given character code.
+     *
+     * @param code   character code
+     * @param length the origin byte length of the code
+     * @return CID
+     */
+    public int toCID(int code, int length)
+    {
+        if (!hasCIDMappings() || length < minCidLength || length > maxCidLength)
+        {
+            return 0;
+        }
+        Integer cid = null;
+        Map<Integer, Integer> codeToCidMap = codeToCid.get(length);
+        if (codeToCidMap != null)
+        {
+            cid = codeToCidMap.get(code);
+        }
+        return cid != null ? cid : toCIDFromRanges(code, length);
+    }
+
+    /**
+     * Returns the CID for the given character code.
+     *
+     * @param code character code
+     * @return CID
+     */
+
+    private int toCIDFromRanges(int code, int length)
+    {
         for (CIDRange range : codeToCidRanges)
         {
-            int ch = range.map((char)code);
+            int ch = range.map(code, length);
             if (ch != -1)
             {
                 return ch;
@@ -184,21 +320,23 @@ public class CMap
     }
 
     /**
-     * Convert the given part of a byte array to an integer.
-     * @param data the byte array
-     * @param offset The offset into the byte array.
-     * @param length The length of the data we are getting.
-     * @return the resulting integer
+     * Returns the CID for the given character code.
+     *
+     * @param code character code
+     * @return CID
      */
-    private int getCodeFromArray( byte[] data, int offset, int length )
+
+    private int toCIDFromRanges(byte[] code)
     {
-        int code = 0;
-        for( int i=0; i<length; i++ )
+        for (CIDRange range : codeToCidRanges)
         {
-            code <<= 8;
-            code |= (data[offset+i]+256)%256;
+            int ch = range.map(code);
+            if (ch != -1)
+            {
+                return ch;
+            }
         }
-        return code;
+        return 0;
     }
 
     /**
@@ -209,14 +347,29 @@ public class CMap
      */
     void addCharMapping(byte[] codes, String unicode)
     {
-        unicodeToByteCodes.put(unicode, codes.clone()); // clone needed, bytes is modified later
-        int code = getCodeFromArray(codes, 0, codes.length);
-        charToUnicode.put(code, unicode);
-
+        switch (codes.length)
+        {
+            case 1:
+                charToUnicodeOneByte.put(CMapStrings.getIndexValue(codes), unicode);
+                unicodeToByteCodes.put(unicode, CMapStrings.getByteValue(codes));
+                break;
+            case 2:
+                charToUnicodeTwoBytes.put(CMapStrings.getIndexValue(codes), unicode);
+                unicodeToByteCodes.put(unicode, CMapStrings.getByteValue(codes));
+                break;
+            case 3:
+            case 4:
+                charToUnicodeMoreBytes.put(toInt(codes), unicode);
+                unicodeToByteCodes.put(unicode, codes.clone());
+                break;
+            default:
+                Log.w("PdfBox-Android", "Mappings with more than 4 bytes (here: {"+ codes.length +"}) aren't supported yet");
+                break;
+        }
         // fixme: ugly little hack
         if (SPACE.equals(unicode))
         {
-            spaceMapping = code;
+            spaceMapping = toInt(codes);
         }
     }
 
@@ -237,9 +390,17 @@ public class CMap
      * @param code character code
      * @param cid CID
      */
-    void addCIDMapping(int code, int cid)
+    void addCIDMapping(byte[] code, int cid)
     {
-        codeToCid.put(cid, code);
+        Map<Integer, Integer> codeToCidMap = codeToCid.get(code.length);
+        if (codeToCidMap == null)
+        {
+            codeToCidMap = new HashMap<>();
+            codeToCid.put(code.length, codeToCidMap);
+            minCidLength = Math.min(minCidLength, code.length);
+            maxCidLength = Math.max(maxCidLength, code.length);
+        }
+        codeToCidMap.put(toInt(code), cid);
     }
 
     /**
@@ -250,16 +411,23 @@ public class CMap
      * @param cid the cid to be started with.
      *
      */
-    void addCIDRange(char from, char to, int cid)
+    void addCIDRange(byte[] from, byte[] to, int cid)
+    {
+        addCIDRange(codeToCidRanges, toInt(from), toInt(to), cid, from.length);
+    }
+
+    private void addCIDRange(List<CIDRange> cidRanges, int from, int to, int cid, int length)
     {
         CIDRange lastRange = null;
-        if (!codeToCidRanges.isEmpty())
+        if (!cidRanges.isEmpty())
         {
-            lastRange = codeToCidRanges.get(codeToCidRanges.size() - 1);
+            lastRange = cidRanges.get(cidRanges.size() - 1);
         }
-        if (lastRange == null || !lastRange.extend(from, to, cid))
+        if (lastRange == null || !lastRange.extend(from, to, cid, length))
         {
-            codeToCidRanges.add(new CIDRange(from, to, cid));
+            cidRanges.add(new CIDRange(from, to, cid, length));
+            minCidLength = Math.min(minCidLength, length);
+            maxCidLength = Math.max(maxCidLength, length);
         }
     }
 
@@ -281,18 +449,46 @@ public class CMap
      *
      * @param cmap The cmap to load mappings from.
      */
-    void useCmap( CMap cmap )
+    void useCmap(CMap cmap)
     {
-        for (CodespaceRange codespaceRange : cmap.codespaceRanges)
+        cmap.codespaceRanges.forEach(this::addCodespaceRange);
+        charToUnicodeOneByte.putAll(cmap.charToUnicodeOneByte);
+        charToUnicodeTwoBytes.putAll(cmap.charToUnicodeTwoBytes);
+        charToUnicodeMoreBytes.putAll(cmap.charToUnicodeMoreBytes);
+        cmap.charToUnicodeOneByte.forEach((k, v) -> unicodeToByteCodes.put(v, new byte[]{(byte) (k % 0xFF)}));
+        cmap.charToUnicodeTwoBytes.forEach((k, v) -> unicodeToByteCodes.put(v,
+                new byte[]{(byte) ((k >>> 8) & 0xFF), (byte) (k & 0xFF)})
+        );
+        cmap.charToUnicodeMoreBytes.forEach((k, v) ->
         {
-            addCodespaceRange(codespaceRange);
-        }
-        charToUnicode.putAll(cmap.charToUnicode);
-        codeToCid.putAll(cmap.codeToCid);
+            byte[] bar;
+            if (k <= 0xFFFFFF)
+            {
+                // 3 bytes
+                bar = new byte[]{(byte) ((k >>> 16) & 0xFF), (byte) ((k >>> 8) & 0xFF),
+                        (byte) (k & 0xFF)};
+            }
+            else
+            {
+                // 4 bytes
+                bar = new byte[]{(byte) ((k >>> 24) & 0xFF), (byte) ((k >>> 16) & 0xFF),
+                        (byte) ((k >>> 8) & 0xFF), (byte) (k & 0xFF)};
+            }
+            unicodeToByteCodes.put(v, bar);
+        });
+        cmap.codeToCid.forEach((key, value) ->
+        {
+            Map<Integer, Integer> existingMapping = codeToCid.putIfAbsent(key, value);
+            if (existingMapping!=null)
+            {
+                existingMapping.putAll(value);
+            }
+        });
         codeToCidRanges.addAll(cmap.codeToCidRanges);
-
-        // unicodeToByteCodes should be filled too, but this isn't possible in 2.0.*
-        // because we don't know the code length
+        maxCodeLength = Math.max(maxCodeLength, cmap.maxCodeLength);
+        minCodeLength = Math.min(minCodeLength, cmap.minCodeLength);
+        maxCidLength = Math.max(maxCidLength, cmap.maxCidLength);
+        minCidLength = Math.min(minCidLength, cmap.minCidLength);
     }
 
     /**

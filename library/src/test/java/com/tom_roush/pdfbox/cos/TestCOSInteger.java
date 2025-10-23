@@ -104,7 +104,7 @@ public class TestCOSInteger extends TestCOSNumber
     {
         for (int i = -1000; i < 3000; i += 200)
         {
-            assertEquals((double) i, COSInteger.get(i).doubleValue());
+            assertEquals((float) i, COSInteger.get(i).floatValue());
         }
     }
 

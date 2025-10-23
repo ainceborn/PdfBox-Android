@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 
 import com.tom_roush.harmony.awt.AWTColor;
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSObject;
@@ -99,10 +100,10 @@ public class PDFCloneUtilityTest extends TestCase
 
         // save and reload PDF, so that one can see that the files are legit
         dstDoc.save(TESTDIR + CLONEDST);
-        PDDocument.load(new File(TESTDIR + CLONESRC)).close();
-        PDDocument.load(new File(TESTDIR + CLONESRC), (String)null).close();
-        PDDocument.load(new File(TESTDIR + CLONEDST)).close();
-        PDDocument.load(new File(TESTDIR + CLONEDST), (String)null).close();
+        Loader.loadPDF(new File(TESTDIR + CLONESRC)).close();
+        Loader.loadPDF(new File(TESTDIR + CLONESRC), (String)null).close();
+        Loader.loadPDF(new File(TESTDIR + CLONEDST)).close();
+        Loader.loadPDF(new File(TESTDIR + CLONEDST), (String)null).close();
     }
 
     /**
@@ -119,7 +120,7 @@ public class PDFCloneUtilityTest extends TestCase
         doc1.getDocumentCatalog().setOCProperties(new PDOptionalContentProperties());
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         doc1.save(baos);
-        PDDocument doc2 = PDDocument.load(baos.toByteArray());
+        PDDocument doc2 = Loader.loadPDF(baos.toByteArray());
         PDFMergerUtility merger = new PDFMergerUtility();
         // The OCProperties is a direct object here, but gets saved as an indirect object.
         assertTrue(doc1.getDocumentCatalog().getCOSObject().getItem(COSName.OCPROPERTIES) instanceof COSDictionary);

@@ -5,7 +5,7 @@ android {
 
     defaultConfig {
         applicationId 'com.tom_roush.pdfbox.sample'
-        minSdkVersion 25
+        minSdkVersion 26
         targetSdkVersion Integer.parseInt(project.ANDROID_BUILD_TARGET_SDK_VERSION)
         versionName project.VERSION_NAME
         versionCode Integer.parseInt(project.VERSION_CODE)
@@ -31,7 +31,6 @@ android {
 
 dependencies {
     implementation project(':library')
-//    implementation "com.tom-roush:pdfbox-android:${project.VERSION_NAME}"
     implementation 'androidx.appcompat:appcompat:1.6.1'
 
     // Optional dependencies

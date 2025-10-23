@@ -22,6 +22,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.os.Build;
 import android.util.Log;
 
 import java.io.IOException;
@@ -36,11 +37,11 @@ import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.filter.DecodeOptions;
 import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
-import com.tom_roush.pdfbox.pdmodel.graphics.color.PDIndexed;
 
 /**
  * Reads a sampled image from a PDF file.
  * @author John Hewson
+ * @author Kanstantsin Valeitsenak
  */
 final class SampledImageReader
 {
@@ -245,12 +246,8 @@ final class SampledImageReader
         DecodeOptions options = new DecodeOptions(currentSubsampling);
         options.setSourceRegion(clipped);
         // read bit stream
-        InputStream iis = null;
-        try
+        try (InputStream iis = pdImage.createInputStream(options))
         {
-            // create stream
-            iis = pdImage.createInputStream(options);
-
             final int inputWidth;
             final int startx;
             final int starty;
@@ -282,7 +279,7 @@ final class SampledImageReader
             // and then simply shift bits out to the left, detecting set bits via sign
             final boolean nosubsampling = currentSubsampling == 1;
             final int stride = (inputWidth + 7) / 8;
-            final int invert = colorSpace instanceof PDIndexed && decode[0] < decode[1] ? 0 : -1;
+            final int invert = decode[0] < decode[1] ? 0 : -1;
             final int endX = startx + scanWidth;
             final byte[] buff = new byte[stride];
             for (int y = 0; y < starty + scanHeight; y++)
@@ -321,13 +318,6 @@ final class SampledImageReader
             // use the color space to convert the image to RGB
             return colorSpace.toRGBImage(raster);
         }
-        finally
-        {
-            if (iis != null)
-            {
-                iis.close();
-            }
-        }
     }
 
     // faster, 8-bit non-decoded, non-colormasked image conversion
@@ -337,16 +327,16 @@ final class SampledImageReader
         int currentSubsampling = subsampling;
         DecodeOptions options = new DecodeOptions(currentSubsampling);
         options.setSourceRegion(clipped);
-        InputStream input = pdImage.createInputStream(options);
-        try
-        {
+
+        try (InputStream input = pdImage.createInputStream(options)) {
+
             final int inputWidth;
-            int startx;
-            int starty;
+            final int startx;
+            final int starty;
             final int scanWidth;
             final int scanHeight;
-            if (options.isFilterSubsampled())
-            {
+
+            if (options.isFilterSubsampled()) {
                 // Decode options were honored, and so there is no need for additional clipping or subsampling
                 inputWidth = width;
                 startx = 0;
@@ -364,27 +354,117 @@ final class SampledImageReader
                 scanWidth = clipped.width();
                 scanHeight = clipped.height();
             }
+
             final int numComponents = pdImage.getColorSpace().getNumberOfComponents();
-            if (startx == 0 && starty == 0 && scanWidth == width && scanHeight == height)
-            {
-                // we just need to copy all sample data, then convert to RGB image.
-                return createBitmapFromRawStream(input, inputWidth, numComponents, currentSubsampling);
+
+            // create an empty bitmap with right config
+            Bitmap raster;
+            if (numComponents == 1) {
+                raster = Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8);
+            } else {
+                raster = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             }
-            else
-            {
-                Bitmap origin = createBitmapFromRawStream(input, inputWidth, numComponents,
-                    currentSubsampling);
-                if (currentSubsampling > 1)
-                {
-                    startx /= currentSubsampling;
-                    starty /= currentSubsampling;
+
+            // === Byte buffer of all components ===
+            byte[] bank = new byte[width * height * numComponents];
+
+            // === fast way ===
+            if (startx == 0 && starty == 0 && scanWidth == width && scanHeight == height && currentSubsampling == 1) {
+                int bytesRead = 0;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    bytesRead = input.readNBytes(bank, 0, bank.length);
+                } else {
+                    bytesRead = readNBytes(input, bank, 0, bank.length);
                 }
-                return Bitmap.createBitmap(origin, startx, starty, width, height);
+                if (bytesRead != width * height * numComponents) {
+                    Log.d("PDFImage", "Expected " + (width * height * numComponents)
+                            + " bytes, but read " + bytesRead);
+                }
+
+                // put Bitmap and data to toRGBImage()
+                fillBitmapFromBytes(raster, bank, width, height, numComponents);
+                return pdImage.getColorSpace().toRGBImage(raster);
             }
+
+            // === Hard Mode ===
+            byte[] tempBytes = new byte[numComponents * inputWidth];
+            int i = 0;
+
+            for (int y = 0; y < starty + scanHeight; ++y) {
+                int bytesRead = 0;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    bytesRead = input.readNBytes(tempBytes, 0, tempBytes.length);
+                } else {
+                    bytesRead = readNBytes(input, tempBytes, 0, tempBytes.length);
+                }
+                if (bytesRead != tempBytes.length) {
+                    Log.d("PDFImage", "Expected row bytes: " + tempBytes.length + ", but read " + bytesRead);
+                }
+
+                if (y < starty || y % currentSubsampling != 0) {
+                    continue;
+                }
+
+                if (currentSubsampling == 1) {
+                    System.arraycopy(
+                            tempBytes,
+                            startx * numComponents,
+                            bank,
+                            i,
+                            scanWidth * numComponents
+                    );
+                    i += scanWidth * numComponents;
+                } else {
+                    for (int x = startx; x < startx + scanWidth; x += currentSubsampling) {
+                        for (int c = 0; c < numComponents; c++) {
+                            bank[i++] = tempBytes[x * numComponents + c];
+                        }
+                    }
+                }
+            }
+
+            fillBitmapFromBytes(raster, bank, width, height, numComponents);
+
+            return pdImage.getColorSpace().toRGBImage(raster);
         }
-        finally
-        {
-            IOUtils.closeQuietly(input);
+    }
+
+    private static int readNBytes(InputStream input, byte[] buffer, int offset, int length) throws IOException {
+        int totalRead = 0;
+        while (totalRead < length) {
+            int bytesRead = input.read(buffer, offset + totalRead, length - totalRead);
+            if (bytesRead == -1) {
+                break;
+            }
+            totalRead += bytesRead;
+        }
+        return totalRead;
+    }
+
+    private static void fillBitmapFromBytes(Bitmap bitmap, byte[] bank,
+                                            int width, int height, int numComponents) {
+
+        if (bitmap.getConfig() == Bitmap.Config.ALPHA_8) {
+            int idx = 0;
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int gray = bank[idx++] & 0xFF;
+                    int pixel = (gray << 24);
+                    bitmap.setPixel(x, y, pixel);
+                }
+            }
+        } else { // ARGB_8888
+            int[] pixels = new int[width * height];
+            int idx = 0;
+            for (int i = 0; i < width * height; i++) {
+                int r, g, b;
+                r = bank[idx++] & 0xFF;
+                g = numComponents > 1 ? bank[idx++] & 0xFF : r;
+                b = numComponents > 2 ? bank[idx++] & 0xFF : r;
+                if (numComponents > 3) idx += (numComponents - 3);
+                pixels[i] = Color.rgb(r, g, b);
+            }
+            bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
         }
     }
 
@@ -420,7 +500,7 @@ final class SampledImageReader
             }
             bytes = result;
         }
-        Bitmap bitmap = Bitmap.createBitmap(originalWidth, originalHeight, Bitmap.Config.ARGB_8888);
+        Bitmap bitmap = Bitmap.createBitmap(originalWidth, originalHeight, Bitmap.Config.ALPHA_8);
         bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(bytes));
         if (sampleSize > 1)
         {

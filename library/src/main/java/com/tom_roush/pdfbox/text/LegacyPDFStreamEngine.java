@@ -75,13 +75,13 @@ import com.tom_roush.pdfbox.util.Vector;
  * DO NOT USE THIS CODE UNLESS YOU ARE WORKING WITH PDFTextStripper.
  * THIS CODE IS DELIBERATELY INCORRECT, USE PDFStreamEngine INSTEAD.
  */
-class LegacyPDFStreamEngine extends PDFStreamEngine
+public class LegacyPDFStreamEngine extends PDFStreamEngine
 {
     private int pageRotation;
     private PDRectangle pageSize;
     private Matrix translateMatrix;
     private static final GlyphList GLYPHLIST;
-    private final Map<COSDictionary, Float> fontHeightMap = new WeakHashMap<COSDictionary, Float>();
+    private final Map<COSDictionary, Float> fontHeightMap = new WeakHashMap<>();
 
     static
     {
@@ -111,30 +111,30 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
     /**
      * Constructor.
      */
-    LegacyPDFStreamEngine() throws IOException
+    LegacyPDFStreamEngine()
     {
-        addOperator(new BeginText());
-        addOperator(new Concatenate());
-        addOperator(new DrawObject()); // special text version
-        addOperator(new EndText());
-        addOperator(new SetGraphicsStateParameters());
-        addOperator(new Save());
-        addOperator(new Restore());
-        addOperator(new NextLine());
-        addOperator(new SetCharSpacing());
-        addOperator(new MoveText());
-        addOperator(new MoveTextSetLeading());
-        addOperator(new SetFontAndSize());
-        addOperator(new ShowText());
-        addOperator(new ShowTextAdjusted());
-        addOperator(new SetTextLeading());
-        addOperator(new SetMatrix());
-        addOperator(new SetTextRenderingMode());
-        addOperator(new SetTextRise());
-        addOperator(new SetWordSpacing());
-        addOperator(new SetTextHorizontalScaling());
-        addOperator(new ShowTextLine());
-        addOperator(new ShowTextLineAndSpace());
+        addOperator(new BeginText(this));
+        addOperator(new Concatenate(this));
+        addOperator(new DrawObject(this)); // special text version
+        addOperator(new EndText(this));
+        addOperator(new SetGraphicsStateParameters(this));
+        addOperator(new Save(this));
+        addOperator(new Restore(this));
+        addOperator(new NextLine(this));
+        addOperator(new SetCharSpacing(this));
+        addOperator(new MoveText(this));
+        addOperator(new MoveTextSetLeading(this));
+        addOperator(new SetFontAndSize(this));
+        addOperator(new ShowText(this));
+        addOperator(new ShowTextAdjusted(this));
+        addOperator(new SetTextLeading(this));
+        addOperator(new SetMatrix(this));
+        addOperator(new SetTextRenderingMode(this));
+        addOperator(new SetTextRise(this));
+        addOperator(new SetWordSpacing(this));
+        addOperator(new SetTextHorizontalScaling(this));
+        addOperator(new ShowTextLine(this));
+        addOperator(new ShowTextLineAndSpace(this));
     }
 
     /**
@@ -149,7 +149,7 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
         this.pageRotation = page.getRotation();
         this.pageSize = page.getCropBox();
 
-        if (pageSize.getLowerLeftX() == 0 && pageSize.getLowerLeftY() == 0)
+        if (Float.compare(pageSize.getLowerLeftX(), 0) == 0 && Float.compare(pageSize.getLowerLeftY(), 0) == 0)
         {
             translateMatrix = null;
         }
@@ -166,10 +166,8 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
      * written by Ben Litchfield for PDFStreamEngine.
      */
     @Override
-    protected void showGlyph(Matrix textRenderingMatrix, PDFont font, int code,
-        String unicode,
-        Vector displacement)
-        throws IOException
+    protected void showGlyph(Matrix textRenderingMatrix, PDFont font, int code, Vector displacement)
+            throws IOException
     {
         //
         // legacy calculations which were previously in PDFStreamEngine
@@ -186,7 +184,7 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
 
         float displacementX = displacement.getX();
         // the sorting algorithm is based on the width of the character. As the displacement
-        // for vertical characters doesn't provide any suitable value for it, we have to 
+        // for vertical characters doesn't provide any suitable value for it, we have to
         // calculate our own
         if (font.isVertical())
         {
@@ -263,18 +261,18 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
             // to avoid crash as described in PDFBOX-614, see what the space displacement should be
             spaceWidthText = font.getSpaceWidth() * glyphSpaceToTextSpaceFactor;
         }
-        catch (Throwable exception)
+        catch (Exception exception)
         {
             Log.w("PdfBox-Android", exception.getMessage(), exception);
         }
 
-        if (spaceWidthText == 0)
+        if (Float.compare(spaceWidthText, 0) == 0)
         {
             spaceWidthText = font.getAverageFontWidth() * glyphSpaceToTextSpaceFactor;
             // the average space width appears to be higher than necessary so make it smaller
             spaceWidthText *= .80f;
         }
-        if (spaceWidthText == 0)
+        if (Float.compare(spaceWidthText, 0) == 0)
         {
             spaceWidthText = 1.0f; // if could not find font, use a generic value
         }
@@ -283,27 +281,23 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
         float spaceWidthDisplay = spaceWidthText * textRenderingMatrix.getScalingFactorX();
 
         // use our additional glyph list for Unicode mapping
-        String unicodeMapping = font.toUnicode(code, GLYPHLIST);
+        String unicode = font.toUnicode(code, GLYPHLIST);
 
         // when there is no Unicode mapping available, Acrobat simply coerces the character code
         // into Unicode, so we do the same. Subclasses of PDFStreamEngine don't necessarily want
         // this, which is why we leave it until this point in PDFTextStreamEngine.
-        if (unicodeMapping == null)
+        if (unicode == null)
         {
             if (font instanceof PDSimpleFont)
             {
                 char c = (char) code;
-                unicodeMapping = new String(new char[] { c });
+                unicode = String.valueOf(c);
             }
             else
             {
                 // Acrobat doesn't seem to coerce composite font's character codes, instead it
                 // skips them. See the "allah2.pdf" TestTextStripper file.
-                char c = (char) code;
-                unicodeMapping = String.valueOf(c);
-                if(unicodeMapping == null){
-                    unicodeMapping = "?";
-                }
+                return;
             }
         }
 
@@ -321,11 +315,10 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
         }
 
         processTextPosition(new TextPosition(pageRotation, pageSize.getWidth(),
-            pageSize.getHeight(), translatedTextRenderingMatrix, nextX, nextY,
-            Math.abs(dyDisplay), dxDisplay,
-            Math.abs(spaceWidthDisplay), unicodeMapping, new int[] { code }, font,
-            fontSize,
-            (int)(fontSize * textMatrix.getScalingFactorX())));
+                pageSize.getHeight(), translatedTextRenderingMatrix, nextX, nextY,
+                Math.abs(dyDisplay), dxDisplay,
+                Math.abs(spaceWidthDisplay), unicode, new int[] { code } , font, fontSize,
+                (int)(fontSize * textMatrix.getScalingFactorX())));
     }
 
     /**
@@ -354,7 +347,7 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
         {
             float capHeight = fontDescriptor.getCapHeight();
             if (Float.compare(capHeight, 0) != 0 &&
-                (capHeight < glyphHeight || Float.compare(glyphHeight, 0) == 0))
+                    (capHeight < glyphHeight || Float.compare(glyphHeight, 0) == 0))
             {
                 glyphHeight = capHeight;
             }
@@ -363,7 +356,7 @@ class LegacyPDFStreamEngine extends PDFStreamEngine
             float ascent = fontDescriptor.getAscent();
             float descent = fontDescriptor.getDescent();
             if (capHeight > ascent && ascent > 0 && descent < 0 &&
-                ((ascent - descent) / 2 < glyphHeight || Float.compare(glyphHeight, 0) == 0))
+                    ((ascent - descent) / 2 < glyphHeight || Float.compare(glyphHeight, 0) == 0))
             {
                 glyphHeight = (ascent - descent) / 2;
             }

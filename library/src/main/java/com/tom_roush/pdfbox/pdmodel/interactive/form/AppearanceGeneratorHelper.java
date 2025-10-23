@@ -386,54 +386,53 @@ class AppearanceGeneratorHelper {
         writeToStream(output.toByteArray(), appearanceStream);
     }
 
-    /**
-     * Parses an appearance stream into tokens.
-     */
-    private List<Object> tokenize(PDAppearanceStream appearanceStream) throws IOException {
-        PDFStreamParser parser = new PDFStreamParser(appearanceStream);
-        parser.parse();
-        return parser.getTokens();
-    }
 
     /**
      * Constructs and sets new contents for given appearance stream.
      */
-    private void setAppearanceContent(PDAnnotationWidget widget, PDAppearanceStream appearanceStream)
-        throws IOException {
+    private void setAppearanceContent(PDAnnotationWidget widget,
+                                      PDAppearanceStream appearanceStream) throws IOException
+    {
         // first copy any needed resources from the document’s DR dictionary into
         // the stream’s Resources dictionary
         defaultAppearance.copyNeededResourcesTo(appearanceStream);
 
         // then replace the existing contents of the appearance stream from /Tx BMC
         // to the matching EMC
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        ContentStreamWriter writer = new ContentStreamWriter(output);
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream())
+        {
+            ContentStreamWriter writer = new ContentStreamWriter(output);
 
-        List<Object> tokens = tokenize(appearanceStream);
-        int bmcIndex = tokens.indexOf(BMC);
-        if (bmcIndex == -1) {
-            // append to existing stream
-            writer.writeTokens(tokens);
-            writer.writeTokens(COSName.TX, BMC);
-        } else {
-            // prepend content before BMC
-            writer.writeTokens(tokens.subList(0, bmcIndex + 1));
+            List<Object> tokens = new PDFStreamParser(appearanceStream).parse();
+            int bmcIndex = tokens.indexOf(BMC);
+            if (bmcIndex == -1)
+            {
+                // append to existing stream
+                writer.writeTokens(tokens);
+                writer.writeTokens(COSName.TX, BMC);
+            }
+            else
+            {
+                // prepend content before BMC
+                writer.writeTokens(tokens.subList(0, bmcIndex + 1));
+            }
+
+            // insert field contents
+            insertGeneratedAppearance(widget, appearanceStream, output);
+
+            int emcIndex = tokens.indexOf(EMC);
+            if (emcIndex == -1)
+            {
+                // append EMC
+                writer.writeTokens(EMC);
+            }
+            else
+            {
+                // append contents after EMC
+                writer.writeTokens(tokens.subList(emcIndex, tokens.size()));
+            }
+            writeToStream(output.toByteArray(), appearanceStream);
         }
-
-        // insert field contents
-        insertGeneratedAppearance(widget, appearanceStream, output);
-
-        int emcIndex = tokens.indexOf(EMC);
-        if (emcIndex == -1) {
-            // append EMC
-            writer.writeTokens(EMC);
-        } else {
-            // append contents after EMC
-            writer.writeTokens(tokens.subList(emcIndex, tokens.size()));
-        }
-
-        output.close();
-        writeToStream(output.toByteArray(), appearanceStream);
     }
 
     /**
@@ -560,9 +559,14 @@ class AppearanceGeneratorHelper {
             // Adobe Acrobat uses the font's bounding box for the leading between the lines
             appearanceStyle.setLeading(font.getBoundingBox().getHeight() * fontScaleY);
 
-            PlainTextFormatter formatter = new PlainTextFormatter.Builder(contents).style(appearanceStyle)
-                .text(textContent).width(contentRect.getWidth()).wrapLines(isMultiLine()).initialOffset(x, y)
-                .textAlign(getTextAlign(widget)).build();
+            PlainTextFormatter formatter = new PlainTextFormatter.Builder(contents)
+                    .style(appearanceStyle)
+                    .text(textContent)
+                    .width(contentRect.getWidth())
+                    .wrapLines(isMultiLine())
+                    .initialOffset(x, y)
+                    .textAlign(getTextAlign(widget))
+                    .build();
             formatter.format();
         }
 

@@ -25,8 +25,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,7 +51,10 @@ import java.util.TreeSet;
  */
 public final class TTFSubsetter
 {
-    private static final byte[] PAD_BUF = new byte[] { 0, 0, 0 };
+
+    private static final byte[] PAD_BUF = { 0, 0, 0, 0 };
+
+    private static final TimeZone TIMEZONE_UTC = TimeZone.getTimeZone("UTC"); // clone before using
 
     private final TrueTypeFont ttf;
     private final CmapLookup unicodeCmap;
@@ -57,6 +62,7 @@ public final class TTFSubsetter
 
     private final List<String> keepTables;
     private final SortedSet<Integer> glyphIds; // new glyph ids
+    private final Set<Integer> invisibleGlyphIds;
     private String prefix;
     private boolean hasAddedCompoundReferences;
 
@@ -64,6 +70,8 @@ public final class TTFSubsetter
      * Creates a subsetter for the given font.
      *
      * @param ttf the font to be subset
+     *
+     * @throws IOException if there is an error reading the font data
      */
     public TTFSubsetter(TrueTypeFont ttf) throws IOException
     {
@@ -75,14 +83,17 @@ public final class TTFSubsetter
      *
      * @param ttf the font to be subset
      * @param tables optional tables to keep if present
+     *
+     * @throws IOException if there is an error reading the font data
      */
     public TTFSubsetter(TrueTypeFont ttf, List<String> tables) throws IOException
     {
         this.ttf = ttf;
         this.keepTables = tables;
 
-        uniToGID = new TreeMap<Integer, Integer>();
-        glyphIds = new TreeSet<Integer>();
+        uniToGID = new TreeMap<>();
+        glyphIds = new TreeSet<>();
+        invisibleGlyphIds = new HashSet<>();
 
         // find the best Unicode cmap
         this.unicodeCmap = ttf.getUnicodeCmapLookup();
@@ -93,6 +104,8 @@ public final class TTFSubsetter
 
     /**
      * Sets the prefix to add to the font's PostScript name.
+     *
+     * @param prefix to be used as prefix for the PostScript name of the font
      */
     public void setPrefix(String prefix)
     {
@@ -121,20 +134,38 @@ public final class TTFSubsetter
      */
     public void addAll(Set<Integer> unicodeSet)
     {
-        for (int unicode : unicodeSet)
+        unicodeSet.forEach(this::add);
+    }
+
+    /**
+     * Forces the glyph for the specified character code to be zero-width and contour-free,
+     * regardless of what the glyph looks like in the original font. Note that the specified
+     * character code is not added to the subset unless it is also {@link #add(int) added}
+     * separately.
+     *
+     * @param unicode the character code whose glyph should be invisible
+     */
+    public void forceInvisible(int unicode)
+    {
+        int gid = unicodeCmap.getGlyphId(unicode);
+        if (gid != 0)
         {
-            add(unicode);
+            invisibleGlyphIds.add(gid);
         }
     }
 
     /**
      * Returns the map of new -&gt; old GIDs.
+     *
+     * @return the GID map
+     *
+     * @throws IOException if the font data could not be read
      */
     public Map<Integer, Integer> getGIDMap() throws IOException
     {
         addCompoundReferences();
 
-        Map<Integer, Integer> newToOld = new HashMap<Integer, Integer>();
+        Map<Integer, Integer> newToOld = new HashMap<>();
         int newGID = 0;
         for (int oldGID : glyphIds)
         {
@@ -171,7 +202,7 @@ public final class TTFSubsetter
     }
 
     private long writeTableHeader(DataOutputStream out, String tag, long offset, byte[] bytes)
-        throws IOException
+            throws IOException
     {
         long checksum = 0;
         for (int nup = 0, n = bytes.length; nup < n; nup++)
@@ -180,7 +211,7 @@ public final class TTFSubsetter
         }
         checksum &= 0xffffffffL;
 
-        byte[] tagbytes = tag.getBytes("US-ASCII");
+        byte[] tagbytes = tag.getBytes(StandardCharsets.US_ASCII);
 
         out.write(tagbytes, 0, 4);
         out.writeInt((int)checksum);
@@ -203,7 +234,7 @@ public final class TTFSubsetter
 
     private byte[] buildHeadTable() throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(54);
         DataOutputStream out = new DataOutputStream(bos);
 
         HeaderTable h = ttf.getHeader();
@@ -232,7 +263,7 @@ public final class TTFSubsetter
 
     private byte[] buildHheaTable() throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(36);
         DataOutputStream out = new DataOutputStream(bos);
 
         HorizontalHeaderTable h = ttf.getHorizontalHeader();
@@ -269,31 +300,24 @@ public final class TTFSubsetter
     private boolean shouldCopyNameRecord(NameRecord nr)
     {
         return nr.getPlatformId() == NameRecord.PLATFORM_WINDOWS
-            && nr.getPlatformEncodingId() == NameRecord.ENCODING_WINDOWS_UNICODE_BMP
-            && nr.getLanguageId() == NameRecord.LANGUAGE_WINDOWS_EN_US
-            && nr.getNameId() >= 0 && nr.getNameId() < 7;
+                && nr.getPlatformEncodingId() == NameRecord.ENCODING_WINDOWS_UNICODE_BMP
+                && nr.getLanguageId() == NameRecord.LANGUAGE_WINDOWS_EN_US
+                && nr.getNameId() >= 0 && nr.getNameId() < 7;
     }
 
     private byte[] buildNameTable() throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
         DataOutputStream out = new DataOutputStream(bos);
 
         NamingTable name = ttf.getNaming();
-        if (name == null || keepTables != null && !keepTables.contains("name"))
+        if (name == null || keepTables != null && !keepTables.contains(NamingTable.TAG))
         {
             return null;
         }
 
         List<NameRecord> nameRecords = name.getNameRecords();
-        int numRecords = 0;
-        for (NameRecord record : nameRecords)
-        {
-            if (shouldCopyNameRecord(record))
-            {
-                numRecords++;
-            }
-        }
+        int numRecords = (int) nameRecords.stream().filter(this::shouldCopyNameRecord).count();
         writeUint16(out, 0);
         writeUint16(out, numRecords);
         writeUint16(out, 2*3 + 2*6 * numRecords);
@@ -305,37 +329,33 @@ public final class TTFSubsetter
 
         byte[][] names = new byte[numRecords][];
         int j = 0;
-        for (NameRecord record : nameRecords)
+        for (NameRecord nameRecord : nameRecords)
         {
-            if (shouldCopyNameRecord(record))
+            if (shouldCopyNameRecord(nameRecord))
             {
-                int platform = record.getPlatformId();
-                int encoding = record.getPlatformEncodingId();
-                String charset = "ISO-8859-1";
+                int platform = nameRecord.getPlatformId();
+                int encoding = nameRecord.getPlatformEncodingId();
+                Charset charset = StandardCharsets.ISO_8859_1;
 
                 if (platform == CmapTable.PLATFORM_WINDOWS &&
-                    encoding == CmapTable.ENCODING_WIN_UNICODE_BMP)
+                        encoding == CmapTable.ENCODING_WIN_UNICODE_BMP)
                 {
-                    charset = "UTF-16BE";
+                    charset = StandardCharsets.UTF_16BE;
                 }
                 else if (platform == 2) // ISO [deprecated]=
                 {
                     if (encoding == 0) // 7-bit ASCII
                     {
-                        charset = "US-ASCII";
+                        charset = StandardCharsets.US_ASCII;
                     }
                     else if (encoding == 1) // ISO 10646=
                     {
                         //not sure is this is correct??
-                        charset = "UTF16-BE";
-                    }
-                    else if (encoding == 2) // ISO 8859-1
-                    {
-                        charset = "ISO-8859-1";
+                        charset = StandardCharsets.UTF_16BE;
                     }
                 }
-                String value = record.getString();
-                if (record.getNameId() == 6 && prefix != null)
+                String value = nameRecord.getString();
+                if (nameRecord.getNameId() == 6 && prefix != null)
                 {
                     value = prefix + value;
                 }
@@ -372,26 +392,28 @@ public final class TTFSubsetter
 
     private byte[] buildMaxpTable() throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(32);
         DataOutputStream out = new DataOutputStream(bos);
 
         MaximumProfileTable p = ttf.getMaximumProfile();
-        writeFixed(out, 1.0);
+        writeFixed(out, p.getVersion());
         writeUint16(out, glyphIds.size());
-        writeUint16(out, p.getMaxPoints());
-        writeUint16(out, p.getMaxContours());
-        writeUint16(out, p.getMaxCompositePoints());
-        writeUint16(out, p.getMaxCompositeContours());
-        writeUint16(out, p.getMaxZones());
-        writeUint16(out, p.getMaxTwilightPoints());
-        writeUint16(out, p.getMaxStorage());
-        writeUint16(out, p.getMaxFunctionDefs());
-        writeUint16(out, p.getMaxInstructionDefs());
-        writeUint16(out, p.getMaxStackElements());
-        writeUint16(out, p.getMaxSizeOfInstructions());
-        writeUint16(out, p.getMaxComponentElements());
-        writeUint16(out, p.getMaxComponentDepth());
-
+        if (p.getVersion() >= 1.0f)
+        {
+            writeUint16(out, p.getMaxPoints());
+            writeUint16(out, p.getMaxContours());
+            writeUint16(out, p.getMaxCompositePoints());
+            writeUint16(out, p.getMaxCompositeContours());
+            writeUint16(out, p.getMaxZones());
+            writeUint16(out, p.getMaxTwilightPoints());
+            writeUint16(out, p.getMaxStorage());
+            writeUint16(out, p.getMaxFunctionDefs());
+            writeUint16(out, p.getMaxInstructionDefs());
+            writeUint16(out, p.getMaxStackElements());
+            writeUint16(out, p.getMaxSizeOfInstructions());
+            writeUint16(out, p.getMaxComponentElements());
+            writeUint16(out, p.getMaxComponentDepth());
+        }
         out.flush();
         return bos.toByteArray();
     }
@@ -399,12 +421,13 @@ public final class TTFSubsetter
     private byte[] buildOS2Table() throws IOException
     {
         OS2WindowsMetricsTable os2 = ttf.getOS2Windows();
-        if (os2 == null || uniToGID.isEmpty() || keepTables != null && !keepTables.contains("OS/2"))
+        if (os2 == null || uniToGID.isEmpty()
+                || keepTables != null && !keepTables.contains(OS2WindowsMetricsTable.TAG))
         {
             return null;
         }
 
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(78);
         DataOutputStream out = new DataOutputStream(bos);
 
         writeUint16(out, os2.getVersion());
@@ -434,7 +457,7 @@ public final class TTFSubsetter
         writeUint32(out, 0);
         writeUint32(out, 0);
 
-        out.write(os2.getAchVendId().getBytes("US-ASCII"));
+        out.write(os2.getAchVendId().getBytes(StandardCharsets.US_ASCII));
 
         writeUint16(out, os2.getFsSelection());
         writeUint16(out, uniToGID.firstKey());
@@ -452,7 +475,7 @@ public final class TTFSubsetter
     // never returns null
     private byte[] buildLocaTable(long[] newOffsets) throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(newOffsets.length * 4);
         DataOutputStream out = new DataOutputStream(bos);
 
         for (long offset : newOffsets)
@@ -480,19 +503,36 @@ public final class TTFSubsetter
         long[] offsets = ttf.getIndexToLocation().getOffsets();
         do
         {
-            InputStream is = ttf.getOriginalData();
             Set<Integer> glyphIdsToAdd = null;
-            try
+            try (InputStream is = ttf.getOriginalData())
             {
-                is.skip(g.getOffset());
+                long isResult = is.skip(g.getOffset());
+
+                if (Long.compare(isResult, g.getOffset()) != 0)
+                {
+                    Log.d("PdfBox-Android","Tried skipping " + g.getOffset() + " bytes but skipped only " + isResult + " bytes");
+                }
+
                 long lastOff = 0L;
                 for (Integer glyphId : glyphIds)
                 {
                     long offset = offsets[glyphId];
                     long len = offsets[glyphId + 1] - offset;
-                    is.skip(offset - lastOff);
+                    isResult = is.skip(offset - lastOff);
+
+                    if (Long.compare(isResult, offset - lastOff) != 0)
+                    {
+                        Log.d("PdfBox-Android","Tried skipping " + (offset - lastOff) + " bytes but skipped only " + isResult + " bytes");
+                    }
+
                     byte[] buf = new byte[(int)len];
-                    is.read(buf);
+                    isResult = is.read(buf);
+
+                    if (Long.compare(isResult, len) != 0)
+                    {
+                        Log.d("PdfBox-Android", "Tried reading " + len + " bytes but only " + isResult + " bytes read");
+                    }
+
                     // rewrite glyphIds for compound glyphs
                     if (buf.length >= 2 && buf[0] == -1 && buf[1] == -1)
                     {
@@ -507,7 +547,7 @@ public final class TTFSubsetter
                             {
                                 if (glyphIdsToAdd == null)
                                 {
-                                    glyphIdsToAdd = new TreeSet<Integer>();
+                                    glyphIdsToAdd = new TreeSet<>();
                                 }
                                 glyphIdsToAdd.add(ogid);
                             }
@@ -543,15 +583,11 @@ public final class TTFSubsetter
                     lastOff = offsets[glyphId + 1];
                 }
             }
-            finally
-            {
-                is.close();
-            }
-            if (glyphIdsToAdd != null)
+            hasNested = glyphIdsToAdd != null;
+            if (hasNested)
             {
                 glyphIds.addAll(glyphIdsToAdd);
             }
-            hasNested = glyphIdsToAdd != null;
         }
         while (hasNested);
     }
@@ -559,14 +595,18 @@ public final class TTFSubsetter
     // never returns null
     private byte[] buildGlyfTable(long[] newOffsets) throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(512);
 
         GlyphTable g = ttf.getGlyph();
         long[] offsets = ttf.getIndexToLocation().getOffsets();
-        InputStream is = ttf.getOriginalData();
-        try
+        try (InputStream is = ttf.getOriginalData())
         {
-            is.skip(g.getOffset());
+            long isResult = is.skip(g.getOffset());
+
+            if (Long.compare(isResult, g.getOffset()) != 0)
+            {
+                Log.e("PdfBox-Android","Tried skipping " + g.getOffset() + " bytes but skipped only " + isResult + " bytes");
+            }
 
             long prevEnd = 0;    // previously read glyph offset
             long newOffset = 0;  // new offset for the glyph in the subset font
@@ -579,10 +619,27 @@ public final class TTFSubsetter
                 long length = offsets[gid + 1] - offset;
 
                 newOffsets[newGid++] = newOffset;
-                is.skip(offset - prevEnd);
+                isResult = is.skip(offset - prevEnd);
+
+                if (Long.compare(isResult, offset - prevEnd) != 0)
+                {
+                    Log.e("PdfBox-Android","Tried skipping " + (offset - prevEnd) + " bytes but skipped only " + isResult + " bytes");
+                }
+
+                // glyphs with no outlines have an empty entry in the 'glyf' table, with a
+                // corresponding 'loca' table entry with length = 0
+                if (invisibleGlyphIds.contains(gid))
+                {
+                    continue;
+                }
 
                 byte[] buf = new byte[(int)length];
-                is.read(buf);
+                isResult = is.read(buf);
+
+                if (Long.compare(isResult, length) != 0)
+                {
+                    Log.e("PdfBox-Android","Tried reading " + length + " bytes but only " + isResult + " bytes read");
+                }
 
                 // detect glyph type
                 if (buf.length >= 2 && buf[0] == -1 && buf[1] == -1)
@@ -670,10 +727,6 @@ public final class TTFSubsetter
             }
             newOffsets[newGid++] = newOffset;
         }
-        finally
-        {
-            is.close();
-        }
 
         return bos.toByteArray();
     }
@@ -685,12 +738,13 @@ public final class TTFSubsetter
 
     private byte[] buildCmapTable() throws IOException
     {
-        if (ttf.getCmap() == null || uniToGID.isEmpty() || keepTables != null && !keepTables.contains("cmap"))
+        if (ttf.getCmap() == null || uniToGID.isEmpty()
+                || keepTables != null && !keepTables.contains(CmapTable.TAG))
         {
             return null;
         }
 
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(64);
         DataOutputStream out = new DataOutputStream(bos);
 
         // cmap header
@@ -725,7 +779,7 @@ public final class TTFSubsetter
             }
 
             if (curChar2Gid.getKey() != prevChar.getKey()+1 ||
-                curGid - lastGid != curChar2Gid.getKey() - lastChar.getKey())
+                    curGid - lastGid != curChar2Gid.getKey() - lastChar.getKey())
             {
                 if (lastGid != 0)
                 {
@@ -804,12 +858,13 @@ public final class TTFSubsetter
     private byte[] buildPostTable() throws IOException
     {
         PostScriptTable post = ttf.getPostScript();
-        if (post == null || keepTables != null && !keepTables.contains("post"))
+        if (post == null || post.getGlyphNames() == null ||
+                keepTables != null && !keepTables.contains(PostScriptTable.TAG))
         {
             return null;
         }
 
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(64);
         DataOutputStream out = new DataOutputStream(bos);
 
         writeFixed(out, 2.0); // version
@@ -828,11 +883,11 @@ public final class TTFSubsetter
         writeUint16(out, glyphIds.size());
 
         // glyphNameIndex[numGlyphs]
-        Map<String, Integer> names = new LinkedHashMap<String, Integer>();
+        Map<String, Integer> names = new LinkedHashMap<>();
         for (int gid : glyphIds)
         {
             String name = post.getName(gid);
-            Integer macId = WGL4Names.MAC_GLYPH_NAMES_INDICES.get(name);
+            Integer macId = WGL4Names.getGlyphIndex(name);
             if (macId != null)
             {
                 // the name is implicit, as it's from MacRoman
@@ -841,12 +896,7 @@ public final class TTFSubsetter
             else
             {
                 // the name will be written explicitly
-                Integer ordinal = names.get(name);
-                if (ordinal == null)
-                {
-                    ordinal = names.size();
-                    names.put(name, ordinal);
-                }
+                Integer ordinal = names.computeIfAbsent(name, dummy -> names.size());
                 writeUint16(out, 258 + ordinal);
             }
         }
@@ -854,7 +904,7 @@ public final class TTFSubsetter
         // names[numberNewGlyphs]
         for (String name : names.keySet())
         {
-            byte[] buf = name.getBytes(Charset.forName("US-ASCII"));
+            byte[] buf = name.getBytes(StandardCharsets.US_ASCII);
             writeUint8(out, buf.length);
             out.write(buf);
         }
@@ -878,7 +928,13 @@ public final class TTFSubsetter
 
         try
         {
-            is.skip(hm.getOffset());
+            long isResult = is.skip(hm.getOffset());
+
+            if (Long.compare(isResult, hm.getOffset()) != 0)
+            {
+                Log.e("PdfBox-Android","Tried skipping " + hm.getOffset() + " bytes but skipped only " + isResult + " bytes");
+            }
+
             long lastOffset = 0;
             for (Integer glyphId : glyphIds)
             {
@@ -886,9 +942,18 @@ public final class TTFSubsetter
                 long offset;
                 if (glyphId <= lastgid)
                 {
-                    // copy width and lsb
-                    offset = glyphId * 4l;
-                    lastOffset = copyBytes(is, bos, offset, lastOffset, 4);
+                    if (invisibleGlyphIds.contains(glyphId))
+                    {
+                        // force zero width (no change to last offset)
+                        // 4 bytes total, 2 bytes each for: advance width = 0, left side bearing = 0
+                        bos.write(PAD_BUF, 0, 4);
+                    }
+                    else
+                    {
+                        // copy width and lsb
+                        offset = glyphId * 4l;
+                        lastOffset = copyBytes(is, bos, offset, lastOffset, 4);
+                    }
                 }
                 else
                 {
@@ -918,7 +983,7 @@ public final class TTFSubsetter
     }
 
     private long copyBytes(InputStream is, OutputStream os, long newOffset, long lastOffset, int count)
-        throws IOException
+            throws IOException
     {
         // skip over from last original offset
         long nskip = newOffset - lastOffset;
@@ -944,15 +1009,14 @@ public final class TTFSubsetter
      */
     public void writeToStream(OutputStream os) throws IOException
     {
-        if (glyphIds.isEmpty() || uniToGID.isEmpty())
+        if (glyphIds.isEmpty() && uniToGID.isEmpty())
         {
             Log.i("PdfBox-Android", "font subset is empty");
         }
 
         addCompoundReferences();
 
-        DataOutputStream out = new DataOutputStream(os);
-        try
+        try (DataOutputStream out = new DataOutputStream(os))
         {
             long[] newLoca = new long[glyphIds.size() + 1];
 
@@ -969,28 +1033,28 @@ public final class TTFSubsetter
             byte[] post = buildPostTable();
 
             // save to TTF in optimized order
-            Map<String, byte[]> tables = new TreeMap<String, byte[]>();
+            Map<String, byte[]> tables = new TreeMap<>();
             if (os2 != null)
             {
-                tables.put("OS/2", os2);
+                tables.put(OS2WindowsMetricsTable.TAG, os2);
             }
             if (cmap != null)
             {
-                tables.put("cmap", cmap);
+                tables.put(CmapTable.TAG, cmap);
             }
-            tables.put("glyf", glyf);
-            tables.put("head", head);
-            tables.put("hhea", hhea);
-            tables.put("hmtx", hmtx);
-            tables.put("loca", loca);
-            tables.put("maxp", maxp);
+            tables.put(GlyphTable.TAG, glyf);
+            tables.put(HeaderTable.TAG, head);
+            tables.put(HorizontalHeaderTable.TAG, hhea);
+            tables.put(HorizontalMetricsTable.TAG, hmtx);
+            tables.put(IndexToLocationTable.TAG, loca);
+            tables.put(MaximumProfileTable.TAG, maxp);
             if (name != null)
             {
-                tables.put("name", name);
+                tables.put(NamingTable.TAG, name);
             }
             if (post != null)
             {
-                tables.put("post", post);
+                tables.put(PostScriptTable.TAG, post);
             }
 
             // copy all other tables
@@ -1011,7 +1075,7 @@ public final class TTFSubsetter
             for (Map.Entry<String, byte[]> entry : tables.entrySet())
             {
                 checksum += writeTableHeader(out, entry.getKey(), offset, entry.getValue());
-                offset += (entry.getValue().length + 3) / 4 * 4;
+                offset += (entry.getValue().length + 3L) / 4 * 4;
             }
             checksum = 0xB1B0AFBAL - (checksum & 0xffffffffL);
 
@@ -1024,10 +1088,6 @@ public final class TTFSubsetter
             {
                 writeTableBody(out, bytes);
             }
-        }
-        finally
-        {
-            out.close();
         }
     }
 
@@ -1062,7 +1122,7 @@ public final class TTFSubsetter
     private void writeLongDateTime(DataOutputStream out, Calendar calendar) throws IOException
     {
         // inverse operation of TTFDataStream.readInternationalDate()
-        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        Calendar cal = Calendar.getInstance((TimeZone) TIMEZONE_UTC.clone());
         cal.set(1904, 0, 1, 0, 0, 0);
         cal.set(Calendar.MILLISECOND, 0);
         long millisFor1904 = cal.getTimeInMillis();
@@ -1078,13 +1138,19 @@ public final class TTFSubsetter
     private long toUInt32(byte[] bytes)
     {
         return (bytes[0] & 0xffL) << 24
-            | (bytes[1] & 0xffL) << 16
-            | (bytes[2] & 0xffL) << 8
-            | bytes[3] & 0xffL;
+                | (bytes[1] & 0xffL) << 16
+                | (bytes[2] & 0xffL) << 8
+                | bytes[3] & 0xffL;
     }
 
     private int log2(int num)
     {
         return (int) Math.floor(Math.log(num) / Math.log(2));
     }
+
+    public void addGlyphIds(Set<Integer> allGlyphIds)
+    {
+        glyphIds.addAll(allGlyphIds);
+    }
+
 }

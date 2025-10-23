@@ -28,6 +28,9 @@ import com.tom_roush.pdfbox.pdmodel.PDAppearanceContentStream;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
+import com.tom_roush.pdfbox.pdmodel.font.PDFont;
+import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
 import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
@@ -47,7 +50,8 @@ import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
 {
     private final PDAnnotation annotation;
-    protected PDDocument document;
+    private PDFont defaultFont;
+    protected final PDDocument document;
 
     /**
      * Line ending styles where the line has to be drawn shorter (minus line width).
@@ -66,23 +70,24 @@ public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
      */
     protected static final Set<String> ANGLED_STYLES = createAngledStyles();
 
-    public PDAbstractAppearanceHandler(PDAnnotation annotation)
+    protected PDAbstractAppearanceHandler(PDAnnotation annotation)
     {
         this(annotation, null);
     }
 
-    public PDAbstractAppearanceHandler(PDAnnotation annotation, PDDocument document)
+    protected PDAbstractAppearanceHandler(PDAnnotation annotation, PDDocument document)
     {
         this.annotation = annotation;
         this.document = document;
     }
 
-    @Override
-    public void generateAppearanceStreams()
+    protected PDFont getDefaultFont()
     {
-        generateNormalAppearance();
-        generateRolloverAppearance();
-        generateDownAppearance();
+        if (defaultFont == null)
+        {
+            defaultFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+        }
+        return defaultFont;
     }
 
     PDAnnotation getAnnotation()
@@ -215,7 +220,7 @@ public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
     PDRectangle getPaddedRectangle(PDRectangle rectangle, float padding)
     {
         return new PDRectangle(rectangle.getLowerLeftX() + padding, rectangle.getLowerLeftY() + padding,
-            rectangle.getWidth() - 2 * padding, rectangle.getHeight() - 2 * padding);
+                rectangle.getWidth() - 2 * padding, rectangle.getHeight() - 2 * padding);
     }
 
     /**
@@ -237,9 +242,9 @@ public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
         }
 
         return new PDRectangle(rectangle.getLowerLeftX() - differences[0],
-            rectangle.getLowerLeftY() - differences[1],
-            rectangle.getWidth() + differences[0] + differences[2],
-            rectangle.getHeight() + differences[1] + differences[3]);
+                rectangle.getLowerLeftY() - differences[1],
+                rectangle.getWidth() + differences[0] + differences[2],
+                rectangle.getHeight() + differences[1] + differences[3]);
     }
 
     /**
@@ -260,9 +265,9 @@ public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
             return rectangle;
         }
         return new PDRectangle(rectangle.getLowerLeftX() + differences[0],
-            rectangle.getLowerLeftY() + differences[1],
-            rectangle.getWidth() - differences[0] - differences[2],
-            rectangle.getHeight() - differences[1] - differences[3]);
+                rectangle.getLowerLeftY() + differences[1],
+                rectangle.getWidth() - differences[0] - differences[2],
+                rectangle.getHeight() - differences[1] - differences[3]);
     }
 
     void setOpacity(PDAppearanceContentStream contentStream, float opacity) throws IOException
@@ -293,54 +298,52 @@ public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
      * @throws IOException
      */
     void drawStyle(String style, final PDAppearanceContentStream cs, float x, float y,
-        float width, boolean hasStroke, boolean hasBackground, boolean ending) throws IOException
+                   float width, boolean hasStroke, boolean hasBackground, boolean ending) throws IOException
     {
         int sign = ending ? -1 : 1;
-
-        if (PDAnnotationLine.LE_OPEN_ARROW.equals(style) || PDAnnotationLine.LE_CLOSED_ARROW.equals(style))
+        switch (style)
         {
-            drawArrow(cs, x + sign * width, y, sign * width * 9);
+            case PDAnnotationLine.LE_OPEN_ARROW:
+            case PDAnnotationLine.LE_CLOSED_ARROW:
+                drawArrow(cs, x + sign * width, y, sign * width * 9);
+                break;
+            case PDAnnotationLine.LE_BUTT:
+                cs.moveTo(x, y - width * 3);
+                cs.lineTo(x, y + width * 3);
+                break;
+            case PDAnnotationLine.LE_DIAMOND:
+                drawDiamond(cs, x, y, width * 3);
+                break;
+            case PDAnnotationLine.LE_SQUARE:
+                cs.addRect(x - width * 3, y - width * 3, width * 6, width * 6);
+                break;
+            case PDAnnotationLine.LE_CIRCLE:
+                drawCircle(cs, x, y, width * 3);
+                break;
+            case PDAnnotationLine.LE_R_OPEN_ARROW:
+            case PDAnnotationLine.LE_R_CLOSED_ARROW:
+                drawArrow(cs, x + (-sign) * width, y, (-sign) * width * 9);
+                break;
+            case PDAnnotationLine.LE_SLASH:
+                float width9 = width * 9;
+                // the line is 18 x linewidth at an angle of 60°
+                cs.moveTo(x + (float) (Math.cos(Math.toRadians(60)) * width9),
+                        y + (float) (Math.sin(Math.toRadians(60)) * width9));
+                cs.lineTo(x + (float) (Math.cos(Math.toRadians(240)) * width9),
+                        y + (float) (Math.sin(Math.toRadians(240)) * width9));
+                break;
+            default:
+                return;
         }
-        else if (PDAnnotationLine.LE_BUTT.equals(style))
-        {
-            cs.moveTo(x, y - width * 3);
-            cs.lineTo(x, y + width * 3);
-        }
-        else if (PDAnnotationLine.LE_DIAMOND.equals(style))
-        {
-            drawDiamond(cs, x, y, width * 3);
-        }
-        else if (PDAnnotationLine.LE_SQUARE.equals(style))
-        {
-            cs.addRect(x - width * 3, y - width * 3, width * 6, width * 6);
-        }
-        else if (PDAnnotationLine.LE_CIRCLE.equals(style))
-        {
-            drawCircle(cs, x, y, width * 3);
-        }
-        else if (PDAnnotationLine.LE_R_OPEN_ARROW.equals(style) || PDAnnotationLine.LE_R_CLOSED_ARROW.equals(style))
-        {
-            drawArrow(cs, x + (-sign) * width, y, (-sign) * width * 9);
-        }
-        else if (PDAnnotationLine.LE_SLASH.equals(style))
-        {
-            // the line is 18 x linewidth at an angle of 60°
-            float width9 = width * 9;
-            cs.moveTo(x + (float) (Math.cos(Math.toRadians(60)) * width9),
-                y + (float) (Math.sin(Math.toRadians(60)) * width9));
-            cs.lineTo(x + (float) (Math.cos(Math.toRadians(240)) * width9),
-                y + (float) (Math.sin(Math.toRadians(240)) * width9));
-        }
-
         if (PDAnnotationLine.LE_R_CLOSED_ARROW.equals(style) ||
-            PDAnnotationLine.LE_CLOSED_ARROW.equals(style))
+                PDAnnotationLine.LE_CLOSED_ARROW.equals(style))
         {
             cs.closePath();
         }
         cs.drawShape(width, hasStroke,
-            // make sure to only paint a background color (/IC value)
-            // for interior color styles, even if an /IC value is set.
-            INTERIOR_COLOR_STYLES.contains(style) && hasBackground);
+                // make sure to only paint a background color (/IC value)
+                // for interior color styles, even if an /IC value is set.
+                INTERIOR_COLOR_STYLES.contains(style) && hasBackground);
     }
 
     /**
@@ -432,36 +435,36 @@ public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
 
     private static Set<String> createShortStyles()
     {
-        Set<String> shortStyles = new HashSet<String>();
-        shortStyles.add(PDAnnotationLine.LE_OPEN_ARROW);
-        shortStyles.add(PDAnnotationLine.LE_CLOSED_ARROW);
-        shortStyles.add(PDAnnotationLine.LE_SQUARE);
-        shortStyles.add(PDAnnotationLine.LE_CIRCLE);
-        shortStyles.add(PDAnnotationLine.LE_DIAMOND);
-        return Collections.unmodifiableSet(shortStyles);
+        return Set.of(
+                PDAnnotationLine.LE_OPEN_ARROW,
+                PDAnnotationLine.LE_CLOSED_ARROW,
+                PDAnnotationLine.LE_SQUARE,
+                PDAnnotationLine.LE_CIRCLE,
+                PDAnnotationLine.LE_DIAMOND
+        );
     }
 
     private static Set<String> createInteriorColorStyles()
     {
-        Set<String> interiorColorStyles = new HashSet<String>();
-        interiorColorStyles.add(PDAnnotationLine.LE_CLOSED_ARROW);
-        interiorColorStyles.add(PDAnnotationLine.LE_CIRCLE);
-        interiorColorStyles.add(PDAnnotationLine.LE_DIAMOND);
-        interiorColorStyles.add(PDAnnotationLine.LE_R_CLOSED_ARROW);
-        interiorColorStyles.add(PDAnnotationLine.LE_SQUARE);
-        return Collections.unmodifiableSet(interiorColorStyles);
+        return Set.of(
+                PDAnnotationLine.LE_CLOSED_ARROW,
+                PDAnnotationLine.LE_CIRCLE,
+                PDAnnotationLine.LE_DIAMOND,
+                PDAnnotationLine.LE_R_CLOSED_ARROW,
+                PDAnnotationLine.LE_SQUARE
+        );
     }
 
     private static Set<String> createAngledStyles()
     {
-        Set<String> angledStyles = new HashSet<String>();
-        angledStyles.add(PDAnnotationLine.LE_CLOSED_ARROW);
-        angledStyles.add(PDAnnotationLine.LE_OPEN_ARROW);
-        angledStyles.add(PDAnnotationLine.LE_R_CLOSED_ARROW);
-        angledStyles.add(PDAnnotationLine.LE_R_OPEN_ARROW);
-        angledStyles.add(PDAnnotationLine.LE_BUTT);
-        angledStyles.add(PDAnnotationLine.LE_SLASH);
-        return Collections.unmodifiableSet(angledStyles);
+        return Set.of(
+                PDAnnotationLine.LE_CLOSED_ARROW,
+                PDAnnotationLine.LE_OPEN_ARROW,
+                PDAnnotationLine.LE_R_CLOSED_ARROW,
+                PDAnnotationLine.LE_R_OPEN_ARROW,
+                PDAnnotationLine.LE_BUTT,
+                PDAnnotationLine.LE_SLASH
+        );
     }
 
     /**
@@ -489,7 +492,7 @@ public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
 
 
     private PDAppearanceContentStream getAppearanceEntryAsContentStream(
-        PDAppearanceEntry appearanceEntry, boolean compress) throws IOException
+            PDAppearanceEntry appearanceEntry, boolean compress) throws IOException
     {
         PDAppearanceStream appearanceStream = appearanceEntry.getAppearanceStream();
         setTransformationMatrix(appearanceStream);
@@ -510,7 +513,7 @@ public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
         PDRectangle bbox = getRectangle();
         appearanceStream.setBBox(bbox);
         AffineTransform transform = AffineTransform.getTranslateInstance(-bbox.getLowerLeftX(),
-            -bbox.getLowerLeftY());
+                -bbox.getLowerLeftY());
         appearanceStream.setMatrix(transform);
     }
 
@@ -535,7 +538,7 @@ public abstract class PDAbstractAppearanceHandler implements PDAppearanceHandler
             PDRectangle rect = getRectangle();
             PDAppearanceStream appearanceStream = annotation.getNormalAppearanceStream();
             AffineTransform transform =
-                AffineTransform.getTranslateInstance(-rect.getLowerLeftX(), -rect.getLowerLeftY());
+                    AffineTransform.getTranslateInstance(-rect.getLowerLeftX(), -rect.getLowerLeftY());
             appearanceStream.setBBox(rect);
             appearanceStream.setMatrix(transform);
         }

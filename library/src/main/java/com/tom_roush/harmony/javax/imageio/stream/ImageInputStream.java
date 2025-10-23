@@ -19,11 +19,12 @@
  */
 package com.tom_roush.harmony.javax.imageio.stream;
 
+import java.io.Closeable;
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteOrder;
 
-public interface ImageInputStream extends DataInput
+public interface ImageInputStream extends DataInput, Closeable
 {
     void setByteOrder(ByteOrder byteOrder);
 
@@ -112,6 +113,4 @@ public interface ImageInputStream extends DataInput
     boolean isCachedMemory();
 
     boolean isCachedFile();
-
-    void close() throws IOException;
 }

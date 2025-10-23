@@ -67,7 +67,7 @@ final class PDCIDFontType2Embedder extends TrueTypeEmbedder
      * @throws IOException if the TTF could not be read
      */
     PDCIDFontType2Embedder(PDDocument document, COSDictionary dict, TrueTypeFont ttf,
-        boolean embedSubset, PDType0Font parent, boolean vertical) throws IOException
+                           boolean embedSubset, PDType0Font parent, boolean vertical) throws IOException
     {
         super(document, dict, ttf, embedSubset);
         this.document = document;
@@ -98,16 +98,12 @@ final class PDCIDFontType2Embedder extends TrueTypeEmbedder
      */
     @Override
     protected void buildSubset(InputStream ttfSubset, String tag, Map<Integer, Integer> gidToCid)
-        throws IOException
+            throws IOException
     {
         // build CID2GIDMap, because the content stream has been written with the old GIDs
-        TreeMap<Integer, Integer> cidToGid = new TreeMap<Integer, Integer>();
-        for (Map.Entry<Integer, Integer> entry : gidToCid.entrySet())
-        {
-            int newGID = entry.getKey();
-            int oldGID = entry.getValue();
-            cidToGid.put(oldGID, newGID);
-        }
+        TreeMap<Integer, Integer> cidToGid = new TreeMap<>();
+        gidToCid.forEach((newGID, oldGID) -> cidToGid.put(oldGID, newGID));
+
         // build unicode mapping before subsetting as the subsetted font won't have a cmap
         buildToUnicodeCMap(gidToCid);
         // build vertical metrics before subsetting as the subsetted font won't have vhea, vmtx
@@ -285,12 +281,12 @@ final class PDCIDFontType2Embedder extends TrueTypeEmbedder
         COSArray widths = new COSArray();
         COSArray ws = new COSArray();
         int prev = Integer.MIN_VALUE;
-        // Use a sorted list to get an optimal width array  
-        Set<Integer> keys = cidToGid.keySet();
+        // Use a sorted list to get an optimal width array
         HorizontalMetricsTable horizontalMetricsTable = ttf.getHorizontalMetrics();
-        for (int cid : keys)
+        for (Map.Entry<Integer, Integer> entry : cidToGid.entrySet())
         {
-            int gid = cidToGid.get(cid);
+            int cid = entry.getKey();
+            int gid = entry.getValue();
             long width = Math.round(horizontalMetricsTable.getAdvanceWidth(gid) * scaling);
             if (width == 1000)
             {
@@ -526,7 +522,7 @@ final class PDCIDFontType2Embedder extends TrueTypeEmbedder
         int[] gidMetrics = new int[cidMax * 4];
         GlyphTable glyphTable = ttf.getGlyph();
         VerticalMetricsTable verticalMetricsTable = ttf.getVerticalMetrics();
-        HorizontalMetricsTable horizontalMetricsTable = ttf.getHorizontalMetrics();
+        HorizontalMetricsTable htable = ttf.getHorizontalMetrics();
         for (int cid = 0; cid < cidMax; cid++)
         {
             GlyphData glyph = glyphTable.getGlyph(cid);
@@ -538,7 +534,7 @@ final class PDCIDFontType2Embedder extends TrueTypeEmbedder
             {
                 gidMetrics[cid * 4] = cid;
                 gidMetrics[cid * 4 + 1] = verticalMetricsTable.getAdvanceHeight(cid);
-                gidMetrics[cid * 4 + 2] = horizontalMetricsTable.getAdvanceWidth(cid);
+                gidMetrics[cid * 4 + 2] = htable.getAdvanceWidth(cid);
                 gidMetrics[cid * 4 + 3] = glyph.getYMaximum() + verticalMetricsTable.getTopSideBearing(cid);
             }
         }
@@ -550,7 +546,7 @@ final class PDCIDFontType2Embedder extends TrueTypeEmbedder
     {
         if (values.length < 4)
         {
-            throw new IllegalArgumentException("length of values must be >= 4");
+            throw new IllegalArgumentException("length of values must be at least 4");
         }
 
         float scaling = 1000f / ttf.getHeader().getUnitsPerEm();

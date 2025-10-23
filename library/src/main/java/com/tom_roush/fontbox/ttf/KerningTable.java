@@ -27,7 +27,6 @@ import java.io.IOException;
  */
 public class KerningTable extends TTFTable
 {
-
     /**
      * Tag to identify this table.
      */
@@ -35,9 +34,8 @@ public class KerningTable extends TTFTable
 
     private KerningSubtable[] subtables;
 
-    KerningTable(TrueTypeFont font)
+    KerningTable()
     {
-        super(font);
     }
 
     /**
@@ -56,17 +54,17 @@ public class KerningTable extends TTFTable
             version = (version << 16) | data.readUnsignedShort();
         }
         int numSubtables = 0;
-        if (version == 0)
+        switch (version)
         {
-            numSubtables = data.readUnsignedShort();
-        }
-        else if (version == 1)
-        {
-            numSubtables = (int) data.readUnsignedInt();
-        }
-        else
-        {
-            Log.d("PdfBox-Android", "Skipped kerning table due to an unsupported kerning table version: " + version);
+            case 0:
+                numSubtables = data.readUnsignedShort();
+                break;
+            case 1:
+                numSubtables = (int) data.readUnsignedInt();
+                break;
+            default:
+                Log.d("PdfBox-Android", "Skipped kerning table due to an unsupported kerning table version: " + version);
+                break;
         }
         if (numSubtables > 0)
         {

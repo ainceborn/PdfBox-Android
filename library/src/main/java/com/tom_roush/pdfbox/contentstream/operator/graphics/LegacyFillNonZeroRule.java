@@ -17,6 +17,7 @@
 
 package com.tom_roush.pdfbox.contentstream.operator.graphics;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
 
 /**
@@ -26,6 +27,11 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
  */
 public final class LegacyFillNonZeroRule extends FillNonZeroRule
 {
+    public LegacyFillNonZeroRule(PDFGraphicsStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public String getName()
     {

@@ -21,6 +21,7 @@ import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm;
 
 
@@ -71,7 +72,7 @@ public class AcroFormDefaultsProcessor extends AbstractProcessor
       final String adobeDefaultAppearanceString = "/Helv 0 Tf 0 g ";
 
       // DA entry is required
-      if (acroForm.getDefaultAppearance().length() == 0)
+      if (acroForm.getDefaultAppearance().isEmpty())
       {
          acroForm.setDefaultAppearance(adobeDefaultAppearanceString);
          acroForm.getCOSObject().setNeedToBeUpdated(true);
@@ -86,9 +87,9 @@ public class AcroFormDefaultsProcessor extends AbstractProcessor
          acroForm.getCOSObject().setNeedToBeUpdated(true);
       }
 
-      // PDFBOX-3732: Adobe Acrobat uses Helvetica as a default font and 
+      // PDFBOX-3732: Adobe Acrobat uses Helvetica as a default font and
       // stores that under the name '/Helv' in the resources dictionary
-      // Zapf Dingbats is included per default for check boxes and 
+      // Zapf Dingbats is included per default for check boxes and
       // radio buttons as /ZaDb.
       // PDFBOX-4393: the two fonts are added by Adobe when signing
       // and this breaks a previous signature. (Might be an Adobe bug)
@@ -100,13 +101,13 @@ public class AcroFormDefaultsProcessor extends AbstractProcessor
       }
       if (!fontDict.containsKey(COSName.HELV))
       {
-         defaultResources.put(COSName.HELV, PDType1Font.HELVETICA);
+         defaultResources.put(COSName.HELV, new PDType1Font(Standard14Fonts.FontName.HELVETICA));
          defaultResources.getCOSObject().setNeedToBeUpdated(true);
          fontDict.setNeedToBeUpdated(true);
       }
       if (!fontDict.containsKey(COSName.ZA_DB))
       {
-         defaultResources.put(COSName.ZA_DB, PDType1Font.ZAPF_DINGBATS);
+         defaultResources.put(COSName.ZA_DB, new PDType1Font(Standard14Fonts.FontName.ZAPF_DINGBATS));
          defaultResources.getCOSObject().setNeedToBeUpdated(true);
          fontDict.setNeedToBeUpdated(true);
       }

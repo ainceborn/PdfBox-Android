@@ -487,4 +487,9 @@ public class PDAnnotationLine extends PDAnnotationMarkup
         }
     }
 
+    public boolean hasCaption()
+    {
+        return getCOSObject().getBoolean(COSName.CAP, false);
+    }
+
 }

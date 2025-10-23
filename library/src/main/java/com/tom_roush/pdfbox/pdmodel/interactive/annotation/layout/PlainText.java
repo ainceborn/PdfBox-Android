@@ -21,6 +21,7 @@ import java.text.AttributedString;
 import java.text.BreakIterator;
 import java.text.AttributedCharacterIterator.Attribute;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
@@ -35,257 +36,296 @@ import com.tom_roush.pdfbox.pdmodel.font.PDFont;
  */
 public class PlainText
 {
-   private static final float FONTSCALE = 1000f;
+    private static final float FONTSCALE = 1000f;
 
-   private final List<Paragraph> paragraphs;
+    private final List<Paragraph> paragraphs;
 
-   /**
-    * Construct the text block from a single value.
-    *
-    * Constructs the text block from a single value splitting
-    * into individual {@link Paragraph} when a new line character is 
-    * encountered.
-    *
-    * @param textValue the text block string.
-    */
-   public PlainText(String textValue)
-   {
-      String[] parts = textValue.replace('\t', ' ').split("\\r\\n|\\n|\\r|\\u2028|\\u2029");
-      paragraphs = new ArrayList<Paragraph>(parts.length);
-      for (String part : parts)
-      {
-         // Acrobat prints a space for an empty paragraph
-         if (part.length() == 0)
-         {
-            part = " ";
-         }
-         paragraphs.add(new Paragraph(part));
-      }
-   }
-
-   /**
-    * Construct the text block from a list of values.
-    *
-    * Constructs the text block from a list of values treating each
-    * entry as an individual {@link Paragraph}.
-    *
-    * @param listValue the text block string.
-    */
-   public PlainText(List<String> listValue)
-   {
-      paragraphs = new ArrayList<Paragraph>(listValue.size());
-      for (String part : listValue)
-      {
-         paragraphs.add(new Paragraph(part));
-      }
-   }
-
-   /**
-    * Get the list of paragraphs.
-    *
-    * @return the paragraphs.
-    */
-   List<Paragraph> getParagraphs()
-   {
-      return paragraphs;
-   }
-
-   /**
-    * Attribute keys and attribute values used for text handling.
-    *
-    * This is similar to {@link java.awt.font.TextAttribute} but
-    * handled individually as to avoid a dependency on awt.
-    *
-    */
-   static class TextAttribute extends Attribute
-   {
-      /**
-       * UID for serializing.
-       */
-      private static final long serialVersionUID = -3138885145941283005L;
-
-      /**
-       * Attribute width of the text.
-       */
-      public static final Attribute WIDTH = new TextAttribute("width");
-
-      protected TextAttribute(String name)
-      {
-         super(name);
-      }
-
-
-   }
-
-   /**
-    * A block of text to be formatted as a whole.
-    * <p>
-    * A block of text can contain multiple paragraphs which will
-    * be treated individually within the block placement.
-    * </p>
-    *
-    */
-   static class Paragraph
-   {
-      private final String textContent;
-
-      Paragraph(String text)
-      {
-         textContent = text;
-      }
-
-      /**
-       * Get the paragraph text.
-       *
-       * @return the text.
-       */
-      String getText()
-      {
-         return textContent;
-      }
-
-      /**
-       * Break the paragraph into individual lines.
-       *
-       * @param font the font used for rendering the text.
-       * @param fontSize the fontSize used for rendering the text.
-       * @param width the width of the box holding the content.
-       * @return the individual lines.
-       * @throws IOException
-       */
-      List<Line> getLines(PDFont font, float fontSize, float width) throws IOException
-      {
-         BreakIterator iterator = BreakIterator.getLineInstance();
-         iterator.setText(textContent);
-
-         final float scale = fontSize/FONTSCALE;
-
-         int start = iterator.first();
-         int end = iterator.next();
-         float lineWidth = 0;
-
-         List<Line> textLines = new ArrayList<Line>();
-         Line textLine = new Line();
-
-         while (end != BreakIterator.DONE)
-         {
-            String word = textContent.substring(start,end);
-            float wordWidth = font.getStringWidth(word) * scale;
-
-            lineWidth = lineWidth + wordWidth;
-
-            // check if the last word would fit without the whitespace ending it
-            if (lineWidth >= width && Character.isWhitespace(word.charAt(word.length()-1)))
+    /**
+     * Construct the text block from a single value.
+     *
+     * Constructs the text block from a single value splitting
+     * into individual {@link Paragraph} when a new line character is
+     * encountered.
+     *
+     * @param textValue the text block string.
+     */
+    public PlainText(String textValue)
+    {
+        if (textValue.isEmpty())
+        {
+            paragraphs = new ArrayList<>(1);
+            paragraphs.add(new Paragraph(""));
+        }
+        else
+        {
+            String[] parts = textValue.replace('\t', ' ').split("\\R");
+            paragraphs = new ArrayList<>(parts.length);
+            for (String part : parts)
             {
-               float whitespaceWidth = font.getStringWidth(word.substring(word.length()-1)) * scale;
-               lineWidth = lineWidth - whitespaceWidth;
+                // Acrobat prints a space for an empty paragraph
+                if (part.isEmpty())
+                {
+                    part = " ";
+                }
+                paragraphs.add(new Paragraph(part));
             }
+        }
+    }
 
-            if (lineWidth >= width)
+    /**
+     * Construct the text block from a list of values.
+     *
+     * Constructs the text block from a list of values treating each
+     * entry as an individual {@link Paragraph}.
+     *
+     * @param listValue the text block string.
+     */
+    public PlainText(List<String> listValue)
+    {
+        paragraphs = new ArrayList<>(listValue.size());
+        listValue.forEach(part -> paragraphs.add(new Paragraph(part)));
+    }
+
+    /**
+     * Get the list of paragraphs.
+     *
+     * @return the paragraphs.
+     */
+    public List<Paragraph> getParagraphs()
+    {
+        return paragraphs;
+    }
+
+    /**
+     * Attribute keys and attribute values used for text handling.
+     *
+     * This is similar to {@link java.awt.font.TextAttribute} but
+     * handled individually as to avoid a dependency on awt.
+     */
+    static class TextAttribute extends Attribute
+    {
+        /**
+         * UID for serializing.
+         */
+        private static final long serialVersionUID = -3138885145941283005L;
+
+        /**
+         * Attribute width of the text.
+         */
+        public static final Attribute WIDTH = new TextAttribute("width");
+
+        protected TextAttribute(String name)
+        {
+            super(name);
+        }
+
+
+    }
+
+    /**
+     * A block of text to be formatted as a whole.
+     * <p>
+     * A block of text can contain multiple paragraphs which will
+     * be treated individually within the block placement.
+     * </p>
+     */
+    public static class Paragraph
+    {
+        private final String textContent;
+
+        Paragraph(String text)
+        {
+            textContent = text;
+        }
+
+        /**
+         * Get the paragraph text.
+         *
+         * @return the text.
+         */
+        String getText()
+        {
+            return textContent;
+        }
+
+        /**
+         * Break the paragraph into individual lines.
+         *
+         * @param font the font used for rendering the text.
+         * @param fontSize the fontSize used for rendering the text.
+         * @param width the width of the box holding the content.
+         * @return the individual lines.
+         * @throws IOException
+         */
+        public List<Line> getLines(PDFont font, float fontSize, float width) throws IOException
+        {
+            if (width <= 0)
             {
-               textLine.setWidth(textLine.calculateWidth(font, fontSize));
-               textLines.add(textLine);
-               textLine = new Line();
-               lineWidth = font.getStringWidth(word) * scale;
+                return Collections.emptyList();
             }
+            BreakIterator iterator = BreakIterator.getLineInstance();
+            iterator.setText(textContent);
 
-            AttributedString as = new AttributedString(word);
-            as.addAttribute(TextAttribute.WIDTH, wordWidth);
-            Word wordInstance = new Word(word);
-            wordInstance.setAttributes(as);
-            textLine.addWord(wordInstance);
-            start = end;
-            end = iterator.next();
-         }
-         textLine.setWidth(textLine.calculateWidth(font, fontSize));
-         textLines.add(textLine);
-         return textLines;
-      }
-   }
+            final float scale = fontSize/FONTSCALE;
 
-   /**
-    * An individual line of text.
-    */
-   static class Line
-   {
-      private final List<Word> words = new ArrayList<Word>();
-      private float lineWidth;
+            int start = iterator.first();
+            int end = iterator.next();
+            float lineWidth = 0;
 
-      float getWidth()
-      {
-         return lineWidth;
-      }
+            List<Line> textLines = new ArrayList<>();
+            Line textLine = new Line();
 
-      void setWidth(float width)
-      {
-         lineWidth = width;
-      }
-
-      float calculateWidth(PDFont font, float fontSize) throws IOException
-      {
-         final float scale = fontSize/FONTSCALE;
-         float calculatedWidth = 0f;
-         int indexOfWord = 0;
-         for (Word word : words)
-         {
-            calculatedWidth = calculatedWidth +
-                (Float) word.getAttributes().getIterator().getAttribute(TextAttribute.WIDTH);
-            String text = word.getText();
-            if (indexOfWord == words.size() -1 && Character.isWhitespace(text.charAt(text.length()-1)))
+            while (end != BreakIterator.DONE)
             {
-               float whitespaceWidth = font.getStringWidth(text.substring(text.length()-1)) * scale;
-               calculatedWidth = calculatedWidth - whitespaceWidth;
+                String word = textContent.substring(start,end);
+                float wordWidth = font.getStringWidth(word) * scale;
+
+                boolean wordNeedsSplit = false;
+                int splitOffset = end - start;
+
+                lineWidth = lineWidth + wordWidth;
+
+                // check if the last word would fit without the whitespace ending it
+                if (lineWidth >= width && Character.isWhitespace(word.charAt(word.length()-1)))
+                {
+                    float whitespaceWidth = font.getStringWidth(word.substring(word.length()-1)) * scale;
+                    lineWidth = lineWidth - whitespaceWidth;
+                }
+
+                if (lineWidth >= width && !textLine.getWords().isEmpty())
+                {
+                    textLine.setWidth(textLine.calculateWidth(font, fontSize));
+                    textLines.add(textLine);
+                    textLine = new Line();
+                    lineWidth = font.getStringWidth(word) * scale;
+                }
+
+                if (word.length() > 1 && wordWidth > width && textLine.getWords().isEmpty())
+                {
+                    // single word does not fit into width
+                    // PDFBOX-6082: at least 1 character
+                    wordNeedsSplit = true;
+                    while (true)
+                    {
+                        splitOffset--;
+
+                        String substring = word.substring(0, splitOffset);
+                        float substringWidth = font.getStringWidth(substring) * scale;
+                        if (substringWidth < width)
+                        {
+                            word = substring;
+                            wordWidth = font.getStringWidth(word) * scale;
+                            lineWidth = wordWidth;
+                            break;
+                        }
+                    }
+                }
+
+                AttributedString as = new AttributedString(word);
+                as.addAttribute(TextAttribute.WIDTH, wordWidth);
+                Word wordInstance = new Word(word);
+                wordInstance.setAttributes(as);
+                textLine.addWord(wordInstance);
+
+                if (wordNeedsSplit)
+                {
+                    start = start + splitOffset;
+                }
+                else
+                {
+                    start = end;
+                    end = iterator.next();
+                }
             }
-            ++indexOfWord;
-         }
-         return calculatedWidth;
-      }
+            textLine.setWidth(textLine.calculateWidth(font, fontSize));
+            textLines.add(textLine);
+            return textLines;
+        }
+    }
 
-      List<Word> getWords()
-      {
-         return words;
-      }
+    /**
+     * An individual line of text.
+     */
+    static class Line
+    {
+        private final List<Word> words = new ArrayList<>();
+        private float lineWidth;
 
-      float getInterWordSpacing(float width)
-      {
-         return (width - lineWidth)/(words.size()-1);
-      }
+        float getWidth()
+        {
+            return lineWidth;
+        }
 
-      void addWord(Word word)
-      {
-         words.add(word);
-      }
-   }
+        void setWidth(float width)
+        {
+            lineWidth = width;
+        }
 
-   /**
-    * An individual word.
-    *
-    * A word is defined as a string which must be kept
-    * on the same line.
-    */
-   static class Word
-   {
-      private AttributedString attributedString;
-      private final String textContent;
+        float calculateWidth(PDFont font, float fontSize) throws IOException
+        {
+            final float scale = fontSize/FONTSCALE;
+            float calculatedWidth = 0f;
+            int indexOfWord = 0;
+            for (Word word : words)
+            {
+                calculatedWidth = calculatedWidth +
+                        (Float) word.getAttributes().getIterator().getAttribute(TextAttribute.WIDTH);
+                String text = word.getText();
+                if (indexOfWord == words.size() -1 && Character.isWhitespace(text.charAt(text.length()-1)))
+                {
+                    float whitespaceWidth = font.getStringWidth(text.substring(text.length()-1)) * scale;
+                    calculatedWidth = calculatedWidth - whitespaceWidth;
+                }
+                ++indexOfWord;
+            }
+            return calculatedWidth;
+        }
 
-      Word(String text)
-      {
-         textContent = text;
-      }
+        List<Word> getWords()
+        {
+            return words;
+        }
 
-      String getText()
-      {
-         return textContent;
-      }
+        float getInterWordSpacing(float width)
+        {
+            return (width - lineWidth)/(words.size()-1);
+        }
 
-      AttributedString getAttributes()
-      {
-         return attributedString;
-      }
+        void addWord(Word word)
+        {
+            words.add(word);
+        }
+    }
 
-      void setAttributes(AttributedString as)
-      {
-         this.attributedString = as;
-      }
-   }
+    /**
+     * An individual word.
+     *
+     * A word is defined as a string which must be kept
+     * on the same line.
+     */
+    static class Word
+    {
+        private AttributedString attributedString;
+        private final String textContent;
+
+        Word(String text)
+        {
+            textContent = text;
+        }
+
+        String getText()
+        {
+            return textContent;
+        }
+
+        AttributedString getAttributes()
+        {
+            return attributedString;
+        }
+
+        void setAttributes(AttributedString as)
+        {
+            this.attributedString = as;
+        }
+    }
 }

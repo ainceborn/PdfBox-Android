@@ -16,13 +16,8 @@
  */
 package com.tom_roush.pdfbox.io;
 
-import android.util.Log;
-
 import java.io.EOFException;
 import java.io.IOException;
-
-import com.tom_roush.pdfbox.android.PDFBoxConfig;
-import com.tom_roush.pdfbox.cos.COSStream;
 
 /**
  * Implementation of {@link RandomAccess} as sequence of multiple fixed size pages handled
@@ -348,63 +343,10 @@ class ScratchFileBuffer implements RandomAccess
      * {@inheritDoc}
      */
     @Override
-    public int peek() throws IOException
-    {
-        int result = read();
-        if (result != -1)
-        {
-            rewind(1);
-        }
-        return result;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void rewind(int bytes) throws IOException
-    {
-        seek(currentPageOffset + positionInPage - bytes);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public byte[] readFully(int length) throws IOException
-    {
-        byte[] bytes = new byte[length];
-        int bytesRead = 0;
-        do
-        {
-            int count = read(bytes, bytesRead, length - bytesRead);
-            if (count < 0)
-            {
-                throw new EOFException();
-            }
-            bytesRead += count;
-        } while (bytesRead < length);
-        return bytes;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public boolean isEOF() throws IOException
     {
         checkClosed();
         return currentPageOffset + positionInPage >= size;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int available() throws IOException
-    {
-        checkClosed();
-        return (int) Math.min(size - (currentPageOffset + positionInPage), Integer.MAX_VALUE);
     }
 
     /**
@@ -427,15 +369,6 @@ class ScratchFileBuffer implements RandomAccess
         }
 
         return currentPage[positionInPage++] & 0xff;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int read(byte[] b) throws IOException
-    {
-        return read(b, 0, b.length);
     }
 
     /**
@@ -483,11 +416,24 @@ class ScratchFileBuffer implements RandomAccess
     @Override
     public void close() throws IOException
     {
+        close(true);
+    }
+
+    /**
+     * Release all resources and remove this buffer from ScratchFile.
+     *
+     * @param removeBuffer remove buffer from ScratchFile if set to true
+     */
+    void close(boolean removeBuffer)
+    {
         if (pageHandler != null) {
 
             pageHandler.markPagesAsFree(pageIndexes, 0, pageCount);
+            if (removeBuffer)
+            {
+                pageHandler.removeBuffer(this);
+            }
             pageHandler = null;
-
             pageIndexes = null;
             currentPage = null;
             currentPageOffset = 0;
@@ -497,30 +443,11 @@ class ScratchFileBuffer implements RandomAccess
         }
     }
 
-    /**
-     * While calling finalize is normally discouraged we will have to
-     * use it here as long as closing a scratch file buffer is not 
-     * done in every case. Currently {@link COSStream} creates new
-     * buffers without closing the old one - which might still be
-     * used.
-     *
-     * <p>Enabling debugging one will see if there are still cases
-     * where the buffer is not closed.</p>
-     */
     @Override
-    protected void finalize() throws Throwable
+    public RandomAccessReadView createView(long startPosition, long streamLength) throws IOException
     {
-        try
-        {
-            if ((pageHandler != null) && PDFBoxConfig.isDebugEnabled())
-            {
-                Log.d("PdfBox-Android", "ScratchFileBuffer not closed!");
-            }
-            close();
-        }
-        finally
-        {
-            super.finalize();
-        }
+        throw new UnsupportedOperationException(
+                getClass().getName() + ".createView isn't supported.");
     }
+
 }

@@ -30,6 +30,7 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationMarkup;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationPolygon;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderEffectDictionary;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary;
@@ -53,7 +54,7 @@ public class PDPolygonAppearanceHandler extends PDAbstractAppearanceHandler
     @Override
     public void generateNormalAppearance()
     {
-        PDAnnotationMarkup annotation = (PDAnnotationMarkup) getAnnotation();
+        PDAnnotationPolygon annotation = (PDAnnotationPolygon) getAnnotation();
         float lineWidth = getLineWidth();
         PDRectangle rect = annotation.getRectangle();
         if (rect == null)
@@ -160,7 +161,7 @@ public class PDPolygonAppearanceHandler extends PDAbstractAppearanceHandler
         }
     }
 
-    private float[][] getPathArray(PDAnnotationMarkup annotation)
+    private float[][] getPathArray(PDAnnotationPolygon annotation)
     {
         // PDF 2.0: Path takes priority over Vertices
         float[][] pathArray = annotation.getPath();

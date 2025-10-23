@@ -26,6 +26,7 @@ import com.tom_roush.pdfbox.pdmodel.interactive.annotation.AnnotationFilter;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationRubberStamp;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquare;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquareCircle;
 import org.junit.Assert;
 import org.junit.Before;
@@ -49,7 +50,7 @@ public class TestPDPageAnnotationsFiltering
         COSDictionary mockedPageWithAnnotations = new COSDictionary();
         COSArray annotsDictionary = new COSArray();
         annotsDictionary.add(new PDAnnotationRubberStamp().getCOSObject());
-        annotsDictionary.add(new PDAnnotationSquareCircle(PDAnnotationSquareCircle.SUB_TYPE_SQUARE).getCOSObject());
+        annotsDictionary.add(new PDAnnotationSquare().getCOSObject());
         annotsDictionary.add(new PDAnnotationLink().getCOSObject());
         mockedPageWithAnnotations.setItem(COSName.ANNOTS, annotsDictionary);
         page = new PDPage(mockedPageWithAnnotations);

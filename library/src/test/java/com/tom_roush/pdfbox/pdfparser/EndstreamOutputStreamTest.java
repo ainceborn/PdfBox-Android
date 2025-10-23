@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Map;
+
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDDocumentCatalog;
@@ -116,7 +118,7 @@ public class EndstreamOutputStreamTest
 
         // Modification of embedded_zip.pdf for 2.0:
         // /Length entry removed to force usage of EndstreamOutputStream
-        PDDocument doc = PDDocument.load(
+        PDDocument doc = Loader.loadPDF(
             new File("src/test/resources/pdfbox/com/tom_roush/pdfbox/pdfparser", "embedded_zip.pdf"));
         PDDocumentCatalog catalog = doc.getDocumentCatalog();
         PDDocumentNameDictionary names = catalog.getNames();

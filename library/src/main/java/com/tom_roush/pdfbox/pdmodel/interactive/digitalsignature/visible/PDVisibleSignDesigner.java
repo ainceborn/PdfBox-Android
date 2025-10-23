@@ -26,7 +26,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import com.tom_roush.harmony.awt.geom.AffineTransform;
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.io.IOUtils;
+import com.tom_roush.pdfbox.io.RandomAccessReadBuffer;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
@@ -167,7 +169,7 @@ public class PDVisibleSignDesigner
     private void calculatePageSizeFromFile(String filename, int page) throws IOException
     {
         // create PD document
-        PDDocument document = PDDocument.load(new File(filename));
+        PDDocument document = Loader.loadPDF(new File(filename));
 
         // calculate height and width of document page
         calculatePageSize(document, page);
@@ -178,7 +180,7 @@ public class PDVisibleSignDesigner
     private void calculatePageSizeFromStream(InputStream documentStream, int page) throws IOException
     {
         // create PD document
-        PDDocument document = PDDocument.load(documentStream);
+        PDDocument document = Loader.loadPDF(new RandomAccessReadBuffer(documentStream));
 
         // calculate height and width of document page
         calculatePageSize(document, page);

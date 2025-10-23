@@ -24,6 +24,7 @@ import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.PDAppearanceContentStream;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
+import com.tom_roush.pdfbox.pdmodel.font.PDFont;
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
@@ -37,6 +38,7 @@ import static com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationLi
  */
 public class PDLineAppearanceHandler extends PDAbstractAppearanceHandler
 {
+
     static final int FONT_SIZE = 9;
 
     public PDLineAppearanceHandler(PDAnnotation annotation)
@@ -113,12 +115,8 @@ public class PDLineAppearanceHandler extends PDAbstractAppearanceHandler
 
         annotation.setRectangle(rect);
 
-        PDAppearanceContentStream cs  = null;
-
-        try
+        try (PDAppearanceContentStream cs = getNormalAppearanceAsContentStream())
         {
-            cs = getNormalAppearanceAsContentStream();
-
             setOpacity(cs, annotation.getConstantOpacity());
 
             // Tested with Adobe Reader:
@@ -162,13 +160,13 @@ public class PDLineAppearanceHandler extends PDAbstractAppearanceHandler
             cs.moveTo(lineLength, llo);
             cs.lineTo(lineLength, llo + ll + lle);
 
-            if (annotation.getCaption() && !contents.isEmpty())
+            if (annotation.hasCaption() && !contents.isEmpty())
             {
                 // Note that Adobe places the text as a caption even if /CP is not set
                 // when the text is so long that it would cross arrows, but we ignore this for now
                 // and stick to the specification.
 
-                PDType1Font font = PDType1Font.HELVETICA;
+                PDFont font = getDefaultFont();
                 // TODO: support newlines!!!!!
                 // see https://www.pdfill.com/example/pdf_commenting_new.pdf
                 float contentLength = 0;
@@ -234,7 +232,7 @@ public class PDLineAppearanceHandler extends PDAbstractAppearanceHandler
                     cs.beginText();
                     cs.setFont(font, FONT_SIZE);
                     cs.newLineAtOffset(xOffset + captionHorizontalOffset,
-                        y + yOffset + captionVerticalOffset);
+                            y + yOffset + captionVerticalOffset);
                     cs.showText(annotation.getContents());
                     cs.endText();
                 }
@@ -327,9 +325,6 @@ public class PDLineAppearanceHandler extends PDAbstractAppearanceHandler
         catch (IOException ex)
         {
             Log.e("PdfBox-Android", ex.getMessage(), ex);
-        }
-        finally{
-            IOUtils.closeQuietly(cs);
         }
     }
 

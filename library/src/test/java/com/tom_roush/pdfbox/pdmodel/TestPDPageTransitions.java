@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.interactive.pagenavigation.PDTransition;
 import com.tom_roush.pdfbox.pdmodel.interactive.pagenavigation.PDTransitionDirection;
@@ -39,7 +40,7 @@ public class TestPDPageTransitions
     @Test
     public void readTransitions() throws IOException, URISyntaxException
     {
-        PDDocument doc = PDDocument.load(new File(this.getClass().getResource(
+        PDDocument doc = Loader.loadPDF(new File(this.getClass().getResource(
             "/pdfbox/com/tom_roush/pdfbox/pdmodel/interactive/pagenavigation/transitions_test.pdf").toURI()));
         PDTransition firstTransition = doc.getPages().get(0).getTransition();
         assertEquals(PDTransitionStyle.Glitter.name(), firstTransition.getStyle());
@@ -65,7 +66,7 @@ public class TestPDPageTransitions
         document.close();
 
         // read
-        PDDocument doc = PDDocument.load(baos.toByteArray());
+        PDDocument doc = Loader.loadPDF(baos.toByteArray());
         page = doc.getPages().get(0);
         PDTransition loadedTransition = page.getTransition();
         assertEquals(PDTransitionStyle.Fly.name(), loadedTransition.getStyle());

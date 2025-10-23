@@ -10,6 +10,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 import com.tom_roush.harmony.awt.AWTColor;
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
@@ -20,6 +21,7 @@ import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.PageMode;
 import com.tom_roush.pdfbox.pdmodel.font.PDFont;
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font;
+import com.tom_roush.pdfbox.pdmodel.font.Standard14Fonts;
 import com.tom_roush.pdfbox.rendering.PDFRenderer;
 
 import org.junit.Assert;
@@ -97,7 +99,7 @@ public class TestOptionalContentGroupsInstrumentationTest
 
          //Setup page content stream and paint background/title
          PDPageContentStream contentStream = new PDPageContentStream(doc, page, AppendMode.OVERWRITE, false);
-         PDFont font = PDType1Font.HELVETICA_BOLD;
+         PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
          contentStream.beginMarkedContent(COSName.OC, background);
          contentStream.beginText();
          contentStream.setFont(font, 14);
@@ -106,7 +108,7 @@ public class TestOptionalContentGroupsInstrumentationTest
          contentStream.endText();
          contentStream.endMarkedContent();
 
-         font = PDType1Font.HELVETICA;
+         font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
 
          //Paint enabled layer
          contentStream.beginMarkedContent(COSName.OC, enabled);
@@ -147,7 +149,7 @@ public class TestOptionalContentGroupsInstrumentationTest
          doc.close();
 
          // render PDF with science disabled and alternatives with same name enabled
-         doc = PDDocument.load(new File(testResultsDir, "ocg-generation-same-name-off.pdf"));
+         doc =  Loader.loadPDF(new File(testResultsDir, "ocg-generation-same-name-off.pdf"));
          doc.getDocumentCatalog().getOCProperties().setGroupEnabled("background", false);
          doc.getDocumentCatalog().getOCProperties().setGroupEnabled("science", false);
          doc.getDocumentCatalog().getOCProperties().setGroupEnabled("alternative", true);
@@ -175,7 +177,7 @@ public class TestOptionalContentGroupsInstrumentationTest
          }
 
          PDPageContentStream contentStream = new PDPageContentStream(doc2, page, AppendMode.OVERWRITE, false);
-         PDFont font = PDType1Font.HELVETICA;
+         PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
 
          contentStream.setNonStrokingColor(AWTColor.RED);
          contentStream.beginText();

@@ -17,6 +17,7 @@
 
 package com.tom_roush.pdfbox.contentstream.operator.color;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
 
 /**
@@ -27,6 +28,11 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
  */
 public class SetNonStrokingColorN extends SetNonStrokingColor
 {
+    public SetNonStrokingColorN(PDFStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public String getName()
     {

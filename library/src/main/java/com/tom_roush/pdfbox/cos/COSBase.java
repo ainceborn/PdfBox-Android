@@ -27,12 +27,14 @@ import com.tom_roush.pdfbox.pdmodel.common.COSObjectable;
  */
 public abstract class COSBase implements COSObjectable
 {
+
     private boolean direct;
+    private COSObjectKey key;
 
     /**
      * Constructor.
      */
-    public COSBase()
+    protected COSBase()
     {
     }
 
@@ -51,13 +53,12 @@ public abstract class COSBase implements COSObjectable
      * visitor pattern double dispatch method.
      *
      * @param visitor The object to notify when visiting this object.
-     * @return any object, depending on the visitor implementation, or null
      * @throws IOException If an error occurs while visiting this object.
      */
-    public abstract Object accept(ICOSVisitor visitor) throws IOException;
+    public abstract void accept(ICOSVisitor visitor) throws IOException;
 
     /**
-     * If the state is set true, the dictionary will be written direct into the called object. 
+     * If the state is set true, the dictionary will be written direct into the called object.
      * This means, no indirect object will be created.
      *
      * @return the state
@@ -77,5 +78,23 @@ public abstract class COSBase implements COSObjectable
         this.direct = direct;
     }
 
+    /**
+     * This will return the COSObjectKey of an indirect object.
+     *
+     * @return the COSObjectKey
+     */
+    public COSObjectKey getKey()
+    {
+        return key;
+    }
 
+    /**
+     * Set the COSObjectKey of an indirect object.
+     *
+     * @param key the COSObjectKey of the indirect object
+     */
+    public void setKey(COSObjectKey key)
+    {
+        this.key = key;
+    }
 }

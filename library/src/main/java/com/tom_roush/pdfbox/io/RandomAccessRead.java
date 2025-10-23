@@ -17,6 +17,7 @@
 package com.tom_roush.pdfbox.io;
 
 import java.io.Closeable;
+import java.io.EOFException;
 import java.io.IOException;
 
 /**
@@ -40,7 +41,10 @@ public interface RandomAccessRead extends Closeable
      * @return The number of bytes that were actually read.
      * @throws IOException If there was an error while reading the data.
      */
-    int read(byte[] b) throws IOException;
+    default int read(byte[] b) throws IOException
+    {
+        return read(b, 0, b.length);
+    }
 
     /**
      * Read a buffer of data.
@@ -56,10 +60,10 @@ public interface RandomAccessRead extends Closeable
     /**
      * Returns offset of next byte to be returned by a read method.
      *
-     * @return offset of next byte which will be returned with next {@link #read()}
-     *         (if no more bytes are left it returns a value &gt;= length of source)
+     * @return offset of next byte which will be returned with next {@link #read()} (if no more bytes are left it
+     * returns a value &gt;= length of source)
      *
-     * @throws IOException
+     * @throws IOException If there was an error while getting the current position
      */
     long getPosition() throws IOException;
 
@@ -76,13 +80,14 @@ public interface RandomAccessRead extends Closeable
      *
      * @return The number of bytes available.
      *
-     * @throws IOException If there is an IO error while determining the
-     * length of the data stream.
+     * @throws IOException If there is an IO error while determining the length of the data stream.
      */
     long length() throws IOException;
 
     /**
-     * Returns true if this stream has been closed.
+     * Returns true if this source has been closed.
+     *
+     * @return true if the source has been closed
      */
     boolean isClosed();
 
@@ -93,7 +98,15 @@ public interface RandomAccessRead extends Closeable
      *
      * @throws IOException If there is an error reading the next byte.
      */
-    int peek() throws IOException;
+    default int peek() throws IOException
+    {
+        int result = read();
+        if (result != -1)
+        {
+            rewind(1);
+        }
+        return result;
+    }
 
     /**
      * Seek backwards the given number of bytes.
@@ -101,15 +114,10 @@ public interface RandomAccessRead extends Closeable
      * @param bytes the number of bytes to be seeked backwards
      * @throws IOException If there is an error while seeking
      */
-    void rewind(int bytes) throws IOException;
-
-    /**
-     * Reads a given number of bytes.
-     * @param length the number of bytes to be read
-     * @return a byte array containing the bytes just read
-     * @throws IOException if an I/O error occurs while reading data
-     */
-    byte[] readFully(int length) throws IOException;
+    default void rewind(int bytes) throws IOException
+    {
+        seek(getPosition() - bytes);
+    }
 
     /**
      * A simple test to see if we are at the end of the data.
@@ -126,5 +134,71 @@ public interface RandomAccessRead extends Closeable
      * @return the number of bytes that can be read
      * @throws IOException if this random access has been closed
      */
-    int available() throws IOException;
+    default int available() throws IOException
+    {
+        return (int) Math.min(length() - getPosition(), Integer.MAX_VALUE);
+    }
+
+    /**
+     * Skips a given number of bytes.
+     *
+     * @param length the number of bytes to be skipped
+     * @throws IOException if an I/O error occurs while reading data
+     */
+    default void skip(int length) throws IOException
+    {
+        seek(getPosition() + length);
+    }
+
+    /**
+     * Creates a random access read view starting at the given position with the given length.
+     *
+     * @param startPosition start position within the underlying random access read
+     * @param streamLength stream length
+     * @return the random access read view
+     * @throws IOException if something went wrong when creating the view for the RandomAccessRead
+     *
+     */
+    RandomAccessReadView createView(long startPosition, long streamLength) throws IOException;
+
+
+    /**
+     * Same as {@link #read(byte[])} but will loop until exactly length bytes are read or
+     * it will throw an exception.
+     *
+     * @param b The buffer to write the data to.
+     * @throws IOException
+     */
+    default void readFully(byte[] b) throws IOException
+    {
+        readFully(b, 0, b.length);
+    }
+
+    /**
+     * Same as {@link #read(byte[], int, int)} but will loop until exactly length bytes are read or
+     * it will throw an exception.
+     *
+     * @param b The buffer to write the data to.
+     * @param offset Offset into the buffer to start writing.
+     * @param length The exact amount of data to attempt to read.
+     * @throws IOException
+     */
+    default void readFully(byte[] b, int offset, int length) throws IOException
+    {
+        if (length() - getPosition() < length)
+        {
+            throw new EOFException("Premature end of buffer reached");
+        }
+        int bytesReadTotal = 0;
+        do
+        {
+            int bytesReadNow = read(b, offset + bytesReadTotal, length - bytesReadTotal);
+            if (bytesReadNow <= 0)
+            {
+                throw new EOFException("EOF, should have been detected earlier");
+            }
+            bytesReadTotal += bytesReadNow;
+        }
+        while (bytesReadTotal < length);
+    }
 }

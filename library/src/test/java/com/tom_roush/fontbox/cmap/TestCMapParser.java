@@ -24,6 +24,8 @@ import junit.framework.TestCase;
 
 import static com.tom_roush.fontbox.cmap.CMap.toInt;
 
+import com.tom_roush.pdfbox.io.RandomAccessReadBufferedFile;
+
 /**
  * This will test the CMapParser implementation.
  *
@@ -38,51 +40,20 @@ public class TestCMapParser extends TestCase
      */
     public void testLookup() throws IOException
     {
-        CMap cMap = new CMapParser().parse(new File("src/test/resources/fontbox/cmap", "CMapTest"));
+        CMap cMap = new CMapParser().parse(new RandomAccessReadBufferedFile(new File("src/test/resources/fontbox/cmap", "CMapTest")));
 
-        // char mappings
-        byte[] bytes1 = {0, 1};
-        assertEquals("bytes 00 01 from bfrange <0001> <0005> <0041>", "A",
-            cMap.toUnicode(toInt(bytes1, bytes1.length)));
-
-        byte[] bytes2 = {1, 00};
-        String str2 = "0";
-        assertEquals("bytes 01 00 from bfrange <0100> <0109> <0030>", str2,
-            cMap.toUnicode(toInt(bytes2, bytes2.length)));
-
-        byte[] bytes3 = { 1, 32 };
-        assertEquals("bytes 01 00 from bfrange <0100> <0109> <0030>", "P",
-            cMap.toUnicode(toInt(bytes3, bytes3.length)));
-
-        byte[] bytes4 = { 1, 33 };
-        assertEquals("bytes 01 00 from bfrange <0100> <0109> <0030>", "R",
-            cMap.toUnicode(toInt(bytes4, bytes4.length)));
-
-        byte[] bytes5 = { 0, 10 };
-        String str5 = "*";
-        assertEquals("bytes 00 0A from bfchar <000A> <002A>", str5,
-            cMap.toUnicode(toInt(bytes5, bytes5.length)));
-
-        byte[] bytes6 = { 1, 10 };
-        String str6 = "+";
-        assertEquals("bytes 01 0A from bfchar <010A> <002B>", str6,
-            cMap.toUnicode(toInt(bytes6, bytes6.length)));
+        assertEquals("A", cMap.toUnicode(new byte[]{0, 1}));
+        assertEquals("0", cMap.toUnicode(new byte[]{1, 0}));
+        assertEquals("P", cMap.toUnicode(new byte[]{1, 32}));
+        assertEquals("R", cMap.toUnicode(new byte[]{1, 33}));
+        assertEquals("*", cMap.toUnicode(new byte[]{0, 10}));
+        assertEquals("+", cMap.toUnicode(new byte[]{1, 10}));
 
         // CID mappings
-        int cid1 = 65;
-        assertEquals("CID 65 from cidrange <0000> <00ff> 0 ", 65, cMap.toCID(cid1));
-
-        int cid2 = 280;
-        int strCID2 = 0x0118;
-        assertEquals("CID 280 from cidrange <0100> <01ff> 256", strCID2, cMap.toCID(cid2));
-
-        int cid3 = 520;
-        int strCID3 = 0x0208;
-        assertEquals("CID 520 from cidchar <0208> 520", strCID3, cMap.toCID(cid3));
-
-        int cid4 = 300;
-        int strCID4 = 0x12C;
-        assertEquals("CID 300 from cidrange <0300> <0300> 300", strCID4, cMap.toCID(cid4));
+        assertEquals(65, cMap.toCID(new byte[]{0, 65}));
+        assertEquals(0x0118, cMap.toCID(new byte[]{1, 24}));
+        assertEquals(0x0208, cMap.toCID(new byte[]{2, 8}));
+        assertEquals(0x12C, cMap.toCID(new byte[]{1, 0x2c}));
     }
 
     public void testIdentity() throws IOException
@@ -107,7 +78,7 @@ public class TestCMapParser extends TestCase
      */
     public void testParserWithPoorWhitespace() throws IOException
     {
-        CMap cMap = new CMapParser().parse(new File("src/test/resources/fontbox/cmap", "CMapNoWhitespace"));
+        CMap cMap = new CMapParser().parse(new RandomAccessReadBufferedFile(new File("src/test/resources/fontbox/cmap", "CMapNoWhitespace")));
 
         assertNotNull("Failed to parse nasty CMap file", cMap);
     }
@@ -115,40 +86,26 @@ public class TestCMapParser extends TestCase
     public void testParserWithMalformedbfrange1() throws IOException
     {
         CMap cMap = new CMapParser()
-            .parse(new File("src/test/resources/fontbox/cmap", "CMapMalformedbfrange1"));
+            .parse(new RandomAccessReadBufferedFile(new File("src/test/resources/fontbox/cmap", "CMapMalformedbfrange1")));
 
-        assertNotNull("Failed to parse malformed CMap file", cMap);
-
-        byte[] bytes1 = { 0, 1 };
-        assertEquals("bytes 00 01 from bfrange <0001> <0009> <0041>", "A",
-            cMap.toUnicode(toInt(bytes1, bytes1.length)));
-
-        byte[] bytes2 = { 1, 00 };
-        assertNull(cMap.toUnicode(toInt(bytes2, bytes2.length)));
+        assertNotNull(cMap);
+        assertEquals("A", cMap.toUnicode(new byte[]{0, 1}));
+        assertNull(cMap.toUnicode(new byte[]{1, 0}));
 
     }
 
     public void testParserWithMalformedbfrange2() throws IOException
     {
-        CMap cMap = new CMapParser()
-            .parse(new File("src/test/resources/fontbox/cmap", "CMapMalformedbfrange2"));
+        CMap cMap = new CMapParser().parse(new RandomAccessReadBufferedFile(new File("src/test/resources/fontbox/cmap", "CMapMalformedbfrange2")));
 
-        assertNotNull("Failed to parse malformed CMap file", cMap);
+        assertNotNull(cMap);
+        assertEquals("0", cMap.toUnicode(new byte[]{0, 1}));
+        assertEquals("A", cMap.toUnicode(new byte[]{2, 0x32}));
 
-        assertEquals("bytes 00 01 from bfrange <0001> <0009> <0030>", "0", cMap.toUnicode(0x001));
-
-        assertEquals("bytes 02 32 from bfrange <0232> <0432> <0041>", "A", cMap.toUnicode(0x232));
-
-        // check border values for non strict mode
-        assertNotNull(cMap.toUnicode(0x2F0));
-        assertNotNull(cMap.toUnicode(0x2F1));
-
-        // use strict mode
-        cMap = new CMapParser(true)
-            .parse(new File("src/test/resources/fontbox/cmap", "CMapMalformedbfrange2"));
-        // check border values for strict mode
-        assertNotNull(cMap.toUnicode(0x2F0));
-        assertNull(cMap.toUnicode(0x2F1));
+        // strict mode
+        cMap = new CMapParser(true).parse(new RandomAccessReadBufferedFile(new File("src/test/resources/fontbox/cmap", "CMapMalformedbfrange2")));
+        assertNotNull(cMap.toUnicode(new byte[]{2, (byte) 0xF0}));
+        assertNull(cMap.toUnicode(new byte[]{2, (byte) 0xF1}));
     }
 
     public void testPredefinedMap() throws IOException
@@ -169,7 +126,7 @@ public class TestCMapParser extends TestCase
     {
         // use strict mode
         CMap cMap = new CMapParser(true)
-            .parse(new File("src/test/resources/fontbox/cmap", "Identitybfrange"));
+            .parse(new RandomAccessReadBufferedFile(new File("src/test/resources/fontbox/cmap", "Identitybfrange")));
         assertEquals("wrong CMap name", "Adobe-Identity-UCS", cMap.getName());
 
         Charset UTF_16BE = Charset.forName("UTF-16BE");

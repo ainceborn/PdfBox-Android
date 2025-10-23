@@ -19,6 +19,7 @@ package com.tom_roush.pdfbox.cos;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import org.junit.Assert;
@@ -42,7 +43,7 @@ public class TestCOSName
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         document.save(baos);
         document.close();
-        document = PDDocument.load(baos.toByteArray());
+        document = Loader.loadPDF(baos.toByteArray());
         COSDictionary catalogDict = document.getDocumentCatalog().getCOSObject();
         Assert.assertTrue(catalogDict.containsKey(special));
         Assert.assertEquals(special, catalogDict.getString(special));

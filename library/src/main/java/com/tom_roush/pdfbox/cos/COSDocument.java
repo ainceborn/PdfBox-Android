@@ -18,18 +18,17 @@ package com.tom_roush.pdfbox.cos;
 
 import android.util.Log;
 
+import com.tom_roush.pdfbox.io.IOUtils;
+import com.tom_roush.pdfbox.io.RandomAccessStreamCache;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.tom_roush.pdfbox.io.IOUtils;
-import com.tom_roush.pdfbox.io.ScratchFile;
-import com.tom_roush.pdfbox.multipdf.Splitter;
-import com.tom_roush.pdfbox.pdfparser.PDFObjectStreamParser;
-import com.tom_roush.pdfbox.pdmodel.PDDocument;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 /**
  * This is the in-memory representation of the PDF document.  You need to call
@@ -48,28 +47,26 @@ public class COSDocument extends COSBase implements Closeable
      * are also stored in COSDictionary objects that map a name to a specific object.
      */
     private final Map<COSObjectKey, COSObject> objectPool =
-        new HashMap<COSObjectKey, COSObject>();
+            new HashMap<>();
 
     /**
      * Maps object and generation id to object byte offsets.
      */
     private final Map<COSObjectKey, Long> xrefTable =
-        new HashMap<COSObjectKey, Long>();
+            new HashMap<>();
 
     /**
-     * List containing all streams which are created when creating a new pdf. 
+     * List containing all streams which are created when creating a new pdf.
      */
-    private final List<COSStream> streams = new ArrayList<COSStream>();
+    private final List<COSStream> streams = new ArrayList<>();
 
     /**
      * Document trailer dictionary.
      */
     private COSDictionary trailer;
 
-    private boolean warnMissingClose = true;
-
     /**
-     * Signal that document is already decrypted. 
+     * Signal that document is already decrypted.
      */
     private boolean isDecrypted = false;
 
@@ -79,31 +76,88 @@ public class COSDocument extends COSBase implements Closeable
 
     private boolean isXRefStream;
 
-    private ScratchFile scratchFile;
+    private boolean hasHybridXRef = false;
+
+    private final RandomAccessStreamCache streamCache;
 
     /**
      * Used for incremental saving, to avoid XRef object numbers from being reused.
      */
     private long highestXRefObjectNumber;
 
+    private final ICOSParser parser;
+
+    private final COSDocumentState documentState = new COSDocumentState();
+
     /**
      * Constructor. Uses main memory to buffer PDF streams.
      */
     public COSDocument()
     {
-        this(ScratchFile.getMainMemoryOnlyInstance());
+        this(IOUtils.createMemoryOnlyStreamCache());
     }
 
     /**
-     * Constructor that will use the provide memory handler for storage of the
-     * PDF streams.
+     * Constructor. Uses main memory to buffer PDF streams.
      *
-     * @param scratchFile memory handler for buffering of PDF streams
+     * @param parser Parser to be used to parse the document on demand
+     */
+    public COSDocument(ICOSParser parser)
+    {
+        this(IOUtils.createMemoryOnlyStreamCache(), parser);
+    }
+
+    /**
+     * Constructor that will use the provided function to create a stream cache for the storage of the PDF streams.
+     *
+     * @param streamCacheCreateFunction a function to create an instance of a stream cache
      *
      */
-    public COSDocument(ScratchFile scratchFile)
+    public COSDocument(RandomAccessStreamCache.StreamCacheCreateFunction streamCacheCreateFunction)
     {
-        this.scratchFile = scratchFile;
+        this(streamCacheCreateFunction, null);
+    }
+
+    /**
+     * Constructor that will use the provided function to create a stream cache for the storage of the PDF streams.
+     *
+     * @param streamCacheCreateFunction a function to create an instance of a stream cache
+     * @param parser Parser to be used to parse the document on demand
+     *
+     */
+    public COSDocument(RandomAccessStreamCache.StreamCacheCreateFunction streamCacheCreateFunction, ICOSParser parser)
+    {
+        streamCache = getStreamCache(streamCacheCreateFunction);
+        this.parser = parser;
+    }
+
+    private RandomAccessStreamCache getStreamCache(RandomAccessStreamCache.StreamCacheCreateFunction streamCacheCreateFunction)
+    {
+        if (streamCacheCreateFunction == null)
+        {
+            return null;
+        }
+        try
+        {
+            return streamCacheCreateFunction.create();
+        }
+        catch (IOException exception1)
+        {
+            Log.w(
+                    "PdfBox-Android",
+                    "An error occurred when creating stream cache. Using memory only cache as fallback.",
+                    exception1
+            );
+        }
+        try
+        {
+            return IOUtils.createMemoryOnlyStreamCache().create();
+        }
+        catch (IOException exception2)
+        {
+            Log.w("PdfBox-Android", "An error occurred when creating stream cache for fallback.", exception2);
+        }
+        return null;
     }
 
     /**
@@ -113,7 +167,7 @@ public class COSDocument extends COSBase implements Closeable
      */
     public COSStream createCOSStream()
     {
-        COSStream stream = new COSStream(scratchFile);
+        COSStream stream = new COSStream(streamCache);
         // collect all COSStreams so that they can be closed when closing the COSDocument.
         // This is limited to newly created pdfs as all COSStreams of an existing pdf are
         // collected within the map objectPool
@@ -122,57 +176,49 @@ public class COSDocument extends COSBase implements Closeable
     }
 
     /**
-     * Creates a new COSStream using the current configuration for scratch files.
-     * Not for public use. Only COSParser should call this method.
+     * Creates a new COSStream using the current configuration for scratch files. Not for public use.
+     * Only COSParser should call this method.
      *
-     * @param dictionary the corresponding dictionary
+     * @param dictionary    the corresponding dictionary
+     * @param startPosition the start position within the source
+     * @param streamLength  the stream length
      * @return the new COSStream
+     * @throws IOException if the random access view can't be read
      */
-    public COSStream createCOSStream(COSDictionary dictionary)
+    public COSStream createCOSStream(COSDictionary dictionary, long startPosition,
+                                     long streamLength) throws IOException
     {
-        COSStream stream = new COSStream(scratchFile);
-        for (Map.Entry<COSName, COSBase> entry : dictionary.entrySet())
-        {
-            stream.setItem(entry.getKey(), entry.getValue());
-        }
+        COSStream stream = new COSStream(streamCache,
+                parser.createRandomAccessReadView(startPosition, streamLength));
+        dictionary.forEach(stream::setItem);
+        stream.setKey(dictionary.getKey());
         return stream;
     }
 
     /**
-     * This will get the first dictionary object by type.
+     * Get the dictionary containing the linearization information if the pdf is linearized.
      *
-     * @param type The type of the object.
-     *
-     * @return This will return an object with the specified type.
-     * @throws IOException If there is an error getting the object
+     * @return the dictionary containing the linearization information
      */
-    public COSObject getObjectByType(COSName type) throws IOException
+    public COSDictionary getLinearizedDictionary()
     {
-        for( COSObject object : objectPool.values() )
+        // get all keys with a positive offset in ascending order, as the linearization dictionary shall be the first
+        // within the pdf
+        List<COSObjectKey> objectKeys = xrefTable.entrySet().stream() //
+                .filter(e -> e.getValue() > 0L) //
+                .sorted(Entry.comparingByValue()) //
+                .map(Entry::getKey) //
+                .collect(Collectors.toList());
+        for (COSObjectKey objectKey : objectKeys)
         {
-            COSBase realObject = object.getObject();
-            if( realObject instanceof COSDictionary )
+            COSObject objectFromPool = getObjectFromPool(objectKey);
+            COSBase realObject = objectFromPool.getObject();
+            if (realObject instanceof COSDictionary)
             {
-                try
+                COSDictionary dic = (COSDictionary) realObject;
+                if (dic.getItem(COSName.LINEARIZED) != null)
                 {
-                    COSDictionary dic = (COSDictionary)realObject;
-                    COSBase typeItem = dic.getItem(COSName.TYPE);
-                    if (typeItem instanceof COSName)
-                    {
-                        COSName objectType = (COSName) typeItem;
-                        if (objectType.equals(type))
-                        {
-                            return object;
-                        }
-                    }
-                    else if (typeItem != null)
-                    {
-                        Log.d("PdfBox-Android", "Expected a /Name object after /Type, got '" + typeItem + "' instead");
-                    }
-                }
-                catch (ClassCastException e)
-                {
-                    Log.w("PdfBox-Android", e.getMessage(), e);
+                    return dic;
                 }
             }
         }
@@ -180,88 +226,57 @@ public class COSDocument extends COSBase implements Closeable
     }
 
     /**
-     * This will get all dictionary objects by type.
+     * This will get all dictionaries objects by type.
      *
      * @param type The type of the object.
      *
-     * @return This will return an object with the specified type.
-     * @throws IOException If there is an error getting the object
+     * @return This will return all objects with the specified type.
      */
-    public List<COSObject> getObjectsByType( String type ) throws IOException
+    public List<COSObject> getObjectsByType(COSName type)
     {
-        return getObjectsByType( COSName.getPDFName( type ) );
+        return getObjectsByType(type, null);
     }
 
     /**
-     * This will get a dictionary object by type.
+     * This will get all dictionaries objects by type.
      *
-     * @param type The type of the object.
+     * @param type1 The first possible type of the object, mandatory.
+     * @param type2 The second possible type of the object, usually an abbreviation, optional.
      *
-     * @return This will return an object with the specified type.
-     * @throws IOException If there is an error getting the object
+     * @return This will return all objects with the specified type(s).
      */
-    public List<COSObject> getObjectsByType( COSName type ) throws IOException
+    public List<COSObject> getObjectsByType(COSName type1, COSName type2)
     {
-        List<COSObject> retval = new ArrayList<COSObject>();
-        for( COSObject object : objectPool.values() )
+        List<COSObjectKey> originKeys = new ArrayList<>(xrefTable.keySet());
+        List<COSObject> retval = getObjectsByType(originKeys, type1, type2);
+        // there might be some additional objects if the brute force parser was triggered
+        // due to a broken cross reference table/stream
+        if (originKeys.size() < xrefTable.size())
         {
-            COSBase realObject = object.getObject();
-            if( realObject instanceof COSDictionary )
-            {
-                try
-                {
-                    COSDictionary dic = (COSDictionary)realObject;
-                    COSBase typeItem = dic.getItem(COSName.TYPE);
-                    if (typeItem instanceof COSName)
-                    {
-                        COSName objectType = (COSName) typeItem;
-                        if (objectType.equals(type))
-                        {
-                            retval.add( object );
-                        }
-                    }
-                    else if (typeItem != null)
-                    {
-                        Log.d("PdfBox-Android", "Expected a /Name object after /Type, got '" + typeItem + "' instead");
-                    }
-                }
-                catch (ClassCastException e)
-                {
-                    Log.w("PdfBox-Android", e.getMessage(), e);
-                }
-            }
+            List<COSObjectKey> additionalKeys = new ArrayList<>(xrefTable.keySet());
+            additionalKeys.removeAll(originKeys);
+            retval.addAll(getObjectsByType(additionalKeys, type1, type2));
         }
         return retval;
     }
 
-    /**
-     * Returns the COSObjectKey for a given COS object, or null if there is none.
-     * This lookup iterates over all objects in a PDF, which may be slow for large files.
-     *
-     * @param object COS object
-     * @return key
-     */
-    public COSObjectKey getKey(COSBase object)
+    private List<COSObject> getObjectsByType(List<COSObjectKey> keys, COSName type1, COSName type2)
     {
-        for (Map.Entry<COSObjectKey, COSObject> entry : objectPool.entrySet())
+        List<COSObject> retval = new ArrayList<>();
+        for (COSObjectKey objectKey : keys)
         {
-            if (entry.getValue().getObject() == object)
+            COSObject objectFromPool = getObjectFromPool(objectKey);
+            COSBase realObject = objectFromPool.getObject();
+            if (realObject instanceof COSDictionary)
             {
-                return entry.getKey();
+                COSName dictType = ((COSDictionary) realObject).getCOSName(COSName.TYPE);
+                if (type1.equals(dictType) || (type2 != null && type2.equals(dictType)))
+                {
+                    retval.add(objectFromPool);
+                }
             }
         }
-        return null;
-    }
-
-    /**
-     * This will print contents to stdout.
-     */
-    public void print()
-    {
-        for( COSObject object : objectPool.values() )
-        {
-            System.out.println( object);
-        }
+        return retval;
     }
 
     /**
@@ -309,12 +324,7 @@ public class COSDocument extends COSBase implements Closeable
      */
     public boolean isEncrypted()
     {
-        boolean encrypted = false;
-        if (trailer != null)
-        {
-            encrypted = trailer.getDictionaryObject(COSName.ENCRYPT) instanceof COSDictionary;
-        }
-        return encrypted;
+        return trailer != null && trailer.getCOSDictionary(COSName.ENCRYPT) != null;
     }
 
     /**
@@ -350,44 +360,16 @@ public class COSDocument extends COSBase implements Closeable
     }
 
     /**
-     * This will set the document ID.
+     * This will set the document ID. This should be an array of two strings. This method cannot be
+     * used to remove the document id by passing null or an empty array; it will be recreated. Only
+     * the first existing string is used when writing, the second one is always recreated. If you
+     * don't want this, you'll have to modify the {@code COSWriter} class, look for {@link COSName#ID}.
      *
      * @param id The document id.
      */
     public void setDocumentID( COSArray id )
     {
         getTrailer().setItem(COSName.ID, id);
-    }
-
-    /**
-     * This will get the document catalog.
-     *
-     * @return The catalog is the root of the document; never null.
-     *
-     * @throws IOException If no catalog can be found.
-     *
-     * @deprecated use {@link PDDocument#getDocumentCatalog()} instead.
-     */
-    public COSObject getCatalog() throws IOException
-    {
-        COSObject catalog = getObjectByType( COSName.CATALOG );
-        if( catalog == null )
-        {
-            throw new IOException( "Catalog cannot be found" );
-        }
-        return catalog;
-    }
-
-    /**
-     * This will get a list of all available objects. This method works only for loaded PDFs. It
-     * will return an empty list for PDFs created from scratch (this includes PDFs generated within
-     * PDFBox, e.g. by {@link Splitter}). This method will be removed in 3.0.
-     *
-     * @return A list of all objects, never null.
-     */
-    public List<COSObject> getObjects()
-    {
-        return new ArrayList<COSObject>(objectPool.values());
     }
 
     /**
@@ -409,6 +391,7 @@ public class COSDocument extends COSBase implements Closeable
     public void setTrailer(COSDictionary newTrailer)
     {
         trailer = newTrailer;
+        trailer.getUpdateState().setOriginDocumentState(documentState);
     }
 
     /**
@@ -437,13 +420,12 @@ public class COSDocument extends COSBase implements Closeable
      * visitor pattern double dispatch method.
      *
      * @param visitor The object to notify when visiting this object.
-     * @return any object, depending on the visitor implementation, or null
      * @throws IOException If an error occurs while visiting this object.
      */
     @Override
-    public Object accept(ICOSVisitor visitor) throws IOException
+    public void accept(ICOSVisitor visitor) throws IOException
     {
-        return visitor.visitFromDocument( this );
+        visitor.visitFromDocument(this);
     }
 
     /**
@@ -462,27 +444,32 @@ public class COSDocument extends COSBase implements Closeable
         // Make sure that:
         // - first Exception is kept
         // - all COSStreams are closed
-        // - ScratchFile is closed
+        // - stream cache is closed
         // - there's a way to see which errors occurred
-
         IOException firstException = null;
 
         // close all open I/O streams
-        for (COSObject object : getObjects())
+        for (COSObject object : objectPool.values())
         {
-            COSBase cosObject = object.getObject();
-            if (cosObject instanceof COSStream)
+            if (!object.isObjectNull())
             {
-                firstException = IOUtils.closeAndLogException((COSStream) cosObject, "COSStream", firstException);
+                COSBase cosObject = object.getObject();
+                if (cosObject instanceof COSStream)
+                {
+                    firstException = IOUtils.closeAndLogException((COSStream) cosObject, "COSStream", firstException);
+                }
             }
         }
+
         for (COSStream stream : streams)
         {
             firstException = IOUtils.closeAndLogException(stream, "COSStream", firstException);
         }
-        if (scratchFile != null)
+
+        if (streamCache != null)
         {
-            firstException = IOUtils.closeAndLogException(scratchFile, "ScratchFile", firstException);
+            firstException = IOUtils.closeAndLogException(streamCache, "Stream Cache",
+                    firstException);
         }
         closed = true;
 
@@ -496,70 +483,11 @@ public class COSDocument extends COSBase implements Closeable
     /**
      * Returns true if this document has been closed.
      *
-     * @return true if the document has been closed.
+     * @return true if the document is already closed, false otherwise
      */
     public boolean isClosed()
     {
         return closed;
-    }
-
-    /**
-     * Warn the user in the finalizer if he didn't close the PDF document. The method also
-     * closes the document just in case, to avoid abandoned temporary files. It's still a good
-     * idea for the user to close the PDF document at the earliest possible to conserve resources.
-     * @throws IOException if an error occurs while closing the temporary files
-     */
-    @Override
-    protected void finalize() throws IOException
-    {
-        if (!closed)
-        {
-            if (warnMissingClose)
-            {
-                Log.w("PdfBox-Android", "Warning: You did not close a PDF Document" );
-            }
-            close();
-        }
-    }
-
-    /**
-     * Controls whether this instance shall issue a warning if the PDF document wasn't closed
-     * properly through a call to the {@link #close()} method. If the PDF document is held in
-     * a cache governed by soft references it is impossible to reliably close the document
-     * before the warning is raised. By default, the warning is enabled.
-     * @param warn true enables the warning, false disables it.
-     */
-    public void setWarnMissingClose(boolean warn)
-    {
-        this.warnMissingClose = warn;
-    }
-
-    /**
-     * This method will search the list of objects for types of ObjStm.  If it finds
-     * them then it will parse out all of the objects from the stream that is contains.
-     *
-     * @throws IOException If there is an error parsing the stream.
-     */
-    public void dereferenceObjectStreams() throws IOException
-    {
-        for( COSObject objStream : getObjectsByType( COSName.OBJ_STM ) )
-        {
-            COSStream stream = (COSStream)objStream.getObject();
-            PDFObjectStreamParser parser = new PDFObjectStreamParser(stream, this);
-            parser.parse();
-            for (COSObject next : parser.getObjects())
-            {
-                COSObjectKey key = new COSObjectKey(next);
-                if (objectPool.get(key) == null || objectPool.get(key).getObject() == null
-                    // xrefTable stores negated objNr of objStream for objects in objStreams
-                    || (xrefTable.containsKey(key)
-                    && xrefTable.get(key) == -objStream.getObjectNumber()))
-                {
-                    COSObject obj = getObjectFromPool(key);
-                    obj.setObject(next.getObject());
-                }
-            }
-        }
     }
 
     /**
@@ -568,38 +496,16 @@ public class COSDocument extends COSBase implements Closeable
      * @param key The object key.
      *
      * @return The object in the pool or a new one if it has not been parsed yet.
-     *
-     * @throws IOException If there is an error getting the proxy object.
      */
-    public COSObject getObjectFromPool(COSObjectKey key) throws IOException
+    public COSObject getObjectFromPool(COSObjectKey key)
     {
         COSObject obj = null;
         if( key != null )
         {
-            obj = objectPool.get(key);
-        }
-        if (obj == null)
-        {
-            // this was a forward reference, make "proxy" object
-            obj = new COSObject(null);
-            if( key != null )
-            {
-                obj.setObjectNumber(key.getNumber());
-                obj.setGenerationNumber(key.getGeneration());
-                objectPool.put(key, obj);
-            }
+            // make "proxy" object if this was a forward reference
+            obj = objectPool.computeIfAbsent(key, k -> new COSObject(k, parser));
         }
         return obj;
-    }
-
-    /**
-     * Removes an object from the object pool.
-     * @param key the object key
-     * @return the object that was removed or null if the object was not found
-     */
-    public COSObject removeObject(COSObjectKey key)
-    {
-        return objectPool.remove(key);
     }
 
     /**
@@ -623,7 +529,7 @@ public class COSDocument extends COSBase implements Closeable
     }
 
     /**
-     * This method set the startxref value of the document. This will only 
+     * This method set the startxref value of the document. This will only
      * be needed for incremental updates.
      *
      * @param startXrefValue the value for startXref
@@ -663,4 +569,34 @@ public class COSDocument extends COSBase implements Closeable
     {
         isXRefStream = isXRefStreamValue;
     }
+
+    /**
+     * Determines if the pdf has hybrid cross references, both plain tables and streams.
+     *
+     * @return true if the pdf has hybrid cross references
+     */
+    public boolean hasHybridXRef()
+    {
+        return hasHybridXRef;
+    }
+
+    /**
+     * Marks the pdf as document using hybrid cross references.
+     */
+    public void setHasHybridXRef()
+    {
+        hasHybridXRef = true;
+    }
+
+    /**
+     * Returns the {@link COSDocumentState} of this {@link COSDocument}.
+     *
+     * @return The {@link COSDocumentState} of this {@link COSDocument}.
+     * @see COSDocumentState
+     */
+    public COSDocumentState getDocumentState()
+    {
+        return documentState;
+    }
+
 }

@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.File;
 import java.io.IOException;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.android.TestResourceGenerator;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
@@ -42,7 +43,7 @@ public class TestPDFParserInstrumentation
         File pdfFile = TestResourceGenerator.downloadTestResource(TARGETPDFDIR, "PDFBOX-3950-23EGDHXSBBYQLKYOKGZUOVYVNE675PRD.pdf", "https://issues.apache.org/jira/secure/attachment/12890042/23EGDHXSBBYQLKYOKGZUOVYVNE675PRD.pdf");
         assumeTrue(pdfFile.exists());
 
-        PDDocument doc = PDDocument.load(pdfFile);
+        PDDocument doc =  Loader.loadPDF(pdfFile);
         assertEquals(4, doc.getNumberOfPages());
         PDFRenderer renderer = new PDFRenderer(doc);
         for (int i = 0; i < doc.getNumberOfPages(); ++i)

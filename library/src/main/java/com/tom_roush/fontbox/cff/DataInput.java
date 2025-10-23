@@ -26,113 +26,62 @@ import com.tom_roush.fontbox.util.Charsets;
  *
  * @author Villu Ruusmann
  */
-public class DataInput
+public interface DataInput
 {
 
-    private final byte[] inputBuffer;
-    private int bufferPosition = 0;
-
     /**
-     * Constructor.
-     * @param buffer the buffer to be read
-     */
-    public DataInput(byte[] buffer)
-    {
-        inputBuffer = buffer;
-    }
-
-    /**
-     * Determines if there are any bytes left to read or not. 
+     * Determines if there are any bytes left to read or not.
+     *
      * @return true if there are any bytes left to read
+     * @throws IOException if an error occurs during reading
      */
-    public boolean hasRemaining()
-    {
-        return bufferPosition < inputBuffer.length;
-    }
+    public boolean hasRemaining() throws IOException;
 
     /**
      * Returns the current position.
+     *
      * @return current position
+     * @throws IOException if an error occurs during reading
      */
-    public int getPosition()
-    {
-        return bufferPosition;
-    }
+    public int getPosition() throws IOException;
 
     /**
      * Sets the current position to the given value.
+     *
      * @param position the given position
+     * @throws IOException if the new position ist out of range
      */
-    public void setPosition(int position)
-    {
-        bufferPosition = position;
-    }
-
-    /**
-     * Returns the buffer as an ISO-8859-1 string.
-     * @return the buffer as string
-     * @throws IOException if an error occurs during reading
-     */
-    public String getString() throws IOException
-    {
-        return new String(inputBuffer, Charsets.ISO_8859_1);
-    }
+    public void setPosition(int position) throws IOException;
 
     /**
      * Read one single byte from the buffer.
      * @return the byte
      * @throws IOException if an error occurs during reading
      */
-    public byte readByte() throws IOException
-    {
-        try
-        {
-            byte value = inputBuffer[bufferPosition];
-            bufferPosition++;
-            return value;
-        }
-        catch (RuntimeException re)
-        {
-            return -1;
-        }
-    }
+    public byte readByte() throws IOException;
 
     /**
      * Read one single unsigned byte from the buffer.
      * @return the unsigned byte as int
      * @throws IOException if an error occurs during reading
      */
-    public int readUnsignedByte() throws IOException
-    {
-        int b = read();
-        if (b < 0)
-        {
-            throw new EOFException();
-        }
-        return b;
-    }
+    public int readUnsignedByte() throws IOException;
 
     /**
      * Peeks one single unsigned byte from the buffer.
+     *
+     * @param offset offset to the byte to be peeked
      * @return the unsigned byte as int
      * @throws IOException if an error occurs during reading
      */
-    public int peekUnsignedByte(int offset) throws IOException
-    {
-        int b = peek(offset);
-        if (b < 0)
-        {
-            throw new EOFException();
-        }
-        return b;
-    }
+    public int peekUnsignedByte(int offset) throws IOException;
 
     /**
      * Read one single short value from the buffer.
      * @return the short value
      * @throws IOException if an error occurs during reading
      */
-    public short readShort() throws IOException
+    default short readShort() throws IOException
     {
         return (short) readUnsignedShort();
     }
@@ -142,14 +91,10 @@ public class DataInput
      * @return the unsigned short value as int
      * @throws IOException if an error occurs during reading
      */
-    public int readUnsignedShort() throws IOException
+    default int readUnsignedShort() throws IOException
     {
-        int b1 = read();
-        int b2 = read();
-        if ((b1 | b2) < 0)
-        {
-            throw new EOFException();
-        }
+        int b1 = readUnsignedByte();
+        int b2 = readUnsignedByte();
         return b1 << 8 | b2;
     }
 
@@ -158,69 +103,38 @@ public class DataInput
      * @return the int value
      * @throws IOException if an error occurs during reading
      */
-    public int readInt() throws IOException
+    default int readInt() throws IOException
     {
-        int b1 = read();
-        int b2 = read();
-        int b3 = read();
-        int b4 = read();
-        if ((b1 | b2 | b3 | b4) < 0)
-        {
-            throw new EOFException();
-        }
+        int b1 = readUnsignedByte();
+        int b2 = readUnsignedByte();
+        int b3 = readUnsignedByte();
+        int b4 = readUnsignedByte();
         return b1 << 24 | b2 << 16 | b3 << 8 | b4;
     }
 
     /**
      * Read a number of single byte values from the buffer.
      * @param length the number of bytes to be read
-     * @return an array with containing the bytes from the buffer 
+     * @return an array with containing the bytes from the buffer
      * @throws IOException if an error occurs during reading
      */
-    public byte[] readBytes(int length) throws IOException
-    {
-        if (length < 0)
-        {
-            throw new IOException("length is negative");
-        }
-        if (inputBuffer.length - bufferPosition < length)
-        {
-            throw new EOFException();
-        }
-        byte[] bytes = new byte[length];
-        System.arraycopy(inputBuffer, bufferPosition, bytes, 0, length);
-        bufferPosition += length;
-        return bytes;
-    }
+    public byte[] readBytes(int length) throws IOException;
 
-    private int read()
-    {
-        try
-        {
-            int value = inputBuffer[bufferPosition] & 0xff;
-            bufferPosition++;
-            return value;
-        }
-        catch (RuntimeException re)
-        {
-            return -1;
-        }
-    }
+    public int length() throws IOException;
 
-    private int peek(int offset)
+    /**
+     * Read the offset from the buffer.
+     * @param offSize the given offsize
+     * @return the offset
+     * @throws IOException if an error occurs during reading
+     */
+    default int readOffset(int offSize) throws IOException
     {
-        try
+        int value = 0;
+        for (int i = 0; i < offSize; i++)
         {
-            return inputBuffer[bufferPosition + offset] & 0xff;
+            value = value << 8 | readUnsignedByte();
         }
-        catch (RuntimeException re)
-        {
-            return -1;
-        }
-    }
-
-    public int length()
-    {
-        return inputBuffer.length;
+        return value;
     }
 }

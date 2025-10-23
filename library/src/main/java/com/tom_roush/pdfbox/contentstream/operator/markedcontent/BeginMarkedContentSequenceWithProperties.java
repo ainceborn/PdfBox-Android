@@ -19,12 +19,15 @@ package com.tom_roush.pdfbox.contentstream.operator.markedcontent;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFStreamEngine;
+import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
+import com.tom_roush.pdfbox.pdmodel.documentinterchange.markedcontent.PDPropertyList;
 
 /**
  * BDC : Begins a marked-content sequence with property list.
@@ -33,23 +36,45 @@ import com.tom_roush.pdfbox.contentstream.operator.OperatorProcessor;
  */
 public class BeginMarkedContentSequenceWithProperties extends OperatorProcessor
 {
-    @Override
-    public void process(Operator operator, List<COSBase> arguments) throws IOException
+    public BeginMarkedContentSequenceWithProperties(PDFStreamEngine context)
     {
-        COSName tag = null;
-        COSDictionary properties = null;
-        for (COSBase argument : arguments)
+        super(context);
+    }
+
+    @Override
+    public void process(Operator operator, List<COSBase> operands) throws IOException
+    {
+        if (operands.size() < 2)
         {
-            if (argument instanceof COSName)
+            throw new MissingOperandException(operator, operands);
+        }
+        if (!(operands.get(0) instanceof COSName))
+        {
+            return;
+        }
+        PDFStreamEngine context = getContext();
+        COSName tag = (COSName) operands.get(0);
+        COSBase op1 = operands.get(1);
+        COSDictionary propDict = null;
+        if (op1 instanceof COSName)
+        {
+            // PDFBOX-5980 and SO79549651
+            PDPropertyList prop = context.getResources().getProperties((COSName) op1);
+            if (prop != null)
             {
-                tag = (COSName) argument;
-            }
-            else if (argument instanceof COSDictionary)
-            {
-                properties = (COSDictionary) argument;
+                propDict = prop.getCOSObject();
             }
         }
-        context.beginMarkedContentSequence(tag, properties);
+        else if (op1 instanceof COSDictionary)
+        {
+            propDict = (COSDictionary) op1;
+        }
+        if (propDict == null)
+        {
+            // wrong type or property not found
+            return;
+        }
+        context.beginMarkedContentSequence(tag, propDict);
     }
 
     @Override

@@ -21,6 +21,8 @@ import java.io.IOException;
 
 import com.tom_roush.fontbox.cff.CFFFont;
 import com.tom_roush.fontbox.cff.CFFParser;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
+import com.tom_roush.pdfbox.io.RandomAccessReadBuffer;
 
 /**
  * PostScript font program (compact font format).
@@ -34,9 +36,9 @@ public class CFFTable extends TTFTable
 
     private CFFFont cffFont;
 
-    CFFTable(TrueTypeFont font)
+    CFFTable()
     {
-        super(font);
+        super();
     }
 
     /**
@@ -52,13 +54,36 @@ public class CFFTable extends TTFTable
         byte[] bytes = data.read((int)getLength());
 
         CFFParser parser = new CFFParser();
-        cffFont = parser.parse(bytes, new CFFBytesource(font)).get(0);
+        cffFont = parser.parse(bytes, new CFFBytesource(ttf)).get(0);
 
         initialized = true;
     }
 
+    /** {@inheritDoc} */
+    @Override
+    void readHeaders(TrueTypeFont ttf, TTFDataStream data, FontHeaders outHeaders) throws IOException
+    {
+        try (RandomAccessRead subReader = data.createSubView(getLength()))
+        {
+            RandomAccessRead reader;
+            if (subReader != null)
+            {
+                reader = subReader;
+            }
+            else
+            {
+                assert false : "It is inefficient to read TTFDataStream into an array";
+                byte[] bytes = data.read((int)getLength());
+                reader = new RandomAccessReadBuffer(bytes);
+            }
+            new CFFParser().parseFirstSubFontROS(reader, outHeaders);
+        }
+    }
+
     /**
      * Returns the CFF font, which is a compact representation of a PostScript Type 1, or CIDFont
+     *
+     * @return the associated CFF font
      */
     public CFFFont getFont()
     {

@@ -21,6 +21,7 @@ import android.graphics.Path;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
 import com.tom_roush.pdfbox.cos.COSBase;
@@ -30,17 +31,19 @@ import com.tom_roush.pdfbox.cos.COSBase;
  *
  * @author Ben Litchfield
  */
-public class FillNonZeroRule extends GraphicsOperatorProcessor
-{
-    @Override
-    public final void process(Operator operator, List<COSBase> operands) throws IOException
-    {
-        context.fillPath(Path.FillType.WINDING);
+public class FillNonZeroRule extends GraphicsOperatorProcessor {
+    public FillNonZeroRule(PDFGraphicsStreamEngine context) {
+        super(context);
     }
 
     @Override
-    public String getName()
-    {
+    public final void process(Operator operator, List<COSBase> operands) throws IOException {
+        getGraphicsContext().fillPath(Path.FillType.WINDING);
+    }
+
+    @Override
+    public String getName() {
         return OperatorName.FILL_NON_ZERO;
     }
+
 }

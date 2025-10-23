@@ -23,6 +23,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.File;
 import java.io.IOException;
 
+import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.rendering.TestRendering;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
@@ -48,7 +49,7 @@ public class AlignmentTest
     {
         testContext = InstrumentationRegistry.getInstrumentation().getContext();
         PDFBoxResourceLoader.init(testContext);
-        document = PDDocument.load(testContext.getAssets().open(IN_DIR + "/" + NAME_OF_PDF));
+        document = Loader.loadPDF(testContext.getAssets().open(IN_DIR + "/" + NAME_OF_PDF));
         acroForm = document.getDocumentCatalog().getAcroForm();
         OUT_DIR = new File(testContext.getCacheDir(), "pdfbox-test-output");
         OUT_DIR.mkdirs();

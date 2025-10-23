@@ -21,6 +21,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -40,6 +41,11 @@ import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
  */
 public final class DrawObject extends GraphicsOperatorProcessor
 {
+    public DrawObject(PDFGraphicsStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> operands) throws IOException
     {
@@ -53,6 +59,7 @@ public final class DrawObject extends GraphicsOperatorProcessor
             return;
         }
         COSName objectName = (COSName) base0;
+        PDFGraphicsStreamEngine context = getGraphicsContext();
         PDXObject xobject = context.getResources().getXObject(objectName);
 
         if (xobject == null)
@@ -61,7 +68,11 @@ public final class DrawObject extends GraphicsOperatorProcessor
         }
         else if (xobject instanceof PDImageXObject)
         {
-            PDImageXObject image = (PDImageXObject)xobject;
+            PDImageXObject image = (PDImageXObject) xobject;
+            if (!image.isStencil() && !context.isShouldProcessColorOperators())
+            {
+                return;
+            }
             context.drawImage(image);
         }
         else if (xobject instanceof PDFormXObject)

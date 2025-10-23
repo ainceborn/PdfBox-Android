@@ -16,11 +16,11 @@
  */
 package com.tom_roush.pdfbox.pdmodel.interactive.digitalsignature;
 
+import com.tom_roush.pdfbox.pdfwriter.COSWriter;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-
-import com.tom_roush.pdfbox.pdfwriter.COSWriter;
 
 /**
  * Class to be used when creating PDF signatures externally. COSWriter is used to obtain data to be
@@ -51,16 +51,6 @@ public class SigningSupport implements ExternalSigningSupport, Closeable
     @Override
     public void close() throws IOException
     {
-        if (cosWriter != null)
-        {
-            try
-            {
-                cosWriter.close();
-            }
-            finally
-            {
-                cosWriter = null;
-            }
-        }
+        cosWriter = null;
     }
 }

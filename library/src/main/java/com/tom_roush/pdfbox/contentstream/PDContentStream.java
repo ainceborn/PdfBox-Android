@@ -17,11 +17,13 @@
 
 package com.tom_roush.pdfbox.contentstream;
 
-import java.io.IOException;
-import java.io.InputStream;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.util.Matrix;
+
+import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * A content stream.
@@ -39,23 +41,46 @@ public interface PDContentStream
     InputStream getContents() throws IOException;
 
     /**
+     * Returns this stream's content, if any.
+     *
+     * @return A RandomAccessRead or null.
+     * @throws IOException If the content could not be read
+     */
+    RandomAccessRead getContentsForRandomAccess() throws IOException;
+
+    /**
+     * Returns this stream's content, if any.
+     *
+     * The random access capabilities of the returned instance is supposed to be limited. Peek/rewind operations are
+     * limited to a small range of data and not the whole set of data. Seek operations aren't supported at all.
+     *
+     * @return A RandomAccessRead or null.
+     * @throws IOException If the content could not be read
+     */
+    default RandomAccessRead getContentsForStreamParsing() throws IOException
+    {
+        return getContentsForRandomAccess();
+    }
+
+    /**
      * Returns this stream's resources, if any.
      *
-     * @return the resources of this stream.
+     * @return the resources of the content stream or null
      */
     PDResources getResources();
 
     /**
      * Returns the bounding box of the contents.
      *
-     * @return the bounding box of this stream.
+     * @return the bounding box of the content stream or null
+     *
      */
     PDRectangle getBBox();
 
     /**
      * Returns the matrix which transforms from the stream's space to user space.
      *
-     * @return the matrix of this stream.
+     * @return the matrix of the content stream or the identity matrix if there isn't any
      */
     Matrix getMatrix();
 }

@@ -22,11 +22,12 @@ import java.io.InputStream;
 import com.tom_roush.harmony.awt.geom.AffineTransform;
 import com.tom_roush.pdfbox.contentstream.PDContentStream;
 import com.tom_roush.pdfbox.cos.COSArray;
-import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSFloat;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSStream;
+import com.tom_roush.pdfbox.io.RandomAccessInputStream;
+import com.tom_roush.pdfbox.io.RandomAccessRead;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.ResourceCache;
@@ -82,7 +83,9 @@ public class PDFormXObject extends PDXObject implements PDContentStream
 
     /**
      * Creates a Form XObject for reading.
+     *
      * @param stream The XObject stream
+     * @param cache the cache to be used for the resources
      */
     public PDFormXObject(COSStream stream, ResourceCache cache)
     {
@@ -119,21 +122,32 @@ public class PDFormXObject extends PDXObject implements PDContentStream
     }
 
     /**
-     * Returns the group attributes dictionary.
+     * Returns the transparency group attributes dictionary.
      *
-     * @return the group attributes dictionary
+     * @return the transparency group attributes dictionary, never null.
      */
     public PDTransparencyGroupAttributes getGroup()
     {
         if( group == null )
         {
-            COSDictionary dic = (COSDictionary) getCOSObject().getDictionaryObject(COSName.GROUP);
+            COSDictionary dic = getCOSObject().getCOSDictionary(COSName.GROUP);
             if( dic != null )
             {
                 group = new PDTransparencyGroupAttributes(dic);
             }
         }
         return group;
+    }
+
+    /**
+     * Sets the transparency group attributes dictionary.
+     *
+     * @param group a transparency group attributes dictionary.
+     */
+    public void setGroup(PDTransparencyGroupAttributes group)
+    {
+        this.group = group;
+        getCOSObject().setItem(COSName.GROUP, group);
     }
 
     public PDStream getContentStream()
@@ -144,9 +158,14 @@ public class PDFormXObject extends PDXObject implements PDContentStream
     @Override
     public InputStream getContents() throws IOException
     {
-        return getCOSObject().createInputStream();
+        return new RandomAccessInputStream(getContentsForRandomAccess());
     }
 
+    @Override
+    public RandomAccessRead getContentsForRandomAccess() throws IOException
+    {
+        return getCOSObject().createView();
+    }
     /**
      * This will get the resources for this Form XObject.
      * This will return null if no resources are available.
@@ -190,13 +209,8 @@ public class PDFormXObject extends PDXObject implements PDContentStream
     @Override
     public PDRectangle getBBox()
     {
-        PDRectangle retval = null;
-        COSArray array = (COSArray) getCOSObject().getDictionaryObject(COSName.BBOX);
-        if (array != null)
-        {
-            retval = new PDRectangle(array);
-        }
-        return retval;
+        COSArray array = getCOSObject().getCOSArray(COSName.BBOX);
+        return array != null ? new PDRectangle(array) : null;
     }
 
     /**
@@ -270,12 +284,8 @@ public class PDFormXObject extends PDXObject implements PDContentStream
      */
     public PDPropertyList getOptionalContent()
     {
-        COSBase base = getCOSObject().getDictionaryObject(COSName.OC);
-        if (base instanceof COSDictionary)
-        {
-            return PDPropertyList.create((COSDictionary) base);
-        }
-        return null;
+        COSDictionary optionalContent = getCOSObject().getCOSDictionary(COSName.OC);
+        return optionalContent != null ? PDPropertyList.create(optionalContent) : null;
     }
 
     /**

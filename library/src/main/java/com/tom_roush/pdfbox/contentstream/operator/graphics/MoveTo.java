@@ -21,6 +21,7 @@ import android.graphics.PointF;
 import java.io.IOException;
 import java.util.List;
 
+import com.tom_roush.pdfbox.contentstream.PDFGraphicsStreamEngine;
 import com.tom_roush.pdfbox.contentstream.operator.MissingOperandException;
 import com.tom_roush.pdfbox.contentstream.operator.Operator;
 import com.tom_roush.pdfbox.contentstream.operator.OperatorName;
@@ -34,6 +35,11 @@ import com.tom_roush.pdfbox.cos.COSNumber;
  */
 public final class MoveTo extends GraphicsOperatorProcessor
 {
+    public MoveTo(PDFGraphicsStreamEngine context)
+    {
+        super(context);
+    }
+
     @Override
     public void process(Operator operator, List<COSBase> operands) throws IOException
     {
@@ -53,6 +59,7 @@ public final class MoveTo extends GraphicsOperatorProcessor
         }
         COSNumber x = (COSNumber) base0;
         COSNumber y = (COSNumber) base1;
+        PDFGraphicsStreamEngine context = getGraphicsContext();
         PointF pos = context.transformedPoint(x.floatValue(), y.floatValue());
         context.moveTo(pos.x, pos.y);
     }
