@@ -67,7 +67,7 @@ public class TTFSubsetterInstrumentationTest
         ttfSubsetter.add('\u200A');
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ttfSubsetter.writeToStream(baos);
-        TrueTypeFont subset = new TTFParser(true).parse(new RandomAccessReadBuffer((baos.toByteArray()));
+        TrueTypeFont subset = new TTFParser(true).parse(new RandomAccessReadBuffer((baos.toByteArray())));
 
         assertEquals(5, subset.getNumberOfGlyphs());
 
