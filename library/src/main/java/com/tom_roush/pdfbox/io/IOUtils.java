@@ -207,7 +207,7 @@ public final class IOUtils
         return new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), charset));
     }
 
-    public static BufferedReader newBufferedReader(File file, Charset charset) throws IOException {
+    public static BufferedReader newBufferedReaderCompat(File file, Charset charset) throws IOException {
 
         if (file == null || charset == null) {
             throw new IllegalArgumentException("File and charset cannot be null");
