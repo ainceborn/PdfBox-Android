@@ -340,8 +340,6 @@ public class GlyphSubstitutionDataExtractor
             glyphsToBeSubstituted.add(componentGlyphID);
         }
 
-        Log.d("PdfBox-Android", "glyphsToBeSubstituted: "+ glyphsToBeSubstituted);
-
         putNewSubstitutionEntry(glyphSubstitutionMap, Collections.singletonList(ligatureTable.getLigatureGlyph()),
                 glyphsToBeSubstituted);
     }
