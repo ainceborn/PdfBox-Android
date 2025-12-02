@@ -81,9 +81,9 @@ public abstract class PDColorSpace implements COSObjectable
      * @throws IOException if the color space is unknown or cannot be created.
      */
     public static PDColorSpace create(COSBase colorSpace,
-        PDResources resources,
-        boolean wasDefault)
-        throws IOException
+                                      PDResources resources,
+                                      boolean wasDefault)
+            throws IOException
     {
         if (colorSpace instanceof COSObject)
         {
@@ -98,17 +98,17 @@ public abstract class PDColorSpace implements COSObjectable
             {
                 COSName defaultName = null;
                 if (name.equals(COSName.DEVICECMYK) &&
-                    resources.hasColorSpace(COSName.DEFAULT_CMYK))
+                        resources.hasColorSpace(COSName.DEFAULT_CMYK))
                 {
                     defaultName = COSName.DEFAULT_CMYK;
                 }
                 else if (name.equals(COSName.DEVICERGB) &&
-                    resources.hasColorSpace(COSName.DEFAULT_RGB))
+                        resources.hasColorSpace(COSName.DEFAULT_RGB))
                 {
                     defaultName = COSName.DEFAULT_RGB;
                 }
                 else if (name.equals(COSName.DEVICEGRAY) &&
-                    resources.hasColorSpace(COSName.DEFAULT_GRAY))
+                        resources.hasColorSpace(COSName.DEFAULT_GRAY))
                 {
                     defaultName = COSName.DEFAULT_GRAY;
                 }
@@ -152,7 +152,7 @@ public abstract class PDColorSpace implements COSObjectable
         else if (colorSpace instanceof COSArray)
         {
             COSArray array = (COSArray)colorSpace;
-            if (array.size() == 0)
+            if (array.isEmpty())
             {
                 throw new IOException("Colorspace array is empty");
             }
@@ -167,24 +167,22 @@ public abstract class PDColorSpace implements COSObjectable
 
             if (name == COSName.CALGRAY)
             {
-//                return new PDCalGray(array); TODO: PdfBox-Android
+               // return new PDCalGray(array);
                 Log.e("PdfBox-Android", "Unsupported color space kind: " + name + ". Will try DeviceRGB instead");
                 return PDDeviceRGB.INSTANCE;
             }
             else if (name == COSName.CALRGB)
             {
-//                return new PDCalRGB(array);
                 Log.e("PdfBox-Android", "Unsupported color space kind: " + name + ". Will try DeviceRGB instead");
                 return PDDeviceRGB.INSTANCE;
             }
             else if (name == COSName.DEVICEN)
             {
-                Log.e("PdfBox-Android", "Unsupported color space kind: " + name + ". Will try DeviceRGB instead");
                 return new PDDeviceN(array, resources);
             }
             else if (name == COSName.INDEXED)
             {
-                return new PDIndexed(array);
+                return new PDIndexed(array, resources);
             }
             else if (name == COSName.SEPARATION)
             {
@@ -196,15 +194,13 @@ public abstract class PDColorSpace implements COSObjectable
             }
             else if (name == COSName.LAB)
             {
-//                return new PDLab(array);
-                Log.e("PdfBox-Android", "Unsupported color space kind: " + name + ". Will try DeviceRGB instead");
-                return PDDeviceRGB.INSTANCE;
+                return new PDLab(array);
             }
             else if (name == COSName.PATTERN)
             {
                 if (array.size() == 1)
                 {
-                  return new PDPattern(resources);
+                    return new PDPattern(resources);
                 }
                 else
                 {
@@ -212,8 +208,8 @@ public abstract class PDColorSpace implements COSObjectable
                 }
             }
             else if (name == COSName.DEVICECMYK ||
-                name == COSName.DEVICERGB ||
-                name == COSName.DEVICEGRAY)
+                    name == COSName.DEVICERGB ||
+                    name == COSName.DEVICEGRAY)
             {
                 // not allowed in an array, but we sometimes encounter these regardless
                 return create(name, resources, wasDefault);
@@ -224,7 +220,7 @@ public abstract class PDColorSpace implements COSObjectable
             }
         }
         else if (colorSpace instanceof COSDictionary &&
-            ((COSDictionary) colorSpace).containsKey(COSName.COLORSPACE))
+                ((COSDictionary) colorSpace).containsKey(COSName.COLORSPACE))
         {
             // PDFBOX-4833: dictionary with /ColorSpace entry
             COSBase base = ((COSDictionary) colorSpace).getDictionaryObject(COSName.COLORSPACE);
@@ -232,7 +228,7 @@ public abstract class PDColorSpace implements COSObjectable
             {
                 // PDFBOX-5315
                 throw new IOException("Recursion in colorspace: " +
-                    ((COSDictionary) colorSpace).getItem(COSName.COLORSPACE) + " points to itself");
+                        ((COSDictionary) colorSpace).getItem(COSName.COLORSPACE) + " points to itself");
             }
             return create(base, resources, wasDefault);
         }

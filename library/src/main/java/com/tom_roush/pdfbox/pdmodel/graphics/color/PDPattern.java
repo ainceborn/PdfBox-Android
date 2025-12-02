@@ -66,7 +66,7 @@ public final class PDPattern extends PDSpecialColorSpace
         this.underlyingColorSpace = colorSpace;
         array = new COSArray();
         array.add(COSName.PATTERN);
-        array.add(colorSpace.getCOSObject());
+        array.add(colorSpace);
     }
 
     @Override

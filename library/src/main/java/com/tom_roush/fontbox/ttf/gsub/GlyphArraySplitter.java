@@ -14,13 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.tom_roush.pdfbox.pdmodel.graphics.color;
 
-import com.tom_roush.pdfbox.cos.COSBase;
+package com.tom_roush.fontbox.ttf.gsub;
+
+import java.util.List;
 
 /**
- * Special colour spaces add features or properties to an underlying colour space.
+ * This class splits an array of GlyphIds with a prospective match.
+ * 
+ * @author Palash Ray
  *
- * @author John Hewson
  */
-public abstract class PDSpecialColorSpace extends PDColorSpace {}
+public interface GlyphArraySplitter
+{
+
+    List<List<Integer>> split(List<Integer> glyphIds);
+
+}

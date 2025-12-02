@@ -160,7 +160,7 @@ public class MainActivity extends Activity {
         // Render the page and save it to an image file
         try {
             // Load in an already created PDF
-            PDDocument document = Loader.loadPDF(assetManager.open("pdf-test.pdf"));
+            PDDocument document = Loader.loadPDF(assetManager.open("form_test.pdf"));
             // Create a renderer for the document
             PDFRenderer renderer = new PDFRenderer(document);
             // Render the image to an RGB Bitmap
@@ -183,7 +183,7 @@ public class MainActivity extends Activity {
     public void fillForm(View v) {
         try {
             // Load the document and get the AcroForm
-            PDDocument document = Loader.loadPDF(assetManager.open("FormTest.pdf"));
+            PDDocument document = Loader.loadPDF(assetManager.open("sap_test.pdf"));
             PDDocumentCatalog docCatalog = document.getDocumentCatalog();
             PDAcroForm acroForm = docCatalog.getAcroForm();
 

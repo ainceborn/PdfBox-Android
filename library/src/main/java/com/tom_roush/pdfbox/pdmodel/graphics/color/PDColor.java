@@ -197,6 +197,19 @@ public final class PDColor
         return rgb;
     }
 
+    public int toARGB(float alpha) throws IOException
+    {
+        float[] floats = colorSpace.toRGB(components);
+
+        int r = Math.round(floats[0]);
+        int g = Math.round(floats[1]);
+        int b = Math.round(floats[2]);
+
+        int a = (int)Math.round(alpha * 255.0);
+
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
     /**
      * Returns the color component values as a COS array
      * @return the color component values as a COS array

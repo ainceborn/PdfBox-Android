@@ -78,9 +78,8 @@ class TilingPaintFactory {
                  PDColor color, AffineTransform xform) throws IOException {
 
         if (!(colorSpace instanceof PDPattern)) {
-            int argb = PdfBoxAndroidUtils.getColorInt(color, drawer.getGraphicsState().getAlphaConstant());
             Paint paint = new Paint();
-            paint.setColor(argb);
+            paint.setColor(color.toARGB((float) drawer.getGraphicsState().getAlphaConstant()));
             paint.setAntiAlias(true);
             return paint;
         }
