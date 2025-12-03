@@ -31,18 +31,11 @@ import com.tom_roush.pdfbox.cos.COSName;
  */
 public class PDDeviceCMYK extends PDDeviceColorSpace
 {
-   /**  The single instance of this class. */
-   public static PDDeviceCMYK INSTANCE;
-   static
-   {
-      INSTANCE = new PDDeviceCMYK();
-   }
+   public static final PDDeviceCMYK INSTANCE = new PDDeviceCMYK();
 
-   private final PDColor initialColor = new PDColor(new float[] { 0, 0, 0, 1 }, this);
+   private final PDColor initialColor = new PDColor(new float[]{0, 0, 0, 1}, this);
 
-   protected PDDeviceCMYK()
-   {
-   }
+   protected PDDeviceCMYK() {}
 
    @Override
    public String getName()
@@ -59,7 +52,7 @@ public class PDDeviceCMYK extends PDDeviceColorSpace
    @Override
    public float[] getDefaultDecode(int bitsPerComponent)
    {
-      return new float[] { 0, 1, 0, 1, 0, 1, 0, 1 };
+      return new float[] {0, 1, 0, 1, 0, 1, 0, 1};
    }
 
    @Override
@@ -69,22 +62,26 @@ public class PDDeviceCMYK extends PDDeviceColorSpace
    }
 
    @Override
-   public float[] toRGB(float[] value) throws IOException
+   public float[] toRGB(float[] value)
    {
+      // CMYK values are always 0..1 here.
       float c = value[0];
       float m = value[1];
       float y = value[2];
       float k = value[3];
 
-      float r = 255 * (1 - c) * (1 - k);
-      float g = 255 * (1 - m) * (1 - k);
-      float b = 255 * (1 - y) * (1 - k);
-      return new float[] { r, g, b };
+      // Convert to RGB in range 0..1
+      float r = (1 - c) * (1 - k);
+      float g = (1 - m) * (1 - k);
+      float b = (1 - y) * (1 - k);
+
+      return new float[]{r, g, b};
    }
 
    @Override
-   public Bitmap toRGBImage(Bitmap raster) throws IOException
+   public Bitmap toRGBImage(Bitmap raster)
    {
       return raster;
    }
 }
+

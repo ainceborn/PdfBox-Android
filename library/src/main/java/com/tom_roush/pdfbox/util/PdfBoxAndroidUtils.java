@@ -27,12 +27,15 @@ public class PdfBoxAndroidUtils {
      * @author Kanstantsin Valeitsenak
      */
     public static int getColorInt(PDColor color, double alphaConstant) throws IOException {
-        float[] rgb = color .getColorSpace().toRGB(color.getComponents());
+        float[] rgb = color.getColorSpace().toRGB(color.getComponents());
 
         int alpha = (int) Math.round(alphaConstant * 255.0);
         int r = Math.round(rgb[0] * 255);
         int g = Math.round(rgb[1] * 255);
         int b = Math.round(rgb[2] * 255);
+
+
+        System.out.println("PDColor [" +color.getColorSpace().getName() + "] to RGB: " +  rgb[0]+ "," + rgb[1] + "," + rgb[2] + " alpha: " +  alpha);
 
         // 0..255
         r = clamp(r);
