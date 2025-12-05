@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.tom_roush.pdfbox.Loader;
 import com.tom_roush.pdfbox.android.PDFBoxConfig;
@@ -160,16 +161,39 @@ public class MainActivity extends Activity {
         // Render the page and save it to an image file
         try {
             // Load in an already created PDF
-            PDDocument document = Loader.loadPDF(assetManager.open("pdf-test.pdf"));
+            PDDocument document = Loader.loadPDF(assetManager.open("manual.pdf"));
             // Create a renderer for the document
             PDFRenderer renderer = new PDFRenderer(document);
             // Render the image to an RGB Bitmap
-            pageImage = renderer.renderImage(0, 1, ImageType.ARGB);
+            final var pageIndex = new AtomicInteger(0);
+
+            pageImage = renderer.renderImage(pageIndex.getAndIncrement(), 1, ImageType.ARGB);
 
             // Save the render result to an image
             //tv.setText("Successfully rendered image to " + path);
             // Optional: display the render result on screen
             displayRenderedImage();
+
+
+            ImageView imageView = (ImageView) findViewById(R.id.renderedImageView);
+            imageView.setOnClickListener(view -> {
+                try {
+                    pageImage = renderer.renderImage(pageIndex.getAndIncrement(), 1, ImageType.ARGB);
+                } catch (Throwable e) {
+                    Log.e("PdfBox-Android-Sample", "Exception thrown while rendering file", e);
+                }
+                displayRenderedImage();
+            });
+            imageView.setOnLongClickListener(view -> {
+                try {
+                    pageImage = renderer.renderImage(pageIndex.decrementAndGet(), 1, ImageType.ARGB);
+                } catch (Throwable e) {
+                    Log.e("PdfBox-Android-Sample", "Exception thrown while rendering file", e);
+                    return false;
+                }
+                displayRenderedImage();
+                return true;
+            });
         }
         catch (IOException e)
         {
@@ -183,7 +207,7 @@ public class MainActivity extends Activity {
     public void fillForm(View v) {
         try {
             // Load the document and get the AcroForm
-            PDDocument document = Loader.loadPDF(assetManager.open("FormTest.pdf"));
+            PDDocument document = Loader.loadPDF(assetManager.open("sap_test.pdf"));
             PDDocumentCatalog docCatalog = document.getDocumentCatalog();
             PDAcroForm acroForm = docCatalog.getAcroForm();
 

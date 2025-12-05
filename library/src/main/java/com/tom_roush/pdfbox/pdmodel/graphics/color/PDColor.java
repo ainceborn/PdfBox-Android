@@ -26,6 +26,7 @@ import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.cos.COSNumber;
+import com.tom_roush.pdfbox.util.PdfBoxAndroidUtils;
 
 /**
  * A color value, consisting of one or more color components, or for pattern color spaces,
@@ -195,6 +196,19 @@ public final class PDColor
         rgb = (rgb << 8) + g;
         rgb = (rgb << 8) + b;
         return rgb;
+    }
+
+    public int toARGB(float alpha) throws IOException
+    {
+        float[] floats = colorSpace.toRGB(components);
+
+        int r = Math.round(floats[0] * 255);
+        int g = Math.round(floats[1] * 255);
+        int b = Math.round(floats[2] * 255);
+
+        int a = (int)Math.round(alpha * 255.0);
+
+        return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     /**

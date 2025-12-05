@@ -320,6 +320,8 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     protected Paint getPaint(PDColor color) throws IOException {
         PDColorSpace colorSpace = color.getColorSpace();
 
+        PDGraphicsState state = getGraphicsState();
+
         if (colorSpace == null) { // PDFBOX-5782
             android.graphics.Paint paint = new android.graphics.Paint();
             paint.setColor(android.graphics.Color.TRANSPARENT);
@@ -329,14 +331,25 @@ public class PageDrawer extends PDFGraphicsStreamEngine
                 "None".equals(((PDSeparation) colorSpace).getColorantName())) {
             // PDFBOX-4900: "The special colorant name None shall not produce any visible output"
             android.graphics.Paint paint = new android.graphics.Paint();
-            paint.setColor(android.graphics.Color.TRANSPARENT);
+
+            if(state != null){
+                float lineWidth = transformWidth(state.getLineWidth());
+                paint.setStrokeWidth(lineWidth);
+            }
+
+            paint.setColor(color.toARGB((float) getGraphicsState().getAlphaConstant()));
             return paint;
         }
         else if (!(colorSpace instanceof PDPattern)) {
-            int argb = PdfBoxAndroidUtils.getColorInt(color, getGraphicsState().getAlphaConstant());
             android.graphics.Paint paint = new android.graphics.Paint();
             paint.setAntiAlias(true);
-            paint.setColor(argb);
+            paint.setColor(color.toARGB((float) getGraphicsState().getAlphaConstant()));
+
+            if(state != null){
+                float lineWidth = transformWidth(state.getLineWidth());
+                paint.setStrokeWidth(lineWidth);
+            }
+
             return paint;
         }
         else {
@@ -675,7 +688,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
             var paint = getPaint(getGraphicsState().getStrokingColor());
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(graphicsState.getLineWidth());
+            paint.setStrokeWidth(transformWidth(graphicsState.getLineWidth()));
             setClip();
 
             canvas.drawPath(linePath, paint);
@@ -691,7 +704,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
         var paint = getPaint(getGraphicsState().getNonStrokingColor());
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(graphicsState.getLineWidth());
+        paint.setStrokeWidth(transformWidth(graphicsState.getLineWidth()));
         setClip();
         linePath.setFillType(windingRule);
 
@@ -887,6 +900,12 @@ public class PageDrawer extends PDFGraphicsStreamEngine
                 finalPaint.setFilterBitmap(true);
                 finalPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
 
+                var state = getGraphicsState();
+                if(state != null){
+                    float lineWidth = transformWidth(state.getLineWidth());
+                    paint.setStrokeWidth(lineWidth);
+                }
+
                 Canvas finalCanvas = new Canvas(renderedPaint);
                 finalCanvas.drawBitmap(renderedMask, 0, 0, finalPaint);
 
@@ -950,6 +969,13 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             Paint paint = new Paint();
             paint.setAntiAlias(true);
             paint.setFilterBitmap(true);
+
+            var state = getGraphicsState();
+            if(state != null){
+                float lineWidth = transformWidth(state.getLineWidth());
+                paint.setStrokeWidth(lineWidth);
+            }
+
             paint.setShader(new BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
 
             // TODO: apply softMask to Paint

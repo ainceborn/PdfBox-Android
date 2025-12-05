@@ -34,6 +34,9 @@ public class PdfBoxAndroidUtils {
         int g = Math.round(rgb[1] * 255);
         int b = Math.round(rgb[2] * 255);
 
+
+        System.out.println("PDColor [" +color.getColorSpace().getName() + "] to RGB: " +  rgb[0]+ "," + rgb[1] + "," + rgb[2] + " alpha: " +  alpha);
+
         // 0..255
         r = clamp(r);
         g = clamp(g);
