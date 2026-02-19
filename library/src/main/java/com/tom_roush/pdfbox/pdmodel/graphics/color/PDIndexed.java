@@ -24,6 +24,7 @@ import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSBase;
 import com.tom_roush.pdfbox.cos.COSInteger;
 import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.cos.COSNull;
 import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.cos.COSStream;
 import com.tom_roush.pdfbox.cos.COSString;
@@ -60,7 +61,7 @@ public final class PDIndexed extends PDSpecialColorSpace {
         array.add(COSName.INDEXED);
         array.add(COSName.DEVICERGB);
         array.add(COSInteger.get(255));
-        array.add(null);
+        array.add(COSNull.NULL);
     }
 
     public PDIndexed(COSArray indexedArray) throws IOException {
@@ -208,14 +209,17 @@ public final class PDIndexed extends PDSpecialColorSpace {
         return new float[] { rgb[0] / 255f, rgb[1] / 255f, rgb[2] / 255f };
     }
 
+    @Override
     public Bitmap toRGBImage(Bitmap raster) {
         int width = raster.getWidth();
         int height = raster.getHeight();
+
+        // ARGB_8888, чтобы иметь возможность альфы, если понадобится
         Bitmap rgbBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
 
+        var i = 0;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-
                 int pixel = raster.getPixel(x, y);
                 int index;
                 if (raster.getConfig() == Bitmap.Config.ALPHA_8) {
@@ -224,21 +228,18 @@ public final class PDIndexed extends PDSpecialColorSpace {
                     index = Color.red(pixel) & 0xFF;
                 }
 
-                index = Math.min(index, rgbColorTable.length - 1);
+                index = Math.min(index, actualMaxIndex);
                 int[] rgb = rgbColorTable[index];
 
-                int alpha = (raster.getPixel(x, y) >>> 24) & 0xFF;
-
-                if (alpha == 0) {
-                    rgbBitmap.setPixel(x, y, 0);
-                } else {
-                    rgbBitmap.setPixel(x, y, (0xFF << 24) | (rgb[0] << 16) | (rgb[1] << 8) | rgb[2]);
-                }
+                rgbBitmap.setPixel(x, y, (0xFF << 24) | (rgb[0] << 16) | (rgb[1] << 8) | rgb[2]);
             }
         }
 
+        System.out.println("I: "+ i + ": ALL PIXELS: " + (width * height));
+
         return rgbBitmap;
     }
+
 
     public PDColorSpace getBaseColorSpace() {
         return baseColorSpace;

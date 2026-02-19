@@ -721,8 +721,8 @@ public final class PDImageXObject extends PDXObject implements PDImage
      */
     public PDImageXObject getMask() throws IOException
     {
-        COSBase mask = getCOSObject().getDictionaryObject(COSName.MASK);
-        if (mask instanceof COSArray)
+        COSArray mask = getCOSObject().getCOSArray(COSName.MASK);
+        if (mask != null)
         {
             // color key mask, no explicit mask to return
             return null;
@@ -745,12 +745,7 @@ public final class PDImageXObject extends PDXObject implements PDImage
      */
     public COSArray getColorKeyMask()
     {
-        COSBase mask = getCOSObject().getDictionaryObject(COSName.MASK);
-        if (mask instanceof COSArray)
-        {
-            return (COSArray)mask;
-        }
-        return null;
+        return getCOSObject().getCOSArray(COSName.MASK);
     }
 
     /**
@@ -779,6 +774,31 @@ public final class PDImageXObject extends PDXObject implements PDImage
         else
         {
             return getCOSObject().getInt(COSName.BITS_PER_COMPONENT, COSName.BPC);
+        }
+    }
+
+    private void initJPXValues()
+    {
+
+        // some of the dictionary values of the COSStream may be overwritten by values which are extracted from the
+        // image itself, such as
+        // width and height of the image
+        // bits per component
+        // the colorspace of the image is used if the dictionary doesn't provide any value
+        PDStream stream = getStream();
+        try (COSInputStream is = stream.createInputStream())
+        {
+            DecodeResult decodeResult = is.getDecodeResult();
+            stream.getCOSObject().addAll(decodeResult.getParameters());
+            if (colorSpace == null)
+            {
+                colorSpace = decodeResult.getJPXColorSpace();
+            }
+
+        }
+        catch (IOException exception)
+        {
+           // LOG.debug("Can't initialize JPX based values", exception);
         }
     }
 
