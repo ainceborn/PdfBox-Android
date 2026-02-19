@@ -31,6 +31,7 @@ import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDStream;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * Indexed color spaces allow a PDF to use a small color lookup table (palette),
@@ -52,7 +53,7 @@ public final class PDIndexed extends PDSpecialColorSpace {
     private byte[] lookupData;
     private float[][] colorTable;
     private int actualMaxIndex;
-    private int[][] rgbColorTable;
+    public int[][] rgbColorTable;
 
     public PDIndexed() {
         array = new COSArray();
@@ -210,10 +211,11 @@ public final class PDIndexed extends PDSpecialColorSpace {
     public Bitmap toRGBImage(Bitmap raster) {
         int width = raster.getWidth();
         int height = raster.getHeight();
-        Bitmap rgbImage = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Bitmap rgbBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
+
                 int pixel = raster.getPixel(x, y);
                 int index;
                 if (raster.getConfig() == Bitmap.Config.ALPHA_8) {
@@ -221,13 +223,21 @@ public final class PDIndexed extends PDSpecialColorSpace {
                 } else {
                     index = Color.red(pixel) & 0xFF;
                 }
-                index = Math.min(index, actualMaxIndex);
+
+                index = Math.min(index, rgbColorTable.length - 1);
                 int[] rgb = rgbColorTable[index];
-                rgbImage.setPixel(x, y, Color.rgb(rgb[0], rgb[1], rgb[2]));
+
+                int alpha = (raster.getPixel(x, y) >>> 24) & 0xFF;
+
+                if (alpha == 0) {
+                    rgbBitmap.setPixel(x, y, 0);
+                } else {
+                    rgbBitmap.setPixel(x, y, (0xFF << 24) | (rgb[0] << 16) | (rgb[1] << 8) | rgb[2]);
+                }
             }
         }
 
-        return rgbImage;
+        return rgbBitmap;
     }
 
     public PDColorSpace getBaseColorSpace() {

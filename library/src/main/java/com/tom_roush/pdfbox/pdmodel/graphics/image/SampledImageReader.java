@@ -28,6 +28,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import com.tom_roush.harmony.javax.imageio.stream.ImageInputStream;
@@ -37,6 +38,7 @@ import com.tom_roush.pdfbox.cos.COSNumber;
 import com.tom_roush.pdfbox.filter.DecodeOptions;
 import com.tom_roush.pdfbox.io.IOUtils;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColorSpace;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDIndexed;
 
 /**
  * Reads a sampled image from a PDF file.
@@ -210,18 +212,20 @@ final class SampledImageReader
             // in PDColorSpace#toRGBImage expects an 8-bit range, i.e. 0-255.
             final float[] defaultDecode = pdImage.getColorSpace().getDefaultDecode(8);
             final float[] decode = getDecodeArray(pdImage);
+
+            boolean hasMask = colorKey != null;
+
             if (pdImage.getSuffix() != null && pdImage.getSuffix().equals("jpg") && subsampling == 1)
             {
                 return BitmapFactory.decodeStream(pdImage.createInputStream());
             }
-            else if (bitsPerComponent == 8 && colorKey == null && Arrays.equals(decode, defaultDecode))
-            {
+            if (bitsPerComponent == 8 && colorKey == null && Arrays.equals(decode, defaultDecode)) {
                 // convert image, faster path for non-decoded, non-colormasked 8-bit images
                 return from8bit(pdImage, clipped, subsampling, width, height);
             }
-            Log.e("PdfBox-Android", "Trying to create other-bit image not supported");
-//        return fromAny(pdImage, colorKey, clipped, subsampling, width, height);
-            return from8bit(pdImage, clipped, subsampling, width, height);
+
+            //Log.e("PdfBox-Android", "Trying to create other-bit image not supported");
+            return fromAny(pdImage, colorKey, clipped, subsampling, width, height);
         }
         catch (NegativeArraySizeException ex)
         {
@@ -562,4 +566,176 @@ final class SampledImageReader
 
         return decode;
     }
+
+
+    private static Bitmap fromAny(
+            PDImage pdImage,
+            COSArray colorKey,
+            Rect clipped,
+            final int subsampling,
+            final int width,
+            final int height
+    ) throws IOException {
+
+        int currentSubsampling = subsampling;
+
+        PDColorSpace colorSpace = pdImage.getColorSpace();
+        int numComponents = colorSpace.getNumberOfComponents();
+        int bitsPerComponent = pdImage.getBitsPerComponent();
+        float[] decode = getDecodeArray(pdImage);
+
+        DecodeOptions options = new DecodeOptions(currentSubsampling);
+        options.setSourceRegion(
+                new Rect(clipped.left, clipped.top, clipped.width(), clipped.height())
+        );
+
+        /* ------------------------------------------------------------
+         * 1. Bitmap as WritableRaster
+         *    (raw components not a RGB)
+         * ------------------------------------------------------------ */
+
+        Bitmap raster = Bitmap.createBitmap(
+                width,
+                height,
+                Bitmap.Config.ALPHA_8
+        );
+
+        ByteBuffer rasterBuffer = ByteBuffer.allocateDirect(width * height * numComponents);
+        rasterBuffer.order(ByteOrder.BIG_ENDIAN);
+
+        /* ------------------------------------------------------------
+         * 2. ColorKey mask
+         * ------------------------------------------------------------ */
+
+        float[] colorKeyRanges = null;
+        Bitmap colorKeyMask = null;
+        byte[] alpha = new byte[1];
+
+        if (colorKey != null && colorKey.size() >= numComponents * 2) {
+            colorKeyRanges = colorKey.toFloatArray();
+            colorKeyMask = Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8);
+        }
+
+        try (InputStream imageStream = pdImage.createInputStream(options);
+             ImageInputStream iis = new MemoryCacheImageInputStream(imageStream)) {
+
+            final int inputWidth;
+            final int startx;
+            final int starty;
+            final int scanWidth;
+            final int scanHeight;
+
+            if (options.isFilterSubsampled()) {
+                inputWidth = width;
+                startx = 0;
+                starty = 0;
+                scanWidth = width;
+                scanHeight = height;
+                currentSubsampling = 1;
+            } else {
+                inputWidth = pdImage.getWidth();
+                startx = clipped.left;
+                starty = clipped.top;
+                scanWidth = clipped.width();
+                scanHeight = clipped.height();
+            }
+
+            float sampleMax = (float) Math.pow(2, bitsPerComponent) - 1f;
+
+            int padding = 0;
+            int bitsPerRow = inputWidth * numComponents * bitsPerComponent;
+            if (bitsPerRow % 8 != 0) {
+                padding = 8 - (bitsPerRow % 8);
+            }
+
+            byte[] src = new byte[numComponents];
+
+            for (int y = 0; y < starty + scanHeight; y++) {
+                for (int x = 0; x < startx + scanWidth; x++) {
+
+                    boolean isMasked = true;
+
+                    for (int c = 0; c < numComponents; c++) {
+                        int value = (int) iis.readBits(bitsPerComponent);
+
+                        if (colorKeyRanges != null) {
+                            isMasked &= value >= colorKeyRanges[c * 2]
+                                    && value <= colorKeyRanges[c * 2 + 1];
+                        }
+
+                        float dMin = decode[c * 2];
+                        float dMax = decode[c * 2 + 1];
+
+                        float output = dMin + value * ((dMax - dMin) / sampleMax);
+
+                        src[c] = (byte) Math.round(output);
+                    }
+
+                    if (x >= startx && y >= starty
+                            && x % currentSubsampling == 0
+                            && y % currentSubsampling == 0) {
+
+                        int dstX = (x - startx) / currentSubsampling;
+                        int dstY = (y - starty) / currentSubsampling;
+
+                        for (int c = 0; c < numComponents; c++) {
+                            rasterBuffer.put(src[c]);
+                        }
+
+                        if (colorKeyMask != null) {
+                            alpha[0] = (byte) (isMasked ? 255 : 0);
+                            colorKeyMask.setPixel(dstX, dstY, alpha[0] << 24);
+                        }
+                    }
+                }
+                iis.readBits(padding);
+            }
+        }
+
+        rasterBuffer.rewind();
+        raster.copyPixelsFromBuffer(rasterBuffer);
+
+        /* ------------------------------------------------------------
+         * 3. to RGB
+         * ------------------------------------------------------------ */
+
+        Bitmap rgb = colorSpace.toRGBImage(raster);
+
+        /* ------------------------------------------------------------
+         * 4. apply color key mask
+         * ------------------------------------------------------------ */
+
+        if (colorKeyMask != null) {
+            rgb = applyColorKeyMask(rgb, colorKeyMask);
+        }
+
+        return rgb;
+    }
+
+    private static Bitmap applyColorKeyMask(Bitmap image, Bitmap mask) {
+
+        int width = image.getWidth();
+        int height = image.getHeight();
+
+        Bitmap out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+
+        int[] rgbPixels = new int[width * height];
+        image.getPixels(rgbPixels, 0, width, 0, 0, width, height);
+
+        byte[] maskPixels = new byte[width * height];
+        mask.copyPixelsToBuffer(ByteBuffer.wrap(maskPixels));
+
+        for (int i = 0; i < rgbPixels.length; i++) {
+            int rgb = rgbPixels[i] & 0x00FFFFFF;
+            int alpha = 255 - (maskPixels[i] & 0xFF); // inversion
+            rgbPixels[i] = (alpha << 24) | rgb;
+        }
+
+        out.setPixels(rgbPixels, 0, width, 0, 0, width, height);
+        return out;
+    }
+
+
+
+
 }
