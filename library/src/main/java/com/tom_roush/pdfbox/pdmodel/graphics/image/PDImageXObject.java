@@ -600,13 +600,15 @@ public final class PDImageXObject extends PDXObject implements PDImage
         // scale mask to fit image, or image to fit mask, whichever is larger.
         // also make sure that mask is 8 bit gray and image is ARGB as this
         // is what needs to be returned.
+        boolean is565 = mask.getConfig() == Bitmap.Config.RGB_565;
+
         if (mask.getWidth() < width || mask.getHeight() < height)
         {
             mask = scaleImage(mask, width, height, interpolateMask);
         }
         if (mask.getConfig() != Bitmap.Config.ALPHA_8 || !image.isMutable())
         {
-            mask = mask.copy(Bitmap.Config.ALPHA_8, true);
+            //mask = mask.copy(Bitmap.Config.ALPHA_8, true);
         }
 
         if (image.getWidth() < width || image.getHeight() < height)
@@ -632,25 +634,57 @@ public final class PDImageXObject extends PDXObject implements PDImage
                 mask.getPixels(maskPixels, 0, width, 0, y, width, 1);
                 for (int i = 0, c = width; c > 0; i++, c--)
                 {
-                    pixels[i] = pixels[i] & 0xffffff | ~maskPixels[i] & 0xff000000;
+                    int alpha;
+
+                    if (is565) {
+                        // берём R из RGB_565 (5 бит) и расширяем до 8 бит
+                        int r5 = (maskPixels[i] >> 11) & 0x1F;
+                        alpha = ((r5 << 3) | (r5 >> 2)) & 0xFF;
+                    } else {
+                        // обычный ARGB — берём альфу из маски
+                        alpha = (maskPixels[i] >>> 24) & 0xFF;
+                    }
+
+                    // Инвертируем альфу, если isSoft == false
+                    alpha ^= 0xFF;
+
+                    pixels[i] = (pixels[i] & 0x00FFFFFF) | (alpha << 24);
                 }
                 image.setPixels(pixels, 0, width, 0, y, width, 1);
             }
         }
         else if (matte == null)
         {
-            for (int y = 0; y < height; y++)
-            {
+            int[] alphaPixels = new int[width]; // аналог samples
+
+            for (int y = 0; y < height; y++) {
+                // Берём текущую строку пикселей
                 image.getPixels(pixels, 0, width, 0, y, width, 1);
                 mask.getPixels(maskPixels, 0, width, 0, y, width, 1);
-                for (int x = 0; x < width; x++)
-                {
-                    if (!isSoft)
-                    {
-                        maskPixels[x] ^= -1;
+
+                // Извлекаем альфу каждого пикселя
+                for (int x = 0; x < width; x++) {
+                    //alphaPixels[x] = (maskPixels[x] >> 24) & 0xFF; // аналог getSamples
+
+                    if (is565) {
+                        // берём R из RGB_565 (5 бит)
+                        int r5 = (maskPixels[x] >> 11) & 0x1F;          // 0..31
+                        alphaPixels[x] = ((r5 << 3) | (r5 >> 2)) & 0xFF; // расширяем до 8 бит
+                    } else {
+                        // обычный ARGB
+                        alphaPixels[x] = (maskPixels[x] >>> 24) & 0xFF; // альфа
                     }
-                    pixels[x] = pixels[x] & 0xffffff | maskPixels[x] & 0xff000000;
+
+                    if (!isSoft) {
+                        alphaPixels[x] ^= 0xFF; // инверсия альфы
+                    }
                 }
+
+                // Объединяем цвет с новой альфой и сохраняем обратно
+                for (int x = 0; x < width; x++) {
+                    pixels[x] = (alphaPixels[x] << 24) | (pixels[x] & 0x00FFFFFF);
+                }
+
                 image.setPixels(pixels, 0, width, 0, y, width, 1);
             }
         }
@@ -680,7 +714,12 @@ public final class PDImageXObject extends PDXObject implements PDImage
                 mask.getPixels(maskPixels, 0, width, 0, y, width, 1);
                 for (int x = 0; x < width; x++)
                 {
-                    int a = Color.alpha(maskPixels[x]);
+                    int a;
+                    if (is565) {
+                        a = Color.red(maskPixels[x]);
+                    } else  {
+                        a = Color.alpha(maskPixels[x]);
+                    }
                     if (a == 0)
                     {
                         pixels[x] = pixels[x] & 0xffffff;
