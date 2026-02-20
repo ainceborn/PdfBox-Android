@@ -214,10 +214,8 @@ public final class PDIndexed extends PDSpecialColorSpace {
         int width = raster.getWidth();
         int height = raster.getHeight();
 
-        // ARGB_8888, чтобы иметь возможность альфы, если понадобится
         Bitmap rgbBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
 
-        var i = 0;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int pixel = raster.getPixel(x, y);
@@ -234,8 +232,6 @@ public final class PDIndexed extends PDSpecialColorSpace {
                 rgbBitmap.setPixel(x, y, (0xFF << 24) | (rgb[0] << 16) | (rgb[1] << 8) | rgb[2]);
             }
         }
-
-        System.out.println("I: "+ i + ": ALL PIXELS: " + (width * height));
 
         return rgbBitmap;
     }

@@ -637,15 +637,12 @@ public final class PDImageXObject extends PDXObject implements PDImage
                     int alpha;
 
                     if (is565) {
-                        // берём R из RGB_565 (5 бит) и расширяем до 8 бит
                         int r5 = (maskPixels[i] >> 11) & 0x1F;
                         alpha = ((r5 << 3) | (r5 >> 2)) & 0xFF;
                     } else {
-                        // обычный ARGB — берём альфу из маски
                         alpha = (maskPixels[i] >>> 24) & 0xFF;
                     }
 
-                    // Инвертируем альфу, если isSoft == false
                     alpha ^= 0xFF;
 
                     pixels[i] = (pixels[i] & 0x00FFFFFF) | (alpha << 24);
@@ -658,29 +655,23 @@ public final class PDImageXObject extends PDXObject implements PDImage
             int[] alphaPixels = new int[width]; // аналог samples
 
             for (int y = 0; y < height; y++) {
-                // Берём текущую строку пикселей
                 image.getPixels(pixels, 0, width, 0, y, width, 1);
                 mask.getPixels(maskPixels, 0, width, 0, y, width, 1);
 
-                // Извлекаем альфу каждого пикселя
                 for (int x = 0; x < width; x++) {
-                    //alphaPixels[x] = (maskPixels[x] >> 24) & 0xFF; // аналог getSamples
 
                     if (is565) {
-                        // берём R из RGB_565 (5 бит)
-                        int r5 = (maskPixels[x] >> 11) & 0x1F;          // 0..31
-                        alphaPixels[x] = ((r5 << 3) | (r5 >> 2)) & 0xFF; // расширяем до 8 бит
+                        int r5 = (maskPixels[x] >> 11) & 0x1F;
+                        alphaPixels[x] = ((r5 << 3) | (r5 >> 2)) & 0xFF;
                     } else {
-                        // обычный ARGB
-                        alphaPixels[x] = (maskPixels[x] >>> 24) & 0xFF; // альфа
+                        alphaPixels[x] = (maskPixels[x] >>> 24) & 0xFF;
                     }
 
                     if (!isSoft) {
-                        alphaPixels[x] ^= 0xFF; // инверсия альфы
+                        alphaPixels[x] ^= 0xFF;
                     }
                 }
 
-                // Объединяем цвет с новой альфой и сохраняем обратно
                 for (int x = 0; x < width; x++) {
                     pixels[x] = (alphaPixels[x] << 24) | (pixels[x] & 0x00FFFFFF);
                 }
