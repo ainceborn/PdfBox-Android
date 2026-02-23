@@ -17,7 +17,7 @@ repositories {
 }
 ...
 dependencies {
-   implementation 'com.tom-roush:pdfbox-android:2.0.27.6'
+   implementation 'com.github.ainceborn:PdfBox-Android:2.0.27.7'
 }
 ```
 
