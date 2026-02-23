@@ -17,6 +17,8 @@
 package com.tom_roush.pdfbox.pdmodel.graphics.color;
 
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.util.Log;
 
 import java.io.IOException;
@@ -88,7 +90,21 @@ public final class PDDeviceRGB extends PDDeviceColorSpace
     {
         if (raster.getConfig() == Bitmap.Config.ALPHA_8)
         {
+            Bitmap alphaBitmap = raster; // ALPHA_8
+            Bitmap rgbBitmap = Bitmap.createBitmap(
+                    alphaBitmap.getWidth(),
+                    alphaBitmap.getHeight(),
+                    Bitmap.Config.ARGB_8888
+            );
+            rgbBitmap.eraseColor(Color.TRANSPARENT);
+
+            Canvas canvas = new Canvas(rgbBitmap);
+            // base RGB color
+            canvas.drawBitmap(alphaBitmap, 0, 0, null);
+
             Log.e("PdfBox-Android", "Raster in PDDeviceRGB was ALPHA_8");
+
+            return  rgbBitmap;
         }
         return raster;
 

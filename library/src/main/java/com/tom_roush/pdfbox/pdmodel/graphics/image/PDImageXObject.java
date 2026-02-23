@@ -600,13 +600,15 @@ public final class PDImageXObject extends PDXObject implements PDImage
         // scale mask to fit image, or image to fit mask, whichever is larger.
         // also make sure that mask is 8 bit gray and image is ARGB as this
         // is what needs to be returned.
+        boolean is565 = mask.getConfig() == Bitmap.Config.RGB_565;
+
         if (mask.getWidth() < width || mask.getHeight() < height)
         {
             mask = scaleImage(mask, width, height, interpolateMask);
         }
         if (mask.getConfig() != Bitmap.Config.ALPHA_8 || !image.isMutable())
         {
-            mask = mask.copy(Bitmap.Config.ALPHA_8, true);
+            //mask = mask.copy(Bitmap.Config.ALPHA_8, true);
         }
 
         if (image.getWidth() < width || image.getHeight() < height)
@@ -632,25 +634,48 @@ public final class PDImageXObject extends PDXObject implements PDImage
                 mask.getPixels(maskPixels, 0, width, 0, y, width, 1);
                 for (int i = 0, c = width; c > 0; i++, c--)
                 {
-                    pixels[i] = pixels[i] & 0xffffff | ~maskPixels[i] & 0xff000000;
+                    int alpha;
+
+                    if (is565) {
+                        int r5 = (maskPixels[i] >> 11) & 0x1F;
+                        alpha = ((r5 << 3) | (r5 >> 2)) & 0xFF;
+                    } else {
+                        alpha = (maskPixels[i] >>> 24) & 0xFF;
+                    }
+
+                    alpha ^= 0xFF;
+
+                    pixels[i] = (pixels[i] & 0x00FFFFFF) | (alpha << 24);
                 }
                 image.setPixels(pixels, 0, width, 0, y, width, 1);
             }
         }
         else if (matte == null)
         {
-            for (int y = 0; y < height; y++)
-            {
+            int[] alphaPixels = new int[width]; // аналог samples
+
+            for (int y = 0; y < height; y++) {
                 image.getPixels(pixels, 0, width, 0, y, width, 1);
                 mask.getPixels(maskPixels, 0, width, 0, y, width, 1);
-                for (int x = 0; x < width; x++)
-                {
-                    if (!isSoft)
-                    {
-                        maskPixels[x] ^= -1;
+
+                for (int x = 0; x < width; x++) {
+
+                    if (is565) {
+                        int r5 = (maskPixels[x] >> 11) & 0x1F;
+                        alphaPixels[x] = ((r5 << 3) | (r5 >> 2)) & 0xFF;
+                    } else {
+                        alphaPixels[x] = (maskPixels[x] >>> 24) & 0xFF;
                     }
-                    pixels[x] = pixels[x] & 0xffffff | maskPixels[x] & 0xff000000;
+
+                    if (!isSoft) {
+                        alphaPixels[x] ^= 0xFF;
+                    }
                 }
+
+                for (int x = 0; x < width; x++) {
+                    pixels[x] = (alphaPixels[x] << 24) | (pixels[x] & 0x00FFFFFF);
+                }
+
                 image.setPixels(pixels, 0, width, 0, y, width, 1);
             }
         }
@@ -680,7 +705,12 @@ public final class PDImageXObject extends PDXObject implements PDImage
                 mask.getPixels(maskPixels, 0, width, 0, y, width, 1);
                 for (int x = 0; x < width; x++)
                 {
-                    int a = Color.alpha(maskPixels[x]);
+                    int a;
+                    if (is565) {
+                        a = Color.red(maskPixels[x]);
+                    } else  {
+                        a = Color.alpha(maskPixels[x]);
+                    }
                     if (a == 0)
                     {
                         pixels[x] = pixels[x] & 0xffffff;
@@ -721,8 +751,8 @@ public final class PDImageXObject extends PDXObject implements PDImage
      */
     public PDImageXObject getMask() throws IOException
     {
-        COSBase mask = getCOSObject().getDictionaryObject(COSName.MASK);
-        if (mask instanceof COSArray)
+        COSArray mask = getCOSObject().getCOSArray(COSName.MASK);
+        if (mask != null)
         {
             // color key mask, no explicit mask to return
             return null;
@@ -745,12 +775,7 @@ public final class PDImageXObject extends PDXObject implements PDImage
      */
     public COSArray getColorKeyMask()
     {
-        COSBase mask = getCOSObject().getDictionaryObject(COSName.MASK);
-        if (mask instanceof COSArray)
-        {
-            return (COSArray)mask;
-        }
-        return null;
+        return getCOSObject().getCOSArray(COSName.MASK);
     }
 
     /**
@@ -779,6 +804,31 @@ public final class PDImageXObject extends PDXObject implements PDImage
         else
         {
             return getCOSObject().getInt(COSName.BITS_PER_COMPONENT, COSName.BPC);
+        }
+    }
+
+    private void initJPXValues()
+    {
+
+        // some of the dictionary values of the COSStream may be overwritten by values which are extracted from the
+        // image itself, such as
+        // width and height of the image
+        // bits per component
+        // the colorspace of the image is used if the dictionary doesn't provide any value
+        PDStream stream = getStream();
+        try (COSInputStream is = stream.createInputStream())
+        {
+            DecodeResult decodeResult = is.getDecodeResult();
+            stream.getCOSObject().addAll(decodeResult.getParameters());
+            if (colorSpace == null)
+            {
+                colorSpace = decodeResult.getJPXColorSpace();
+            }
+
+        }
+        catch (IOException exception)
+        {
+           // LOG.debug("Can't initialize JPX based values", exception);
         }
     }
 
